@@ -1,0 +1,6 @@
+@BidNet_HostAddress = http://localhost:5014
+
+GET {{BidNet_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
