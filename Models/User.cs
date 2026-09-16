@@ -37,5 +37,7 @@ namespace BidNet.Models
         // Navigation properties
         public virtual ICollection<Product> ListedProducts { get; set; } = new List<Product>();
         public virtual ICollection<Product> WonProducts { get; set; } = new List<Product>();
+
+        public virtual ICollection<Bid> Bids { get; set; } = new List<Bid>();
     }
 }

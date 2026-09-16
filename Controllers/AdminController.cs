@@ -2,7 +2,7 @@
 
 namespace BidNet.Controllers
 {
-    public class UserController : Controller
+    public class AdminController : Controller
     {
         public IActionResult Index()
         {

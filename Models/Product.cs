@@ -45,6 +45,8 @@ namespace BidNet.Models
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+        public virtual ICollection<Bid> Bids { get; set; } = new List<Bid>();
     }
 
     public enum ProductStatus

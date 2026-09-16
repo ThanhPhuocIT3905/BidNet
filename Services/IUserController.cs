@@ -1,6 +1,6 @@
 ﻿namespace BidNet.Services
 {
-    public class UserService
+    public interface IUserController
     {
     }
 }

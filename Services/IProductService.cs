@@ -1,6 +1,6 @@
 ﻿namespace BidNet.Services
 {
-    public interface IUserService
+    public interface IProductService
     {
     }
 }
