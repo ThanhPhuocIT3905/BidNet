@@ -11,9 +11,14 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
-// Configure EF Core with InMemory database for testing/demo
+// Lấy chuỗi kết nối SQL Server từ appsettings.json.
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException(
+        "Connection string 'DefaultConnection' was not found.");
+
+// Đăng ký AppDbContext để có thể inject và làm việc với database.
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseInMemoryDatabase("BidNetDb"));
+    options.UseSqlServer(connectionString));
 
 // Dependency Injection: Repositories
 builder.Services.AddScoped<IBidRepository, BidRepository>();
