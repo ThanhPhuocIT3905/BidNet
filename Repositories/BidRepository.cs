@@ -6,10 +6,13 @@ namespace BidNet.Repositories
 {
     public class BidRepository : IBidRepository
     {
+        // Các hàm CRUD cơ bản. PlaceAsync trong BidService dùng chung DbContext
+        // để lưu Bid và CurrentPrice cùng một SaveChanges, tránh lệch dữ liệu.
         private readonly AppDbContext _ctx;
         public BidRepository(AppDbContext ctx) => _ctx = ctx;
 
         public async Task<IEnumerable<Bid>> GetBidsByProductIdAsync(int productId) => await _ctx.Bids
+            // Lịch sử theo giá cao trước; API công khai có cách phân trang riêng.
             .Where(b => b.ProductId == productId)
             .OrderByDescending(b => b.Amount)
             .ToListAsync();

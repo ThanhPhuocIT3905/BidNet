@@ -4,10 +4,6 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
-    <ContainerRuntimeIdentifier>win-x64</ContainerRuntimeIdentifier>
-    <EnableSdkContainerDebugging>True</EnableSdkContainerDebugging>
-    <ContainerBaseImage>mcr.microsoft.com/dotnet/aspnet:10.0-nanoserver-ltsc2022</ContainerBaseImage>
     <UserSecretsId>fe9f06c5-3346-4ade-9920-ccb5198ef37e</UserSecretsId>
   </PropertyGroup>
 
@@ -20,10 +16,14 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Scalar.AspNetCore" Version="2.0.18" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.2.3" />
   </ItemGroup>
 
   <ItemGroup>
-    <ContainerPort Include="8081" />
+    <Compile Remove="Tests/**/*.cs" />
+    <!-- Test là dự án riêng; không đóng gói file đầu ra của test vào API. -->
+    <Content Remove="Tests/**" />
+    <None Remove="Tests/**" />
   </ItemGroup>
 
 </Project>
