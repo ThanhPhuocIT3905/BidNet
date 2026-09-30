@@ -5,6 +5,8 @@ namespace BidNet.Models
 {
     public class Bid
     {
+        // Một dòng là một lượt trả giá, nối với sản phẩm và người đặt giá.
+        // Giá thắng cuối cùng được worker suy ra từ các dòng bid này.
         [Key]
         public int Id { get; set; }
 
@@ -24,6 +26,7 @@ namespace BidNet.Models
         [Column(TypeName = "decimal(18,2)")]
         public decimal Amount { get; set; }
 
+        // Lưu UTC để so sánh và hiển thị nhất quán giữa các máy.
         public DateTime BidTime { get; set; } = DateTime.UtcNow;
     }
 }

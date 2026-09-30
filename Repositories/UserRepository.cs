@@ -8,6 +8,7 @@ namespace BidNet.Repositories
 {
     public class UserRepository : IUserRepository
     {
+        // Repository gom thao tác lưu User; service giữ phần quy tắc nghiệp vụ.
         private readonly AppDbContext _ctx;
         public UserRepository(AppDbContext ctx) => _ctx = ctx;
 
@@ -22,6 +23,7 @@ namespace BidNet.Repositories
 
         public async Task AddAsync(User user)
         {
+            // Lưu ngay để ID sinh bởi database có sẵn cho nơi gọi.
             await _ctx.Users.AddAsync(user);
             await _ctx.SaveChangesAsync();
         }
@@ -34,6 +36,8 @@ namespace BidNet.Repositories
 
         public async Task DeleteAsync(int id)
         {
+            // Đây là xóa vật lý cấp repository; API Admin hiện chỉ khóa mềm
+            // bằng IsActive=false để giữ lịch sử giao dịch.
             var user = await GetByIdAsync(id);
             if (user != null)
             {
