@@ -1,6 +1,9 @@
 @BidNet_HostAddress = http://localhost:5014
 
-GET {{BidNet_HostAddress}}/weatherforecast/
+GET {{BidNet_HostAddress}}/api/products?page=1&pageSize=20
 Accept: application/json
 
 ###
+
+GET {{BidNet_HostAddress}}/openapi/v1.json
+Accept: application/json
