@@ -13,10 +13,6 @@ namespace BidNet.Services;
 
 public class AuthService(AppDbContext db, IConfiguration config) : IAuthService
 {
-    // Không lưu mật khẩu gốc. PBKDF2 + salt riêng làm cùng một mật khẩu
-    // tạo hash khác nhau cho từng người; số vòng lặp làm đoán mật khẩu tốn công hơn.
-    private const int PasswordIterations = 210_000;
-
     // Đăng ký chỉ cấp Role=User; Admin không thể tự tạo qua API công khai.
     public async Task<UserResponseDto> RegisterAsync(UserRegisterDto request, CancellationToken ct)
     {
@@ -27,15 +23,15 @@ public class AuthService(AppDbContext db, IConfiguration config) : IAuthService
         if (await db.Users.AnyAsync(u => u.Username == username || u.Email == email, ct))
             throw new ApiException(409, "account_exists", "Username hoặc email đã được sử dụng.");
 
-        var salt = RandomNumberGenerator.GetBytes(16);
+        var (passwordHash, passwordSalt) = PasswordHasher.Create(request.Password);
         var user = new User
         {
             Username = username,
             Email = email,
             FullName = request.FullName?.Trim(),
             PhoneNumber = request.PhoneNumber?.Trim(),
-            PasswordSalt = salt,
-            PasswordHash = HashPassword(request.Password, salt),
+            PasswordSalt = passwordSalt,
+            PasswordHash = passwordHash,
             Role = "User"
         };
         db.Users.Add(user);
@@ -62,7 +58,7 @@ public class AuthService(AppDbContext db, IConfiguration config) : IAuthService
             u => u.Username == login || u.Email == login.ToLower(), ct);
         if (user is null || user.PasswordSalt.Length != 16 ||
             !CryptographicOperations.FixedTimeEquals(
-                user.PasswordHash, HashPassword(request.Password, user.PasswordSalt)))
+                user.PasswordHash, PasswordHasher.Hash(request.Password, user.PasswordSalt)))
             throw new ApiException(401, "invalid_credentials", "Thông tin đăng nhập không hợp lệ.");
         if (!user.IsActive)
             throw new ApiException(403, "account_inactive", "Tài khoản đã bị khóa.");
@@ -93,7 +89,4 @@ public class AuthService(AppDbContext db, IConfiguration config) : IAuthService
         };
     }
 
-    // Cùng password + salt + số vòng lặp luôn tạo lại đúng hash để so sánh lúc login.
-    private static byte[] HashPassword(string password, byte[] salt) =>
-        Rfc2898DeriveBytes.Pbkdf2(password, salt, PasswordIterations, HashAlgorithmName.SHA256, 32);
 }

@@ -1,10 +1,12 @@
 using System.Security.Claims;
+using BidNet.Controllers;
 using BidNet.Data;
 using BidNet.DTOs;
 using BidNet.Hubs;
 using BidNet.Models;
 using BidNet.Services;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -42,6 +44,52 @@ public class AuctionRulesTests
             ["Jwt:ExpireMinutes"] = "60",
             ["Auction:MinBidIncrement"] = "1000"
         }).Build();
+
+    [Fact]
+    public async Task AdminUpdateUser_UpdatesProfileAndReplacesPasswordHash()
+    {
+        await using var db = NewDatabase();
+        db.Users.AddRange(
+            new User { Id = 1, Username = "admin", Email = "admin@example.com", Role = "Admin" },
+            new User { Id = 2, Username = "buyer", Email = "buyer@example.com" });
+        await db.SaveChangesAsync();
+        var hub = new Mock<IHubContext<AuctionHub>>();
+        var controller = new AdminController(db, Current(db, 1), hub.Object,
+            NullLogger<AdminController>.Instance);
+
+        var result = await controller.UpdateUser(2, new AdminUserUpdateDto
+        {
+            Email = "new@example.com",
+            Password = "new-password-123",
+            Role = "Admin"
+        }, CancellationToken.None);
+
+        var response = Assert.IsType<UserResponseDto>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var updatedUser = await db.Users.SingleAsync(user => user.Id == 2);
+        Assert.Equal("new@example.com", response.Email);
+        Assert.Equal("Admin", response.Role);
+        Assert.Equal(16, updatedUser.PasswordSalt.Length);
+        Assert.Equal(32, updatedUser.PasswordHash.Length);
+        Assert.Equal(updatedUser.PasswordHash,
+            PasswordHasher.Hash("new-password-123", updatedUser.PasswordSalt));
+    }
+
+    [Fact]
+    public async Task AdminUpdateUser_RejectsDuplicateEmail()
+    {
+        await using var db = NewDatabase();
+        db.Users.AddRange(
+            new User { Id = 1, Username = "admin", Email = "admin@example.com", Role = "Admin" },
+            new User { Id = 2, Username = "buyer", Email = "buyer@example.com" });
+        await db.SaveChangesAsync();
+        var controller = new AdminController(db, Current(db, 1),
+            new Mock<IHubContext<AuctionHub>>().Object, NullLogger<AdminController>.Instance);
+
+        var error = await Assert.ThrowsAsync<ApiException>(() => controller.UpdateUser(
+            2, new AdminUserUpdateDto { Email = "admin@example.com" }, CancellationToken.None));
+
+        Assert.Equal(409, error.StatusCode);
+    }
 
     [Fact]
     public async Task RegisterAndLogin_UsesHashedPasswordAndRejectsBlockedUser()

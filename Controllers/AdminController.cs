@@ -6,6 +6,7 @@ using BidNet.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace BidNet.Controllers;
@@ -51,6 +52,57 @@ public class AdminController(
         user.IsActive = request.IsActive;
         user.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
+        return Ok(UserMapper.ToResponse(user));
+    }
+
+    [HttpPut("users/{id:int}")]
+    public async Task<ActionResult<UserResponseDto>> UpdateUser(
+        int id, AdminUserUpdateDto request, CancellationToken ct)
+    {
+        var admin = await currentUser.RequireActiveAsync(ct);
+        var user = await db.Users.FindAsync([id], ct)
+            ?? throw new ApiException(404, "user_not_found", "Không tìm thấy tài khoản.");
+
+        var username = string.IsNullOrWhiteSpace(request.Username) ? null : request.Username.Trim();
+        var email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLowerInvariant();
+        var role = string.IsNullOrWhiteSpace(request.Role) ? null : request.Role.Trim();
+
+        if (username is not null && await db.Users.AnyAsync(u => u.Id != id && u.Username == username, ct) ||
+            email is not null && await db.Users.AnyAsync(u => u.Id != id && u.Email == email, ct))
+            throw new ApiException(409, "account_exists", "Username hoặc email đã được sử dụng.");
+
+        if (role is not null)
+        {
+            if (!role.Equals("User", StringComparison.OrdinalIgnoreCase) &&
+                !role.Equals("Admin", StringComparison.OrdinalIgnoreCase))
+                throw new ApiException(400, "invalid_role", "Role chỉ được là User hoặc Admin.");
+            if (admin.Id == id && role.Equals("User", StringComparison.OrdinalIgnoreCase))
+                throw new ApiException(400, "cannot_demote_self", "Không thể tự hạ quyền Admin của mình.");
+            user.Role = role.Equals("Admin", StringComparison.OrdinalIgnoreCase) ? "Admin" : "User";
+        }
+
+        if (username is not null) user.Username = username;
+        if (email is not null) user.Email = email;
+        if (request.FullName is not null) user.FullName = request.FullName.Trim();
+        if (request.PhoneNumber is not null) user.PhoneNumber = request.PhoneNumber.Trim();
+        if (!string.IsNullOrWhiteSpace(request.Password))
+        {
+            var (passwordHash, passwordSalt) = PasswordHasher.Create(request.Password);
+            user.PasswordHash = passwordHash;
+            user.PasswordSalt = passwordSalt;
+        }
+        user.UpdatedAt = DateTime.UtcNow;
+
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (
+            ex.InnerException is SqlException sql && sql.Number is 2601 or 2627)
+        {
+            throw new ApiException(409, "account_exists", "Username hoặc email đã được sử dụng.");
+        }
+
         return Ok(UserMapper.ToResponse(user));
     }
 
