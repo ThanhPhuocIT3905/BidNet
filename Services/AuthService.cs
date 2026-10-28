@@ -59,7 +59,7 @@ public class AuthService(AppDbContext db, IConfiguration config) : IAuthService
         if (user is null || user.PasswordSalt.Length != 16 ||
             !CryptographicOperations.FixedTimeEquals(
                 user.PasswordHash, PasswordHasher.Hash(request.Password, user.PasswordSalt)))
-            throw new ApiException(401, "invalid_credentials", "Thông tin đăng nhập không hợp lệ.");
+            throw new ApiException(401, "invalid_credent        ials", "Thông tin đăng nhập không hợp lệ.");
         if (!user.IsActive)
             throw new ApiException(403, "account_inactive", "Tài khoản đã bị khóa.");
 

@@ -131,6 +131,8 @@ builder.Services.AddScoped<IBidService, BidService>();
 builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IBidRepository, BidRepository>();
+builder.Services.AddScoped<IFileRepository, FileRepository>();
+builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddHostedService<AuctionClosingService>();
 
 var app = builder.Build();

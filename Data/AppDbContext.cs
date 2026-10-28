@@ -13,6 +13,7 @@ namespace BidNet.Data
         public DbSet<User> Users => Set<User>();
         public DbSet<Product> Products => Set<Product>();
         public DbSet<Bid> Bids => Set<Bid>();
+        public DbSet<StoredFile> StoredFiles => Set<StoredFile>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
