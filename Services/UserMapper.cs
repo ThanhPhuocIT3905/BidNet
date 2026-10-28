@@ -4,7 +4,7 @@ using BidNet.Models;
 namespace BidNet.Services;
 
 public static class UserMapper
-{
+{   // quyết định các trường được trả về (loại bỏ mật khẩu):
     // Dùng chung cho auth, /me và Admin để cùng một cấu trúc response.
     // Chủ động bỏ hash/salt mật khẩu và số dư dù entity User có các trường đó.
     public static UserResponseDto ToResponse(User user) => new()

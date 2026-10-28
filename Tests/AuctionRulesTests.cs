@@ -3,6 +3,7 @@ using BidNet.Data;
 using BidNet.DTOs;
 using BidNet.Hubs;
 using BidNet.Models;
+using BidNet.Repositories;
 using BidNet.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
@@ -287,5 +288,34 @@ public class AuctionRulesTests
             .Products.SingleAsync();
         Assert.Equal(ProductStatus.Completed, finished.Status);
         Assert.Equal(2, finished.WinnerId);
+    }
+
+    [Fact]
+    public async Task UserService_UpdatesProfile_AndPersistsThroughRepository()
+    {
+        await using var db = NewDatabase();
+        var user = new User { Id = 1, Username = "testuser", Email = "test@example.com", FullName = "Old Name" };
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+
+        var repo = new UserRepository(db);
+        var current = Current(db, 1);
+        var userService = new UserService(current, repo);
+
+        var profile = await userService.GetProfileAsync();
+        Assert.Equal("Old Name", profile.FullName);
+
+        var updated = await userService.UpdateProfileAsync(new UserUpdateProfileDto
+        {
+            FullName = "New Name",
+            PhoneNumber = "0901234567"
+        });
+
+        Assert.Equal("New Name", updated.FullName);
+        Assert.Equal("0901234567", updated.PhoneNumber);
+
+        var inDb = await db.Users.FindAsync(1);
+        Assert.Equal("New Name", inDb!.FullName);
+        Assert.Equal("0901234567", inDb.PhoneNumber);
     }
 }

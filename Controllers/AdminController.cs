@@ -1,4 +1,4 @@
-using BidNet.Data;
+   using BidNet.Data;
 using BidNet.DTOs;
 using BidNet.Hubs;
 using BidNet.Models;
@@ -11,13 +11,14 @@ using Microsoft.EntityFrameworkCore;
 namespace BidNet.Controllers;
 
 [ApiController]
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "Admin")] // KHÔNG CHO ROLE USER VÀO!
 [Route("api/admin")]
 // JWT phải có role Admin. Mỗi action còn đọc DB để từ chối tài khoản vừa bị khóa.
 public class AdminController(
     AppDbContext db, CurrentUser currentUser, IHubContext<AuctionHub> hub,
     ILogger<AdminController> logger) : ControllerBase
 {
+    // READ ALL (GET)
     [HttpGet("users")]
     // Dùng AsNoTracking vì chỉ hiển thị; phân trang để không trả toàn bộ user.
     public async Task<ActionResult<PagedResponseDto<UserResponseDto>>> Users(
@@ -37,6 +38,7 @@ public class AdminController(
         });
     }
 
+    // UPDATE / PARTIAL UPDATE (PATCH)
     [HttpPatch("users/{id:int}/status")]
     public async Task<ActionResult<UserResponseDto>> SetUserStatus(
         int id, UserStatusDto request, CancellationToken ct)
@@ -54,6 +56,7 @@ public class AdminController(
         return Ok(UserMapper.ToResponse(user));
     }
 
+    // UPDATE / PARTIAL UPDATE (PATCH)
     [HttpPatch("products/{id:int}/cancel")]
     public async Task<ActionResult<ProductResponseDto>> Cancel(
         int id, CancelProductDto request, CancellationToken ct)
@@ -85,7 +88,7 @@ public class AdminController(
         }
         catch (Exception ex)
         {
-            // Hủy trong DB vẫn thành công dù thông báo realtime bị lỗi.
+            // Hủy trong DB vẫn thành công dù thông báo realtime bị lỗi.           
             logger.LogWarning(ex, "Không gửi được AuctionClosed cho phiên {ProductId}", id);
         }
         return Ok(ProductMapper.ToResponse(product));

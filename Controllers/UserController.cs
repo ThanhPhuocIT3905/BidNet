@@ -1,4 +1,3 @@
-using BidNet.Data;
 using BidNet.DTOs;
 using BidNet.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -9,27 +8,23 @@ namespace BidNet.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/users/me")]
-public class UserController(CurrentUser currentUser, AppDbContext db, IBidService bids) : ControllerBase
+public class UserController(IUserService users, IBidService bids) : ControllerBase
 {
     // [Authorize] áp dụng cho cả controller. /me luôn lấy tài khoản từ token,
     // không nhận ID từ URL để tránh đọc/sửa hồ sơ người khác.
+    // READ ONE (GET)
     [HttpGet]
     public async Task<ActionResult<UserResponseDto>> Me(CancellationToken ct) =>
-        Ok(UserMapper.ToResponse(await currentUser.RequireActiveAsync(ct)));
+        Ok(await users.GetProfileAsync(ct));
 
-    [HttpPut]
+    // UPDATE (PUT)
     // Chỉ cho đổi thông tin hồ sơ; role, trạng thái và mật khẩu không nằm trong DTO này.
+    [HttpPut]
     public async Task<ActionResult<UserResponseDto>> Update(
-        UserUpdateProfileDto request, CancellationToken ct)
-    {
-        var user = await currentUser.RequireActiveAsync(ct);
-        user.FullName = request.FullName?.Trim();
-        user.PhoneNumber = request.PhoneNumber?.Trim();
-        user.UpdatedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync(ct);
-        return Ok(UserMapper.ToResponse(user));
-    }
+        UserUpdateProfileDto request, CancellationToken ct) =>
+        Ok(await users.UpdateProfileAsync(request, ct));
 
+    // READ ALL (GET)
     [HttpGet("bids")]
     // BidService lọc theo UserId trong token, không cho chọn UserId tùy ý.
     public async Task<ActionResult<PagedResponseDto<BidResponseDto>>> MyBids(

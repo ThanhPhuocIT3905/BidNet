@@ -12,6 +12,7 @@ public class ProductController(IProductService products, IBidService bids) : Con
 {
     // Danh sách và chi tiết đọc công khai; thao tác ghi yêu cầu JWT.
     // Bộ lọc đi qua query string, ví dụ ?status=Active&page=1&pageSize=20.
+    // READ ALL (GET)
     [HttpGet]
     public async Task<ActionResult<PagedResponseDto<ProductResponseDto>>> List(
         [FromQuery] ProductQueryDto query, CancellationToken ct) =>
@@ -24,10 +25,12 @@ public class ProductController(IProductService products, IBidService bids) : Con
         int page = 1, int pageSize = 20, CancellationToken ct = default) =>
         Ok(await products.MineAsync(page, pageSize, ct));
 
+    // READ ONE / GET BY ID (GET)
     [HttpGet("{id:int}")]
     public async Task<ActionResult<ProductResponseDto>> Get(int id, CancellationToken ct) =>
         Ok(await products.GetAsync(id, ct));
 
+    // CREATE (POST)
     [Authorize]
     [HttpPost]
     // 201 Created kèm Location trỏ đến GET chi tiết sản phẩm vừa tạo.
@@ -37,6 +40,7 @@ public class ProductController(IProductService products, IBidService bids) : Con
         return CreatedAtAction(nameof(Get), new { id = result.Id }, result);
     }
 
+    // UPDATE (PUT)
     [Authorize]
     [HttpPut("{id:int}")]
     // Service kiểm người sở hữu và trạng thái trước khi sửa, không tin ID trong body.

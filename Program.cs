@@ -69,9 +69,9 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(conn
 
 // Khóa ký JWT là bí mật; thiếu khóa hoặc khóa quá ngắn thì dừng ngay lúc khởi động.
 // Nhờ vậy ứng dụng không chạy với token được ký bằng giá trị mặc định yếu.
-var jwtKey = builder.Configuration["Jwt:Key"];
+var jwtKey = builder.Configuration["JwtSettings:SecretKey"] ?? builder.Configuration["Jwt:Key"];
 if (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetByteCount(jwtKey) < 32)
-    throw new InvalidOperationException("Cần cấu hình Jwt:Key có ít nhất 32 byte.");
+    throw new InvalidOperationException("Cần cấu hình Jwt:Key hoặc JwtSettings:SecretKey có ít nhất 32 byte.");
 // Token hợp lệ phải đúng chữ ký, issuer, audience và thời hạn.
 // ClockSkew 30 giây cho phép lệch đồng hồ nhỏ giữa các máy trong nhóm.
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -80,9 +80,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidIssuer = builder.Configuration["JwtSettings:Issuer"] ?? builder.Configuration["Jwt:Issuer"],
             ValidateAudience = true,
-            ValidAudience = builder.Configuration["Jwt:Audience"],
+            ValidAudience = builder.Configuration["JwtSettings:Audience"] ?? builder.Configuration["Jwt:Audience"],
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
             ValidateLifetime = true,
@@ -125,11 +125,15 @@ builder.Services.AddRateLimiter(options =>
 
 // Scoped service dùng chung DbContext của một request; worker là singleton
 // chạy nền nên tự tạo scope mới mỗi lần truy cập database.
-builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IAuthRepository, AuthRepository>();
+builder.Services.AddScoped<IAuthService>(sp => new AuthService(
+    sp.GetRequiredService<IAuthRepository>(),
+    sp.GetRequiredService<IConfiguration>()));
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IBidService, BidService>();
 builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IBidRepository, BidRepository>();
 builder.Services.AddHostedService<AuctionClosingService>();
 

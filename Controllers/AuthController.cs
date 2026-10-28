@@ -17,12 +17,12 @@ public class AuthController(IAuthService auth) : ControllerBase
     public async Task<ActionResult<UserResponseDto>> Register(UserRegisterDto request, CancellationToken ct)
     {
         var user = await auth.RegisterAsync(request, ct);
-        return StatusCode(StatusCodes.Status201Created, user);
+        return StatusCode(StatusCodes.Status201Created, user); // 👈 Trả về HTTP 201 kèm 
     }
 
     // Đăng nhập trả JWT cho các route có [Authorize]; không tạo session trên server.
     [HttpPost("login")]
     [EnableRateLimiting("auth")]
     public async Task<ActionResult<AuthResponseDto>> Login(UserLoginDto request, CancellationToken ct) =>
-        Ok(await auth.LoginAsync(request, ct));
+        Ok(await auth.LoginAsync(request, ct)); // 👈 Trả về HTTP 200 kèm AuthResponseDto
 }
