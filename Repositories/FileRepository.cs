@@ -12,16 +12,16 @@ namespace BidNet.Repositories
             _context = context;
         }
 
-        public async Task<StoredFile> AddAsync(StoredFile file)
+        public async Task<StoredFile> AddAsync(StoredFile file, CancellationToken cancellationToken = default)
         {
-            await _context.StoredFiles.AddAsync(file);
-            await _context.SaveChangesAsync();
+            await _context.StoredFiles.AddAsync(file, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
             return file;
         }
 
-        public async Task<StoredFile?> GetByIdAsync(int id)
+        public async Task<StoredFile?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         {
-            return await _context.StoredFiles.FindAsync(id);
+            return await _context.StoredFiles.FindAsync([id], cancellationToken);
         }
     }
 }

@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Http;
+using System.ComponentModel.DataAnnotations;
 
 namespace BidNet.DTOs;
 
 public class UploadFileDto
 {
+    [Required]
     public required IFormFile File { get; set; }
 }
 

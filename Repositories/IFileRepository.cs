@@ -4,7 +4,7 @@ namespace BidNet.Repositories
 {
     public interface IFileRepository
     {
-        Task<StoredFile> AddAsync(StoredFile file);
-        Task<StoredFile?> GetByIdAsync(int id);
+        Task<StoredFile> AddAsync(StoredFile file, CancellationToken cancellationToken = default);
+        Task<StoredFile?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
     }
 }
