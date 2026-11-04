@@ -123,6 +123,50 @@ namespace BidNet.Data.Migrations
                     b.ToTable("Products");
                 });
 
+            modelBuilder.Entity("BidNet.Models.ProductImage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CloudinaryPublicId")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("CloudinaryUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<long>("Length")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("ProductImages");
+                });
+
             modelBuilder.Entity("BidNet.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -222,9 +266,21 @@ namespace BidNet.Data.Migrations
                     b.Navigation("Winner");
                 });
 
+            modelBuilder.Entity("BidNet.Models.ProductImage", b =>
+                {
+                    b.HasOne("BidNet.Models.Product", "Product")
+                        .WithMany("Images")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Product");
+                });
+
             modelBuilder.Entity("BidNet.Models.Product", b =>
                 {
                     b.Navigation("Bids");
+
+                    b.Navigation("Images");
                 });
 
             modelBuilder.Entity("BidNet.Models.User", b =>

@@ -9,10 +9,11 @@ namespace BidNet.Data
         public AppDbContext(DbContextOptions<AppDbContext> options)
             : base(options) { }
 
-        // DbSet là điểm bắt đầu truy vấn và ghi dữ liệu; migration tạo ba bảng này.
+        // DbSet là điểm bắt đầu truy vấn và ghi dữ liệu; migration tạo các bảng này.
         public DbSet<User> Users => Set<User>();
         public DbSet<Product> Products => Set<Product>();
         public DbSet<Bid> Bids => Set<Bid>();
+        public DbSet<ProductImage> ProductImages => Set<ProductImage>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -63,6 +64,13 @@ namespace BidNet.Data
             modelBuilder.Entity<Bid>()
                 // Tăng tốc lịch sử bid theo từng sản phẩm.
                 .HasIndex(b => new { b.ProductId, b.BidTime });
+
+            // SetNull: khi xóa Product, ảnh vẫn giữ lại nhưng ProductId thành null.
+            modelBuilder.Entity<ProductImage>()
+                .HasOne(pi => pi.Product)
+                .WithMany(p => p.Images)
+                .HasForeignKey(pi => pi.ProductId)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 }

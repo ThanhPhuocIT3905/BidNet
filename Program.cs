@@ -1,4 +1,5 @@
-using System.Text;
+﻿using System.Text;
+using CloudinaryDotNet;
 using System.Threading.RateLimiting;
 using BidNet.Data;
 using BidNet.Hubs;
@@ -18,6 +19,7 @@ using Scalar.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 // Controller xử lý request; OpenAPI tạo tài liệu cho Swagger/Scalar.
 builder.Services.AddControllers();
+builder.Services.AddHttpClient();
 builder.Services.AddOpenApi(options =>
 {
     // Khai báo Bearer để Swagger hiện nút Authorize. Chỉ route có [Authorize]
@@ -135,6 +137,17 @@ builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IBidRepository, BidRepository>();
+// Cloudinary singleton: đọc credentials từ User Secrets / biến môi trường.
+var cloudinaryAccount = new Account(
+    builder.Configuration["Cloudinary:CloudName"]
+        ?? throw new InvalidOperationException("Thiếu Cloudinary:CloudName"),
+    builder.Configuration["Cloudinary:ApiKey"]
+        ?? throw new InvalidOperationException("Thiếu Cloudinary:ApiKey"),
+    builder.Configuration["Cloudinary:ApiSecret"]
+        ?? throw new InvalidOperationException("Thiếu Cloudinary:ApiSecret")
+);
+builder.Services.AddSingleton(new Cloudinary(cloudinaryAccount) { Api = { Secure = true } });
+builder.Services.AddScoped<IProductImageService, ProductImageService>();
 builder.Services.AddHostedService<AuctionClosingService>();
 
 var app = builder.Build();

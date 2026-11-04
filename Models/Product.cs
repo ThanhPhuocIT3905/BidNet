@@ -60,6 +60,9 @@ namespace BidNet.Models
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
         public virtual ICollection<Bid> Bids { get; set; } = new List<Bid>();
+
+        // Navigation: danh sách ảnh của sản phẩm 
+        public virtual ICollection<ProductImage> Images { get; set; } = new List<ProductImage>();
     }
 
     public enum ProductStatus
