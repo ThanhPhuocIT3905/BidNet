@@ -1,3 +1,4 @@
+using BidNet.DTOs.Common;
 using BidNet.Models;
 
 namespace BidNet.Repositories
@@ -11,5 +12,6 @@ namespace BidNet.Repositories
         Task AddAsync(User user);
         Task UpdateAsync(User user);
         Task DeleteAsync(int id);
+        Task<PagedResult<User>> GetAllAsync(UserQueryParameters queryParams);
     }
 }

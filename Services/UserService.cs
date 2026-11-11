@@ -1,4 +1,6 @@
 using BidNet.DTOs;
+using BidNet.DTOs.Common;
+using BidNet.Models;
 using BidNet.Repositories;
 
 namespace BidNet.Services;
@@ -26,4 +28,22 @@ public class UserService(CurrentUser currentUser, IUserRepository userRepo) : IU
         var user = await userRepo.GetByIdAsync(id);
         return user is null ? null : UserMapper.ToResponse(user);
     }
+
+    public async Task<PagedResult<UserResponseDto>> GetAllAsync(UserQueryParameters queryParams)
+    {
+        var pagedUsers = await userRepo.GetAllAsync(queryParams);
+
+        // Map danh sách Entity sang DTO
+        var mappedItems = pagedUsers.Items.Select(MapToResponseDto).ToList();
+
+        // Trả về PagedResult chứa DTO
+        return new PagedResult<UserResponseDto>(
+            mappedItems,
+            pagedUsers.TotalCount,
+            pagedUsers.PageNumber,
+            pagedUsers.PageSize
+        );
+    }
+
+    private static UserResponseDto MapToResponseDto(User u) => UserMapper.ToResponse(u);
 }

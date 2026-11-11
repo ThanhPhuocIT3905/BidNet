@@ -1,5 +1,6 @@
-   using BidNet.Data;
+using BidNet.Data;
 using BidNet.DTOs;
+using BidNet.DTOs.Common;
 using BidNet.Hubs;
 using BidNet.Models;
 using BidNet.Services;
@@ -15,27 +16,19 @@ namespace BidNet.Controllers;
 [Route("api/admin")]
 // JWT phải có role Admin. Mỗi action còn đọc DB để từ chối tài khoản vừa bị khóa.
 public class AdminController(
-    AppDbContext db, CurrentUser currentUser, IHubContext<AuctionHub> hub,
+    AppDbContext db,
+    CurrentUser currentUser,
+    IUserService userService,
+    IHubContext<AuctionHub> hub,
     ILogger<AdminController> logger) : ControllerBase
 {
-    // READ ALL (GET)
+    // READ ALL (GET) kèm Phân trang, Tìm kiếm, Lọc và Sắp xếp qua IUserService.GetAllAsync
     [HttpGet("users")]
-    // Dùng AsNoTracking vì chỉ hiển thị; phân trang để không trả toàn bộ user.
-    public async Task<ActionResult<PagedResponseDto<UserResponseDto>>> Users(
-        int page = 1, int pageSize = 20, CancellationToken ct = default)
+    public async Task<ActionResult<PagedResult<UserResponseDto>>> Users(
+        [FromQuery] UserQueryParameters queryParams)
     {
-        await currentUser.RequireActiveAsync(ct);
-        var args = PageArgs.Validate(page, pageSize);
-        var count = await db.Users.CountAsync(ct);
-        var users = await db.Users.AsNoTracking().OrderBy(u => u.Id)
-            .Skip((args.Page - 1) * args.PageSize).Take(args.PageSize).ToListAsync(ct);
-        return Ok(new PagedResponseDto<UserResponseDto>
-        {
-            Items = users.Select(UserMapper.ToResponse).ToList(),
-            Page = args.Page,
-            PageSize = args.PageSize,
-            TotalCount = count
-        });
+        var result = await userService.GetAllAsync(queryParams);
+        return Ok(result);
     }
 
     // UPDATE / PARTIAL UPDATE (PATCH)

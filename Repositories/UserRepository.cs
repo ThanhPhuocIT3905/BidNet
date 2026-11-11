@@ -1,4 +1,5 @@
 using BidNet.Data;
+using BidNet.DTOs.Common;
 using BidNet.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
@@ -44,6 +45,57 @@ namespace BidNet.Repositories
                 _ctx.Users.Remove(user);
                 await _ctx.SaveChangesAsync();
             }
+        }
+
+        public async Task<PagedResult<User>> GetAllAsync(UserQueryParameters queryParams)
+        {
+            var query = _ctx.Users.AsNoTracking().AsQueryable();
+
+            // 1. SEARCH (Tìm kiếm tương đối)
+            if (!string.IsNullOrWhiteSpace(queryParams.SearchTerm))
+            {
+                var term = queryParams.SearchTerm.Trim().ToLower();
+                query = query.Where(u => u.Username.ToLower().Contains(term)
+                                      || u.Email.ToLower().Contains(term));
+            }
+
+            // 2. FILTER (Lọc chính xác)
+            if (!string.IsNullOrWhiteSpace(queryParams.Role))
+            {
+                query = query.Where(u => u.Role == queryParams.Role);
+            }
+
+            //if (queryParams.IsActive.HasValue)
+            //{
+            //    query = query.Where(u => u.IsActive == queryParams.IsActive.Value);
+            //}
+
+            // 3. SORTING
+            query = queryParams.SortBy?.ToLower() switch
+            {
+                "email" => queryParams.IsDescending
+                    ? query.OrderByDescending(u => u.Email)
+                    : query.OrderBy(u => u.Email),
+
+                "createdat" => queryParams.IsDescending
+                    ? query.OrderByDescending(u => u.CreatedAt)
+                    : query.OrderBy(u => u.CreatedAt),
+
+                _ => queryParams.IsDescending
+                    ? query.OrderByDescending(u => u.Username)
+                    : query.OrderBy(u => u.Username) // Mặc định sort theo UserName
+            };
+
+            // 4. COUNT (Tổng số dòng thỏa điều kiện search/filter)
+            var totalCount = await query.CountAsync();
+
+            // 5. PAGINATION (Chỉ lấy đúng PageSize dòng từ DB)
+            var items = await query
+                .Skip((queryParams.PageNumber - 1) * queryParams.PageSize)
+                .Take(queryParams.PageSize)
+                .ToListAsync();
+
+            return new PagedResult<User>(items, totalCount, queryParams.PageNumber, queryParams.PageSize);
         }
     }
 }
