@@ -7,3 +7,4 @@ publish/
 publish_self/
 .tmp_report/
 .tmp_*/
+~$*.docx
