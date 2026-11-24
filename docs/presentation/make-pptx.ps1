@@ -132,7 +132,7 @@ for ($i = 0; $i -lt 4; $i++) {
 }
 Add-Text $s 60 414 840 28 "Người thực hiện: ..................................................." 14 $false (RGB 203 213 225) 2 | Out-Null
 Add-Text $s 60 446 840 28 "Lớp: ..................................................." 14 $false (RGB 203 213 225) 2 | Out-Null
-Add-Text $s 60 504 840 22 "Thuyết trình môn học — BidNet Backend" 10 $false (RGB 100 116 139) 2 | Out-Null
+Add-Text $s 60 504 840 22 "Lập trình Web 2 — Đồ án BidNet" 10 $false (RGB 100 116 139) 2 | Out-Null
 Set-Notes $s "Kính chào thầy và các bạn. Nhóm em xin trình bày đề tài xây dựng hệ thống sàn đấu giá trực tuyến BidNet. Hệ thống cho phép người bán đăng sản phẩm, người mua tham gia trả giá và tự động xác định người thắng khi phiên đấu giá kết thúc."
 
 # ============ SLIDE 2 — BÀI TOÁN VÀ MỤC TIÊU ============
@@ -140,14 +140,14 @@ $s = New-Slide "Bài toán và mục tiêu hệ thống" "BidNet giải quyết 
 Add-Box $s 40 104 430 186 $GREENBG $GREEN 5 | Out-Null
 Add-Text $s 62 120 386 24 "NGƯỜI BÁN" 14 $true $GREEN 1 | Out-Null
 Add-Line $s 62 150 448 150 $BORDER 0 1 | Out-Null
-Add-Text $s 62 162 386 112 "• Đăng sản phẩm`r`n• Thiết lập thời gian`r`n• Theo dõi phiên đấu giá" 14.5 $false $SLATE 1 | Out-Null
+Add-Text $s 62 162 386 112 "• Đăng sản phẩm`r`n• Thiết lập thời gian`r`n• Theo dõi đơn hàng" 14.5 $false $SLATE 1 | Out-Null
 Add-Box $s 490 104 430 186 $SOFT $ACCENT 5 | Out-Null
 Add-Text $s 512 120 386 24 "NGƯỜI MUA" 14 $true $ACCENT 1 | Out-Null
 Add-Line $s 512 150 898 150 $BORDER 0 1 | Out-Null
-Add-Text $s 512 162 386 112 "• Xem sản phẩm`r`n• Tham gia đặt giá`r`n• Theo dõi kết quả" 14.5 $false $SLATE 1 | Out-Null
+Add-Text $s 512 162 386 112 "• Xem sản phẩm`r`n• Tham gia đặt giá`r`n• Nhận thông báo / giao hàng" 14.5 $false $SLATE 1 | Out-Null
 
-Add-Text $s 40 306 880 24 "Mục tiêu phiên bản 1" 15 $true $BLUE 1 | Out-Null
-$goals = @("Đảm bảo giá đấu tăng hợp lệ.", "Tự động mở và đóng phiên.", "Xác định người thắng chính xác.", "Cập nhật giá theo thời gian thực.")
+Add-Text $s 40 306 880 24 "Mục tiêu phiên bản hiện tại" 15 $true $BLUE 1 | Out-Null
+$goals = @("Đặt giá an toàn, đúng bước giá.", "Tự động mở, đóng phiên.", "Chốt đơn hàng khi có người thắng.", "Danh mục + thông báo cá nhân.")
 $gpos = @(@(40, 338), @(490, 338), @(40, 390), @(490, 390))
 for ($i = 0; $i -lt 4; $i++) {
     $gx = $gpos[$i][0]; $gy = $gpos[$i][1]
@@ -157,8 +157,8 @@ for ($i = 0; $i -lt 4; $i++) {
     Add-Text $s ($gx + 44) ($gy + 13) 372 20 $goals[$i] 13 $false $SLATE 1 | Out-Null
 }
 Add-Box $s 40 446 880 34 $AMBERBG $null 5 | Out-Null
-Add-Text $s 58 454 844 20 "Lưu ý: Chưa triển khai thanh toán, đặt cọc và ví điện tử." 12.5 $true $AMBER 1 | Out-Null
-Set-Notes $s "BidNet hướng đến việc giải quyết quá trình đấu giá trực tuyến giữa người bán và người mua. Người bán tạo phiên đấu giá với sản phẩm và thời gian cụ thể. Người mua tham gia trả giá theo quy tắc tăng dần. Khi hết thời gian, hệ thống tự động xác định người thắng. Trong phiên bản hiện tại, nhóm tập trung vào tính chính xác của nghiệp vụ đấu giá, chưa triển khai thanh toán thực tế. Số liệu cần nhớ: bước giá tối thiểu 1.000 VND; mỗi phiên chỉ có tối đa một người thắng."
+Add-Text $s 58 454 844 20 "Lưu ý: Trạng thái Paid được cập nhật thủ công; chưa tích hợp cổng thanh toán." 12.5 $true $AMBER 1 | Out-Null
+Set-Notes $s "Môn học Lập trình Web 2. BidNet hướng đến việc giải quyết quá trình đấu giá trực tuyến giữa người bán và người mua. Người bán tạo phiên đấu giá với sản phẩm và thời gian cụ thể. Người mua tham gia trả giá theo quy tắc tăng dần. Khi hết thời gian, hệ thống tự động xác định người thắng. Phiên bản hiện tại có 7 bảng: thêm Categories, Orders và Notifications. Worker tạo đơn Pending cùng thông báo cho người thắng và người bán; trạng thái Paid là cập nhật thủ công, chưa có cổng thanh toán. Số liệu cần nhớ: bước giá tối thiểu 1.000 VND; mỗi phiên chỉ có tối đa một người thắng."
 
 # ============ SLIDE 3 — CÔNG NGHỆ VÀ KIẾN TRÚC ============
 $s = New-Slide "Công nghệ và kiến trúc hệ thống" "Client gửi yêu cầu → Controller → Service → EF Core → SQL Server" 3
@@ -185,7 +185,7 @@ Add-Line $s 175 306 175 320 $LINE 4 | Out-Null
 Add-Line $s 480 306 480 320 $LINE 4 | Out-Null
 Add-Line $s 785 306 785 320 $LINE 4 | Out-Null
 $bottom = @(
-    @(40,  "Background Worker", "Tự động đóng phiên", "Quét 5 giây/lần"),
+    @(40,  "Background Worker", "Đóng phiên + tạo đơn", "Quét 5 giây/lần"),
     @(345, "SignalR", "Cập nhật realtime", "Giá mới và kết quả"),
     @(650, "Cloudinary", "Lưu trữ hình ảnh sản phẩm", "")
 )
@@ -196,44 +196,35 @@ foreach ($b in $bottom) {
     Add-Text $s ($bx + 14) 362 242 20 $b[2] 11.5 $true $SLATE 2 | Out-Null
     if ($b[3] -ne "") { Add-Text $s ($bx + 14) 384 242 20 $b[3] 11 $false $MUTED 2 | Out-Null }
 }
-Add-Text $s 40 444 880 26 "Controller chỉ tiếp nhận yêu cầu — toàn bộ nghiệp vụ nằm ở Service." 12.5 $true $BLUE 2 | Out-Null
-Set-Notes $s "Hệ thống sử dụng kiến trúc ASP.NET Core Web API. Khi người dùng gửi yêu cầu, Controller tiếp nhận và chuyển đến Service xử lý nghiệp vụ. Entity Framework Core đảm nhiệm việc truy cập SQL Server. Ngoài ra, hệ thống có Background Worker để tự động quản lý vòng đời phiên đấu giá và SignalR để cập nhật thông tin theo thời gian thực. Hình ảnh sản phẩm được lưu trên Cloudinary. Số liệu cần nhớ: ASP.NET Core 10, EF Core + SQL Server; worker quét 5 giây một lần, tối đa 50 phiên mỗi lượt."
+Add-Text $s 40 444 880 26 "Nghiệp vụ đấu giá ở Service; danh mục, đơn và thông báo hiện xử lý tại Controller." 12.5 $true $BLUE 2 | Out-Null
+Set-Notes $s "Hệ thống sử dụng kiến trúc ASP.NET Core Web API. Khi người dùng gửi yêu cầu, Controller tiếp nhận và chuyển đến Service xử lý nghiệp vụ. Entity Framework Core đảm nhiệm việc truy cập SQL Server. Các API Categories, Orders, Notifications hiện dùng AppDbContext trực tiếp trong Controller. Background Worker tự chốt đơn hàng, tạo thông báo và SignalR để cập nhật thông tin theo thời gian thực. Hình ảnh sản phẩm được lưu trên Cloudinary. Số liệu cần nhớ: ASP.NET Core 10, EF Core + SQL Server; worker quét 5 giây một lần, tối đa 50 phiên mỗi lượt."
 
-# ============ SLIDE 4 — THIẾT KẾ CƠ SỞ DỮ LIỆU ============
-$s = New-Slide "Thiết kế cơ sở dữ liệu" "4 bảng dữ liệu chính" 4
+# ============ SLIDE 4 — THIẾT KẾ 7 BẢNG ============
+$s = New-Slide "Thiết kế cơ sở dữ liệu" "7 bảng nghiệp vụ — mỗi quan hệ được ràng buộc bằng khóa ngoại" 4
 $tables = @(
-    @("Users", "Tài khoản, vai trò, thông tin người dùng", "Id • Username • Email • Role"),
-    @("Products", "Sản phẩm, giá, thời gian và trạng thái phiên", "Id • SellerId • CurrentPrice • RowVersion"),
-    @("Bids", "Lịch sử trả giá của người mua", "Id • ProductId • UserId • Amount"),
-    @("ProductImages", "Thông tin hình ảnh sản phẩm", "Id • ProductId • Url")
+    @("Users", "Id • Username • Role", "Tài khoản / phân quyền"),
+    @("Categories", "Id • Name (unique)", "Danh mục sản phẩm"),
+    @("Products", "SellerId • CategoryId", "Phiên / RowVersion"),
+    @("Bids", "ProductId • UserId", "Lịch sử đặt giá"),
+    @("ProductImages", "ProductId • Url", "Ảnh của sản phẩm"),
+    @("Orders", "ProductId (unique)", "Đơn sau khi thắng"),
+    @("Notifications", "UserId • IsRead", "Thông báo cá nhân")
 )
-$x = 40
-foreach ($t in $tables) {
-    Add-Box $s $x 104 205 150 $WHITE $BORDER 5 | Out-Null
-    Add-Text $s ($x + 16) 120 173 24 $t[0] 16 $true $BLUE 1 | Out-Null
-    Add-Line $s ($x + 16) 150 ($x + 189) 150 $BORDER 0 1 | Out-Null
-    Add-Text $s ($x + 16) 160 173 48 $t[1] 11.5 $false $SLATE 1 | Out-Null
-    Add-Line $s ($x + 16) 212 ($x + 189) 212 $BORDER 0 1 | Out-Null
-    Add-Text $s ($x + 16) 220 173 30 $t[2] 8.5 $false $MUTED 1 | Out-Null
-    $x += 225
+for ($i = 0; $i -lt 7; $i++) {
+    $col = $i % 4; $row = [int][math]::Floor($i / 4)
+    $x = 40 + $col * 225; $y = 106 + $row * 150
+    Add-Box $s $x $y 205 128 $WHITE $BORDER 5 | Out-Null
+    Add-Box $s $x $y 205 5 $ACCENT $null 1 | Out-Null
+    Add-Text $s ($x + 13) ($y + 18) 180 24 $tables[$i][0] 15 $true $BLUE 1 | Out-Null
+    Add-Text $s ($x + 13) ($y + 51) 180 35 $tables[$i][2] 11.5 $false $SLATE 1 | Out-Null
+    Add-Text $s ($x + 13) ($y + 99) 180 18 $tables[$i][1] 10 $false $MUTED 1 | Out-Null
 }
-Add-Text $s 40 262 880 22 "Users → Products → Bids   •   Products → ProductImages   (quan hệ 1—N)" 12 $true $SLATE 2 | Out-Null
-Add-Text $s 40 292 880 24 "Các cơ chế bảo vệ dữ liệu" 15 $true $BLUE 1 | Out-Null
-$guards = @(
-    @("decimal(18,2)", "Lưu trữ giá tiền chính xác"),
-    @("Unique Index", "Tránh trùng Username / Email"),
-    @("Foreign Key", "Đảm bảo quan hệ dữ liệu"),
-    @("RowVersion", "Phát hiện xung đột cập nhật")
-)
-$gpos = @(@(40, 324), @(490, 324), @(40, 388), @(490, 388))
-for ($i = 0; $i -lt 4; $i++) {
-    $gx = $gpos[$i][0]; $gy = $gpos[$i][1]
-    Add-Box $s $gx $gy 430 56 $LIGHT $BORDER 5 | Out-Null
-    Add-Box $s ($gx + 2) ($gy + 10) 4 36 $ACCENT $null 1 | Out-Null
-    Add-Text $s ($gx + 18) ($gy + 8) 300 20 $guards[$i][0] 13 $true $BLUE 1 | Out-Null
-    Add-Text $s ($gx + 18) ($gy + 29) 394 20 $guards[$i][1] 11.5 $false $SLATE 1 | Out-Null
-}
-Set-Notes $s "Cơ sở dữ liệu gồm bốn bảng chính. Users quản lý tài khoản, Products quản lý sản phẩm và phiên đấu giá, Bids lưu lịch sử đặt giá, ProductImages lưu thông tin hình ảnh. Nhóm sử dụng kiểu decimal để lưu tiền, các khóa ngoại để đảm bảo liên kết dữ liệu và RowVersion để phát hiện trường hợp nhiều người cùng cập nhật một phiên đấu giá. Số liệu cần nhớ: 4 bảng và 4 migration; tiền dùng decimal(18,2); unique index trên Username và Email; khóa ngoại kiểu Restrict để giữ lịch sử."
+Add-Box $s 730 256 190 128 $SOFT $BORDER 5 | Out-Null
+Add-Text $s 744 272 164 98 "Categories 1—N Products`r`nProducts 1—N Bids / Images`r`nProducts 1—0..1 Orders`r`nUsers 1—N Notifications" 10.5 $true $SLATE 1 | Out-Null
+Add-Text $s 40 408 880 24 "Orders: BuyerId và SellerId tham chiếu Users • ProductId unique" 13 $true $BLUE 2 | Out-Null
+Add-Box $s 40 450 880 38 $GREENBG $null 5 | Out-Null
+Add-Text $s 56 459 848 20 "5 migrations  •  7 bảng ứng dụng  •  decimal(18,2)  •  RowVersion" 13 $true $GREEN 2 | Out-Null
+Set-Notes $s "CSDL có 7 bảng nghiệp vụ: Users, Products, ProductImages, Bids, Categories, Orders, Notifications. Categories–Products là 1–N; Products–Bids và Products–ProductImages là 1–N; Products–Orders là 1–0..1 nhờ unique Order.ProductId. Users liên hệ với Products qua SellerId/WinnerId, Bids qua UserId, Orders qua BuyerId/SellerId và Notifications qua UserId. CategoryId tùy chọn để giữ dữ liệu cũ. Tiền decimal(18,2), Product.RowVersion chống xung đột; unique Username, Email, Category.Name. Có 5 migrations, 7 bảng ứng dụng (không tính __EFMigrationsHistory). Migration mới: 20261124030551_AddCategoriesOrdersNotifications. Không nói rằng đã xử lý thanh toán thật."
 
 # ============ SLIDE 5 — VÒNG ĐỜI PHIÊN ============
 $s = New-Slide "Vòng đời phiên đấu giá" "Worker tự chuyển trạng thái theo thời gian" 5
@@ -265,7 +256,7 @@ foreach ($st in $stats) {
     Add-Text $s ($st[0] + 20) 420 200 32 $st[1] 24 $true $ACCENT 1 | Out-Null
     Add-Text $s ($st[0] + 20) 452 394 18 $st[2] 11.5 $false $SLATE 1 | Out-Null
 }
-Set-Notes $s "Một phiên đấu giá có ba trạng thái chính: Scheduled, Active và Completed. Worker chạy định kỳ 5 giây để kiểm tra thời gian và tự động chuyển trạng thái. Khi phiên kết thúc, hệ thống chọn người có giá đặt cao nhất. Nếu có nhiều người đặt cùng mức giá, người đặt trước sẽ thắng. Nếu không có lượt đặt giá, phiên kết thúc mà không có người thắng. Admin cũng có thể hủy phiên vi phạm. Số liệu cần nhớ: worker 5 giây một lần, tối đa 50 phiên mỗi lượt; hòa giá thì lượt đặt sớm hơn thắng; không có lượt đặt thì WinnerId bằng null."
+Set-Notes $s "Một phiên đấu giá có ba trạng thái chính: Scheduled, Active và Completed. Worker chạy định kỳ 5 giây để kiểm tra thời gian và tự động chuyển trạng thái. Khi phiên kết thúc, hệ thống chọn người có giá đặt cao nhất. Nếu có nhiều người đặt cùng mức giá, người đặt trước sẽ thắng. Nếu không có lượt đặt giá, phiên kết thúc mà không có người thắng và không tạo đơn. Có bid thì worker tạo Orders trạng thái Pending và hai Notifications. Admin cũng có thể hủy phiên vi phạm. Số liệu cần nhớ: worker 5 giây một lần, tối đa 50 phiên mỗi lượt; hòa giá thì lượt đặt sớm hơn thắng; không có lượt đặt thì WinnerId bằng null."
 
 # ============ SLIDE 6 — XÁC THỰC VÀ PHÂN QUYỀN ============
 $s = New-Slide "Xác thực và phân quyền" "Quy trình xác thực người dùng qua 3 bước" 6
@@ -305,7 +296,7 @@ $flow = @(
     @("Kiểm tra quyền", "Tài khoản và quyền đặt giá"),
     @("Kiểm tra giá", "Thời gian và bước giá 1.000đ"),
     @("Lưu một lần", "Ghi Bid + CurrentPrice"),
-    @("Thông báo", "Commit xong → SignalR")
+    @("Thông báo", "Outbid + SignalR sau commit")
 )
 $x = 40
 for ($i = 0; $i -lt 5; $i++) {
@@ -332,7 +323,7 @@ Add-Box $s 734 312 186 72 $REDBG $RED 5 | Out-Null
 Add-Text $s 742 324 170 20 "409 Conflict" 14 $true $RED 2 | Out-Null
 Add-Text $s 742 348 170 20 "Không ghi đè giá" 10.5 $false $SLATE 2 | Out-Null
 Add-Text $s 40 400 880 40 "RowVersion phát hiện dữ liệu đã thay đổi → request đến sau không ghi đè giá đã cập nhật." 12.5 $true $SLATE 2 | Out-Null
-Set-Notes $s "Khi người mua đặt giá, hệ thống kiểm tra tài khoản, quyền đặt giá, thời gian và mức giá. Giá đặt phải lớn hơn hoặc bằng giá hiện tại cộng bước giá 1.000 đồng. Sau đó, BidService ghi lịch sử đặt giá và cập nhật giá hiện tại trong cùng một lần SaveChanges. Nếu hai người đặt giá đồng thời, RowVersion giúp phát hiện dữ liệu đã bị thay đổi. Người cập nhật sau sẽ nhận lỗi 409 Conflict thay vì ghi đè dữ liệu của người trước. SignalR chỉ gửi thông báo sau khi dữ liệu đã được commit. Số liệu cần nhớ: bước giá 1.000 VND; lượt đầu phải lớn hơn hoặc bằng giá khởi điểm; một SaveChanges ghi cả Bid và CurrentPrice; xung đột trả 409 bid_conflict."
+Set-Notes $s "Khi người mua đặt giá, hệ thống kiểm tra tài khoản, quyền đặt giá, thời gian và mức giá. Giá đặt phải lớn hơn hoặc bằng giá hiện tại cộng bước giá 1.000 đồng. Sau đó, BidService ghi lịch sử đặt giá và cập nhật giá hiện tại trong cùng một lần SaveChanges. Nếu hai người đặt giá đồng thời, RowVersion giúp phát hiện dữ liệu đã bị thay đổi. Người cập nhật sau sẽ nhận lỗi 409 Conflict thay vì ghi đè dữ liệu của người trước. Thông báo outbid và thông báo người bán được lưu cùng bid; SignalR chỉ phát sau khi commit. Số liệu cần nhớ: bước giá 1.000 VND; lượt đầu phải lớn hơn hoặc bằng giá khởi điểm; một SaveChanges ghi cả Bid và CurrentPrice; xung đột trả 409 bid_conflict."
 
 # ============ SLIDE 8 — REALTIME VÀ BẢO MẬT ============
 $s = New-Slide "Realtime và bảo mật hệ thống" "" 8
@@ -379,7 +370,7 @@ for ($i = 0; $i -lt 5; $i++) {
     $ry += 44
 }
 Add-Line $s 750 126 750 378 $BORDER 0 1 | Out-Null
-Set-Notes $s "Hệ thống sử dụng SignalR để cập nhật giá và kết quả đấu giá đến những người đang theo dõi cùng một sản phẩm. Các sự kiện chỉ được gửi sau khi dữ liệu lưu thành công. Nếu mất kết nối, client cần gọi lại API để lấy dữ liệu mới nhất. Ngoài ra, hệ thống có giới hạn số request để chống spam, cấu hình CORS, HTTPS và chuẩn hóa phản hồi lỗi nhằm tăng khả năng bảo mật và theo dõi lỗi. Số liệu cần nhớ: rate limit đăng nhập 10 request/phút/IP, đặt giá 30 request/phút/user, vượt thì trả 429; CORS giới hạn 1 frontend; SignalR dùng access_token cho đường dẫn hub; database là nguồn sự thật."
+Set-Notes $s "Hệ thống có thông báo lưu trong Notifications (outbid, bid mới cho seller, thắng phiên) và SignalR để cập nhật giá và kết quả đấu giá đến những người đang theo dõi cùng một sản phẩm. Các sự kiện chỉ được gửi sau khi dữ liệu lưu thành công. Nếu mất kết nối, client cần gọi lại API để lấy dữ liệu mới nhất. Ngoài ra, hệ thống có giới hạn số request để chống spam, cấu hình CORS, HTTPS và chuẩn hóa phản hồi lỗi nhằm tăng khả năng bảo mật và theo dõi lỗi. Số liệu cần nhớ: rate limit đăng nhập 10 request/phút/IP, đặt giá 30 request/phút/user, vượt thì trả 429; CORS giới hạn 1 frontend; SignalR dùng access_token cho đường dẫn hub; database là nguồn sự thật."
 
 # ============ SLIDE 9 — DEMO HỆ THỐNG THỰC TẾ ============
 $s = New-Slide "Demo hệ thống thực tế" "Sản phẩm demo: iPhone 15 Pro Max" 9
@@ -418,8 +409,8 @@ Add-Text $s 40 314 290 20 "kiểm tra RowVersion" 10.5 $false $MUTED 2 | Out-Nul
 Add-Text $s 360 104 560 22 "Ba kết quả nổi bật" 14 $true $BLUE 1 | Out-Null
 $high = @(
     @("Đặt giá an toàn", "RowVersion và transaction chống ghi đè."),
-    @("Tự động quản lý phiên", "Worker mở, đóng phiên và xác định người thắng."),
-    @("Cập nhật realtime", "SignalR thông báo sau khi dữ liệu commit.")
+    @("Khép kín đấu giá → đơn", "Worker chốt đơn Pending và gửi thông báo."),
+    @("7 bảng + realtime", "Danh mục, đơn, thông báo và SignalR.")
 )
 for ($i = 0; $i -lt 3; $i++) {
     $ry = 136 + $i * 70
@@ -430,9 +421,9 @@ for ($i = 0; $i -lt 3; $i++) {
     Add-Text $s 422 ($ry + 32) 480 20 $high[$i][1] 11.5 $false $SLATE 1 | Out-Null
 }
 Add-Box $s 40 366 880 32 $AMBERBG $null 5 | Out-Null
-Add-Text $s 58 374 844 18 "Hạn chế: Chưa có thanh toán thực tế và frontend trong repository backend." 12 $false $AMBER 2 | Out-Null
+Add-Text $s 58 374 844 18 "Hạn chế: Paid là trạng thái thủ công; chưa có cổng thanh toán và frontend trong repo." 12 $false $AMBER 2 | Out-Null
 Add-Text $s 40 410 880 60 "XIN CẢM ƠN!" 36 $true $BLUE 2 | Out-Null
-Set-Notes $s "Qua quá trình kiểm thử, hệ thống đạt 11 trên 11 bài test. Trong đó có 10 bài test nghiệp vụ và một bài test sử dụng SQL Server thật để kiểm tra khả năng chống tranh chấp bằng RowVersion. Nhóm đã hoàn thành ba chức năng quan trọng: đặt giá an toàn, tự động quản lý vòng đời phiên và cập nhật realtime. Hệ thống hiện chưa triển khai thanh toán thực tế và frontend trong repository backend. Phần trình bày của nhóm em đến đây là kết thúc. Em xin cảm ơn thầy và các bạn đã lắng nghe. Số liệu cần nhớ: 11/11 test; 4 bảng và 4 migration; RowVersion kết hợp transaction; worker 5 giây một lần, tối đa 50 phiên."
+Set-Notes $s "Qua quá trình kiểm thử, hệ thống đạt 11 trên 11 bài test hiện hữu. Trong đó có 10 bài test nghiệp vụ và một bài test sử dụng SQL Server thật để kiểm tra RowVersion. Chưa có test tích hợp riêng bao phủ toàn bộ Categories, Orders và Notifications; cần demo các API mới trên Swagger để bổ sung bằng chứng. Nhóm đã hoàn thành đặt giá an toàn, worker chốt đơn Pending và thông báo cá nhân. Paid là cập nhật thủ công, chưa tích hợp cổng thanh toán; frontend không nằm trong repository backend. Còn cảnh báo bảo mật NU1902/NU1903 cho phụ thuộc Pkcs 9.0.11 cần xử lý. Cảm ơn thầy và các bạn đã lắng nghe. Số liệu cần nhớ: 11/11 test hiện hữu; 7 bảng và 5 migrations; RowVersion kết hợp transaction; worker 5 giây một lần, tối đa 50 phiên."
 
 # ============ LƯU ============
 $pres.SaveAs($outFile)

@@ -2,6 +2,7 @@ using BidNet.Data;
 using BidNet.DTOs;
 using BidNet.Exceptions;
 using BidNet.Models;
+using BidNet.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,7 @@ namespace BidNet.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class CategoriesController(AppDbContext db) : ControllerBase
+public class CategoriesController(AppDbContext db, CurrentUser currentUser) : ControllerBase
 {
     // READ ALL: Xem toàn bộ danh mục sản phẩm (Ai cũng xem được)
     [HttpGet]
@@ -57,6 +58,9 @@ public class CategoriesController(AppDbContext db) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<CategoryResponseDto>> Create([FromBody] CategoryCreateDto dto, CancellationToken ct)
     {
+        await currentUser.RequireActiveAsync(ct);
+        if (string.IsNullOrWhiteSpace(dto.Name))
+            throw new BadRequestException("Tên danh mục không được để trống.");
         // Kiểm tra xem tên danh mục đã tồn tại chưa
         var exists = await db.Categories.AnyAsync(c => c.Name.ToLower() == dto.Name.Trim().ToLower(), ct);
         if (exists)
@@ -87,6 +91,9 @@ public class CategoriesController(AppDbContext db) : ControllerBase
     [HttpPut("{id:int}")]
     public async Task<ActionResult<CategoryResponseDto>> Update(int id, [FromBody] CategoryUpdateDto dto, CancellationToken ct)
     {
+        await currentUser.RequireActiveAsync(ct);
+        if (string.IsNullOrWhiteSpace(dto.Name))
+            throw new BadRequestException("Tên danh mục không được để trống.");
         var category = await db.Categories.FindAsync([id], ct);
         if (category == null)
             throw new NotFoundException($"Không tìm thấy danh mục có ID {id}.");
@@ -116,6 +123,7 @@ public class CategoriesController(AppDbContext db) : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
+        await currentUser.RequireActiveAsync(ct);
         var category = await db.Categories.FindAsync([id], ct);
         if (category == null)
             throw new NotFoundException($"Không tìm thấy danh mục có ID {id}.");

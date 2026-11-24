@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using BidNet.Models;
 
 namespace BidNet.DTOs;
@@ -34,5 +35,6 @@ public class UpdateOrderStatusDto
 {
     [Required(ErrorMessage = "Vui lòng chọn trạng thái đơn hàng.")]
     [EnumDataType(typeof(OrderStatus), ErrorMessage = "Trạng thái đơn hàng không hợp lệ.")]
+    [JsonConverter(typeof(JsonStringEnumConverter<OrderStatus>))]
     public OrderStatus Status { get; set; }
 }

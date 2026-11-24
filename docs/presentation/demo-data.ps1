@@ -1,11 +1,10 @@
-﻿# ============================================================
-# demo-data.ps1 — Tạo dữ liệu demo cho buổi thuyết trình BidNet (Buổi 15)
+﻿
+# demo-data.ps1 — Tạo dữ liệu demo
 # Chạy:  powershell -ExecutionPolicy Bypass -File docs/presentation/demo-data.ps1
 # Điều kiện: Server đang chạy ở http://localhost:5014 hoặc cổng được chỉ định
 # Kịch bản: Đăng ký/đăng nhập -> Quản trị danh mục -> Tạo phiên đấu giá
 #           -> Đặt giá hợp lệ & các ca bắt lỗi (400, 403, 409)
 #           -> Kết thúc phiên chốt Đơn hàng & Thông báo
-# ============================================================
 param(
     [string]$BaseUrl = "http://localhost:5014"
 )

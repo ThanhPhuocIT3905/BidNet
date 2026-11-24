@@ -75,10 +75,10 @@ Worker nền (AuctionClosingService) ──scope riêng──> AppDbContext ─�
 
 | Lớp | Thư mục | Nguyên tắc |
 |---|---|---|
-| Presentation | `Controllers/`, `Hubs/` | **Mỏng**: nhận request, ràng buộc DTO, gọi service, trả status. Không chứa nghiệp vụ |
-| Business | `Services/` | **Toàn bộ quy tắc BR-01…BR-17 nằm đây**. Ném `ApiException(status, code, message)` khi vi phạm |
+| Presentation | `Controllers/`, `Hubs/` | Auth/Product/Bid gọi service; Categories/Orders/Notifications hiện thao tác DbContext trực tiếp trong Controller |
+| Business | `Services/` | Quy tắc đấu giá, xác thực, sản phẩm và worker; phần trạng thái đơn nằm trong OrdersController |
 | Data access | `Repositories/`, `Data/AppDbContext.cs` | Truy vấn + cấu hình EF (index, quan hệ, concurrency). `SaveChanges` thống nhất trong service |
-| Domain | `Models/` | 4 entity ánh xạ 4 bảng |
+| Domain | `Models/` | 7 entity ánh xạ 7 bảng ứng dụng |
 | Contract | `DTOs/` | Tách entity khỏi API — **không lộ PasswordHash/RowVersion**, lịch sử công khai ẩn UserId |
 | Cross-cutting | `Middleware/`, `Program.cs` | Xử lý lỗi toàn cục, log request, JWT, CORS, rate limit |
 
@@ -97,7 +97,7 @@ Worker nền (AuctionClosingService) ──scope riêng──> AppDbContext ─�
 
 ## 4. Cơ sở dữ liệu
 
-![ERD BidNet](images/erd.svg)
+![ERD BidNet 7 bảng](images/erd-7-tables.png)
 
 7 bảng hoàn chỉnh, cấu hình trong `Data/AppDbContext.cs`, entity trong `Models/`:
 
@@ -500,7 +500,7 @@ Trả lời: (1) Chưa có thanh toán/đặt cọc — Balance chưa dùng; (2)
 | 1 | Tiêu đề | Tên đề tài, thành viên, công nghệ chính | 30s |
 | 2 | Bài toán & phạm vi | Sàn đấu giá: 1 phiên = 1 sản phẩm = 1 người thắng; v1 làm gì, KHÔNG làm gì (thanh toán) | 1 phút |
 | 3 | Kiến trúc | Chiếu `architecture.svg`: request đi Controller → Service → DbContext → SQL; worker + hub chạy song song | 1.5 phút |
-| 4 | Database | Chiếu `erd.svg`: 4 bảng, decimal cho tiền, unique index, RowVersion, Restrict | 1.5 phút |
+| 4 | Database | Chiếu ERD 7 bảng: Categories, Orders, Notifications; unique index, RowVersion | 1.5 phút |
 | 5 | Vòng đời phiên | Chiếu `state-machine.svg`: Scheduled→Active→Completed, Admin→Cancelled; worker 5s | 1 phút |
 | 6 | Xác thực | Chiếu `auth-flow.svg`: PBKDF2 210k vòng, JWT 60 phút, RequireActive đọc DB mỗi lần | 1.5 phút |
 | 7 | **Đặt giá + concurrency** | Chiếu `bid-sequence.svg`: 10 bước, nhấn UPDATE...WHERE RowVersion, 409, một SaveChanges | **2.5 phút** |
@@ -531,7 +531,7 @@ File `BidNet-ThuyetTrinh-10-slide.pptx` gồm đúng 10 slide, mỗi slide có *
 | 9 | Demo thực tế | 2 ảnh Swagger thật, chip giá 100.000đ → 150.000đ, 4 badge 201/403/400/200 | `screenshots/02`, `03` |
 | 10 | Kiểm thử & kết luận | Khối lớn 11/11 TEST PASSED + 3 kết quả nổi bật + hạn chế + "XIN CẢM ƠN!" | Khối số liệu + 3 thẻ |
 
-**Số liệu kỹ thuật vẫn được giữ trong Notes** để trả lời phản biện: PBKDF2 210.000 vòng + salt 16 byte, JWT HMAC-SHA256 hạn 60 phút, worker 5 giây/lần và 50 phiên, bước giá 1.000 VND, RowVersion, SignalR chỉ phát sau commit, rate limit 10/phút/IP và 30/phút/user, 11/11 test, 4 bảng + 4 migration.
+**Số liệu kỹ thuật vẫn được giữ trong Notes** để trả lời phản biện: PBKDF2 210.000 vòng + salt 16 byte, JWT HMAC-SHA256 hạn 60 phút, worker 5 giây/lần và 50 phiên, bước giá 1.000 VND, RowVersion, SignalR chỉ phát sau commit, rate limit 10/phút/IP và 30/phút/user, 11/11 test hiện hữu, 7 bảng + 5 migrations. Các test hiện hữu chưa bao phủ đủ ba bảng mới; không nhận vơ đã kiểm thử toàn bộ luồng.
 
 Muốn sửa nội dung: chỉnh `make-pptx.ps1` rồi chạy lại (cần Microsoft PowerPoint đã cài). Lưu ý file `.ps1` phải lưu **UTF-8 có BOM** thì PowerShell 5.1 mới đọc đúng tiếng Việt. Các sơ đồ trên slide 3, 4, 5, 6, 7, 8 được vẽ trực tiếp bằng shape nên không phụ thuộc ảnh; riêng slide 9 dùng ảnh chụp thật trong `screenshots/`.
 
