@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "BidNet API - Buổi 15 Báo Cáo & Bảo Vệ Đồ Án",
+    "name": "BidNet API",
     "_postman_id": "bidnet-api-buoi15-collection",
     "description": "Bộ sưu tập API hoàn chỉnh của dự án BidNet theo tiêu chuẩn Buổi 15: Xác thực JWT, Phân quyền RBAC, Đặt giá Realtime, Quản lý Danh mục, Đơn hàng sau đấu giá, Thông báo và các kịch bản kiểm thử luồng sai (400, 401, 403, 409, 500).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
