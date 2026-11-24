@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="820" viewBox="0 0 1240 820" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#475569"/>
+    </marker>
+    <marker id="arrPurple" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#7c3aed"/>
+    </marker>
+  </defs>
+  <rect width="1240" height="820" fill="#f8fafc"/>
+  <text x="620" y="38" text-anchor="middle" font-size="25" font-weight="bold" fill="#0f172a">Tác vụ nền AuctionClosingService (BackgroundService)</text>
+  <text x="620" y="62" text-anchor="middle" font-size="13.5" fill="#475569">Services/AuctionClosingService.cs • đăng ký AddHostedService trong Program.cs (dòng 180) • chạy song song với HTTP, không cần request</text>
+
+  <!-- loop start -->
+  <rect x="440" y="85" width="360" height="56" rx="28" fill="#fce7f3" stroke="#db2777" stroke-width="2"/>
+  <text x="620" y="110" text-anchor="middle" font-size="15" font-weight="bold" fill="#831843">PeriodicTimer — mỗi 5 giây một lượt</text>
+  <text x="620" y="130" text-anchor="middle" font-size="12" fill="#9d174d">Chạy ngay 1 lượt khi khởi động • lỗi 1 lượt chỉ log, worker không chết</text>
+
+  <line x1="620" y1="141" x2="620" y2="170" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+
+  <rect x="380" y="170" width="480" height="52" rx="10" fill="#e0f2fe" stroke="#0284c7" stroke-width="1.5"/>
+  <text x="620" y="192" text-anchor="middle" font-size="14" font-weight="bold" fill="#0c4a6e">Tạo DI scope mới → AppDbContext riêng</text>
+  <text x="620" y="212" text-anchor="middle" font-size="12" fill="#075985">Worker là singleton, DbContext là scoped → không dùng chung DbContext với request</text>
+
+  <!-- OPEN branch -->
+  <line x1="620" y1="222" x2="330" y2="260" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="80" y="260" width="500" height="200" rx="10" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="330" y="288" text-anchor="middle" font-size="16" font-weight="bold" fill="#1e3a8a">A. MỞ PHIÊN (Scheduled → Active)</text>
+  <g font-size="13" fill="#1e40af">
+    <text x="100" y="316">1. Tìm Status = Scheduled AND StartTime ≤ now (UTC)</text>
+    <text x="100" y="338">2. OrderBy StartTime, Take(50) — giới hạn lô mỗi lượt</text>
+    <text x="100" y="360">3. Đọc lại từng phiên: vẫn Scheduled? → Status = Active</text>
+    <text x="100" y="382">4. SaveChanges — nếu DbUpdateConcurrencyException:</text>
+    <text x="118" y="402">detach entity, bỏ qua (request/worker khác đã đổi)</text>
+    <text x="100" y="424">5. Detach sau mỗi phiên → không giữ entity sang vòng sau</text>
+    <text x="100" y="446" font-size="12" fill="#64748b">Index (Status, StartTime, EndTime) giúp quét nhanh</text>
+  </g>
+
+  <!-- CLOSE branch -->
+  <line x1="620" y1="222" x2="910" y2="260" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="660" y="260" width="500" height="290" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="910" y="288" text-anchor="middle" font-size="16" font-weight="bold" fill="#14532d">B. ĐÓNG PHIÊN (Active → Completed)</text>
+  <g font-size="13" fill="#166534">
+    <text x="680" y="316">1. Tìm Status = Active AND EndTime ≤ now, Take(50)</text>
+    <text x="680" y="338">2. Đọc lại: vẫn Active? (bỏ qua phiên Admin vừa hủy)</text>
+    <text x="680" y="360">3. Chọn bid thắng:</text>
+  </g>
+  <rect x="690" y="372" width="440" height="66" rx="8" fill="#ffffff" stroke="#16a34a" stroke-dasharray="5 4"/>
+  <text x="910" y="394" text-anchor="middle" font-size="13" font-weight="bold" fill="#14532d">OrderByDescending(Amount)</text>
+  <text x="910" y="414" text-anchor="middle" font-size="13" fill="#166534">.ThenBy(BidTime) .ThenBy(Id) → FirstOrDefault</text>
+  <text x="910" y="432" text-anchor="middle" font-size="11.5" fill="#64748b">Giá cao nhất thắng • bằng giá → ai đặt sớm hơn thắng</text>
+  <g font-size="13" fill="#166534">
+    <text x="680" y="462">4. WinnerId = bid?.UserId (không có bid → null)</text>
+    <text x="680" y="484">5. Status = Completed + SaveChanges (RowVersion bảo vệ)</text>
+    <text x="680" y="506">6. Conflict → detach, lượt quét sau đọc lại (BR-16 an toàn)</text>
+    <text x="680" y="528">7. SAU commit → SignalR "AuctionClosed" {winnerId}</text>
+  </g>
+
+  <!-- realtime -->
+  <line x1="910" y1="550" x2="910" y2="590" stroke="#7c3aed" stroke-width="2" stroke-dasharray="7 4" marker-end="url(#arrPurple)"/>
+  <rect x="660" y="590" width="500" height="56" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="910" y="613" text-anchor="middle" font-size="14" font-weight="bold" fill="#4c1d95">IHubContext → nhóm "auction:{productId}"</text>
+  <text x="910" y="634" text-anchor="middle" font-size="12" fill="#5b21b6">Mọi client đang xem phiên nhận kết quả ngay • lỗi gửi chỉ log warning</text>
+
+  <!-- loop back -->
+  <path d="M 330 460 L 330 700 L 620 700" stroke="#475569" stroke-width="2" fill="none"/>
+  <path d="M 620 700 L 620 660" stroke="#475569" stroke-width="2" fill="none" marker-end="url(#arr)"/>
+  <rect x="440" y="660" width="360" height="44" rx="22" fill="#f1f5f9" stroke="#334155" stroke-width="1.5"/>
+  <text x="620" y="687" text-anchor="middle" font-size="13.5" fill="#0f172a">WaitForNextTickAsync → lặp lại sau 5 giây</text>
+
+  <!-- notes -->
+  <rect x="80" y="730" width="1080" height="70" rx="10" fill="#fefce8" stroke="#ca8a04" stroke-width="1.5"/>
+  <text x="620" y="756" text-anchor="middle" font-size="13.5" fill="#713f12">Vì sao an toàn khi chạy lại (idempotent)? Mỗi lượt ĐỌC LẠI trạng thái trước khi ghi + RowVersion chặn ghi đè → một phiên chỉ có MỘT kết quả cuối.</text>
+  <text x="620" y="780" text-anchor="middle" font-size="13.5" fill="#713f12">Đặt giá vẫn kiểm tra giờ trực tiếp trong BidService → độ trễ tối đa 5 giây của worker không mở cửa đặt giá sai thời điểm (BR-04).</text>
+</svg>

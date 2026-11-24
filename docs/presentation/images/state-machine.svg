@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="620" viewBox="0 0 1240 620" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#475569"/>
+    </marker>
+    <marker id="arrRed" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#dc2626"/>
+    </marker>
+  </defs>
+  <rect width="1240" height="620" fill="#f8fafc"/>
+  <text x="620" y="40" text-anchor="middle" font-size="25" font-weight="bold" fill="#0f172a">Vòng đời phiên đấu giá (ProductStatus)</text>
+  <text x="620" y="66" text-anchor="middle" font-size="14" fill="#475569">Worker nền AuctionClosingService quét mỗi 5 giây — không cần client gọi để mở/đóng phiên</text>
+
+  <!-- Scheduled -->
+  <rect x="80" y="150" width="260" height="110" rx="14" fill="#dbeafe" stroke="#2563eb" stroke-width="2.5"/>
+  <text x="210" y="190" text-anchor="middle" font-size="20" font-weight="bold" fill="#1e3a8a">Scheduled (=3)</text>
+  <text x="210" y="216" text-anchor="middle" font-size="13" fill="#1e40af">Vừa tạo, chờ đến StartTime</text>
+  <text x="210" y="238" text-anchor="middle" font-size="13" fill="#1e40af">Được sửa (nếu chưa có bid)</text>
+
+  <!-- Active -->
+  <rect x="490" y="150" width="260" height="110" rx="14" fill="#dcfce7" stroke="#16a34a" stroke-width="2.5"/>
+  <text x="620" y="190" text-anchor="middle" font-size="20" font-weight="bold" fill="#14532d">Active (=0)</text>
+  <text x="620" y="216" text-anchor="middle" font-size="13" fill="#166534">Đang nhận đặt giá</text>
+  <text x="620" y="238" text-anchor="middle" font-size="13" fill="#166534">StartTime ≤ now &lt; EndTime</text>
+
+  <!-- Completed -->
+  <rect x="900" y="150" width="260" height="110" rx="14" fill="#e2e8f0" stroke="#334155" stroke-width="2.5"/>
+  <text x="1030" y="190" text-anchor="middle" font-size="20" font-weight="bold" fill="#0f172a">Completed (=1)</text>
+  <text x="1030" y="216" text-anchor="middle" font-size="13" fill="#334155">Đã đóng — chốt người thắng</text>
+  <text x="1030" y="238" text-anchor="middle" font-size="13" fill="#334155">WinnerId = bid cao nhất (hoặc null)</text>
+
+  <!-- Cancelled -->
+  <rect x="490" y="420" width="260" height="100" rx="14" fill="#fee2e2" stroke="#dc2626" stroke-width="2.5"/>
+  <text x="620" y="458" text-anchor="middle" font-size="20" font-weight="bold" fill="#7f1d1d">Cancelled (=2)</text>
+  <text x="620" y="484" text-anchor="middle" font-size="13" fill="#991b1b">Admin hủy phiên vi phạm</text>
+  <text x="620" y="504" text-anchor="middle" font-size="13" fill="#991b1b">Kèm CancellationReason (bắt buộc)</text>
+
+  <!-- transitions -->
+  <line x1="340" y1="205" x2="490" y2="205" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+  <text x="415" y="192" text-anchor="middle" font-size="13" font-weight="bold" fill="#334155">now ≥ StartTime</text>
+  <text x="415" y="228" text-anchor="middle" font-size="12" fill="#64748b">worker tự chuyển</text>
+
+  <line x1="750" y1="205" x2="900" y2="205" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+  <text x="825" y="192" text-anchor="middle" font-size="13" font-weight="bold" fill="#334155">now ≥ EndTime</text>
+  <text x="825" y="228" text-anchor="middle" font-size="12" fill="#64748b">worker chọn winner</text>
+
+  <path d="M 210 260 L 210 470 L 490 470" stroke="#dc2626" stroke-width="2.5" fill="none" marker-end="url(#arrRed)"/>
+  <text x="230" y="380" font-size="13" fill="#dc2626">Admin hủy (PATCH cancel)</text>
+  <path d="M 620 260 L 620 420" stroke="#dc2626" stroke-width="2.5" fill="none" marker-end="url(#arrRed)"/>
+  <text x="632" y="350" font-size="13" fill="#dc2626">Admin hủy</text>
+
+  <!-- rules box -->
+  <rect x="80" y="545" width="1080" height="55" rx="10" fill="#fefce8" stroke="#ca8a04" stroke-width="1.5"/>
+  <text x="620" y="568" text-anchor="middle" font-size="13.5" fill="#713f12">⚠ BR-04/BR-08: API đặt giá KHÔNG tin trạng thái hiển thị — BidService luôn tự kiểm tra Status = Active VÀ StartTime ≤ now &lt; EndTime bằng giờ server.</text>
+  <text x="620" y="590" text-anchor="middle" font-size="13.5" fill="#713f12">BR-17: Completed/Cancelled không nhận giá mới • BR-06: không xóa vật lý sản phẩm đã có bid — chỉ Admin hủy mềm.</text>
+
+  <!-- bid window note -->
+  <rect x="490" y="285" width="260" height="46" rx="8" fill="#ffffff" stroke="#16a34a" stroke-dasharray="5 4"/>
+  <text x="620" y="305" text-anchor="middle" font-size="12.5" fill="#166534">Chỉ nhận bid trong cửa sổ này</text>
+  <text x="620" y="323" text-anchor="middle" font-size="12.5" fill="#166534">Bước giá tối thiểu 1.000 VND (config)</text>
+</svg>

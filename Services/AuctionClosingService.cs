@@ -70,6 +70,43 @@ public class AuctionClosingService(
             product.WinnerId = winningBid?.UserId;
             product.Status = ProductStatus.Completed;
             product.UpdatedAt = now;
+
+            // Nếu có người thắng cuộc, tự động tạo Đơn hàng (Order) và Thông báo (Notification)
+            if (winningBid != null)
+            {
+                var orderExists = await db.Orders.AnyAsync(o => o.ProductId == id, ct);
+                if (!orderExists)
+                {
+                    db.Orders.Add(new Order
+                    {
+                        ProductId = id,
+                        BuyerId = winningBid.UserId,
+                        SellerId = product.SellerId,
+                        FinalPrice = winningBid.Amount,
+                        Status = OrderStatus.Pending,
+                        CreatedAt = now
+                    });
+
+                    // Thông báo người thắng cuộc
+                    db.Notifications.Add(new Notification
+                    {
+                        UserId = winningBid.UserId,
+                        Title = "Chúc mừng bạn đã thắng đấu giá!",
+                        Message = $"Bạn đã chiến thắng phiên đấu giá sản phẩm '{product.Name}' với mức giá {winningBid.Amount:N0} VNĐ. Vui lòng cập nhật địa chỉ nhận hàng.",
+                        CreatedAt = now
+                    });
+
+                    // Thông báo người bán
+                    db.Notifications.Add(new Notification
+                    {
+                        UserId = product.SellerId,
+                        Title = "Phiên đấu giá thành công",
+                        Message = $"Sản phẩm '{product.Name}' của bạn đã kết thúc thành công với giá {winningBid.Amount:N0} VNĐ. Đơn hàng mới đã được khởi tạo.",
+                        CreatedAt = now
+                    });
+                }
+            }
+
             try { await db.SaveChangesAsync(ct); }
             catch (DbUpdateConcurrencyException)
             {

@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BidNet — Thuyết trình sàn đấu giá trực tuyến</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: #0f172a; font-family: "Segoe UI", Arial, sans-serif; overflow: hidden; }
+  #deck { height: 100%; position: relative; }
+  .slide {
+    position: absolute; inset: 0; display: none; flex-direction: column;
+    background: #f8fafc; padding: 34px 48px 56px; overflow: hidden;
+  }
+  .slide.active { display: flex; }
+  .slide h1 { font-size: 44px; color: #0f172a; margin-bottom: 8px; }
+  .slide h2 { font-size: 30px; color: #1e3a8a; margin-bottom: 14px; border-bottom: 3px solid #2563eb; padding-bottom: 8px; }
+  .slide .sub { color: #475569; font-size: 17px; margin-bottom: 14px; }
+  .slide .body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .slide img.diagram { flex: 1; min-height: 0; width: 100%; object-fit: contain; }
+  .slide img.shot { max-height: 72vh; width: auto; max-width: 100%; margin: 0 auto; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 4px 18px rgba(0,0,0,.15); }
+  ul.points { font-size: 21px; line-height: 1.65; color: #0f172a; padding-left: 26px; }
+  ul.points li { margin-bottom: 9px; }
+  ul.points b { color: #b91c1c; }
+  code { background: #e2e8f0; padding: 1px 7px; border-radius: 5px; font-family: Consolas, monospace; font-size: .92em; color: #0f172a; }
+  .cols { display: flex; gap: 28px; flex: 1; min-height: 0; }
+  .col { flex: 1; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px 24px; }
+  .col h3 { font-size: 21px; margin-bottom: 12px; }
+  .col.green h3 { color: #15803d; } .col.red h3 { color: #b91c1c; } .col.blue h3 { color: #1d4ed8; }
+  .col ul { font-size: 18px; line-height: 1.6; padding-left: 22px; color: #1e293b; }
+  .col li { margin-bottom: 7px; }
+  table.demo { border-collapse: collapse; width: 100%; font-size: 17.5px; background: #fff; }
+  table.demo th, table.demo td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; }
+  table.demo th { background: #1e3a8a; color: #fff; }
+  table.demo td.ok { color: #15803d; font-weight: bold; } table.demo td.err { color: #b91c1c; font-weight: bold; }
+  .title-slide { justify-content: center; align-items: center; text-align: center; background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%); }
+  .title-slide h1 { color: #fff; font-size: 64px; }
+  .title-slide .sub { color: #bfdbfe; font-size: 24px; margin-top: 14px; }
+  .title-slide .tech { margin-top: 34px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .title-slide .tech span { background: rgba(255,255,255,.12); color: #e0f2fe; border: 1px solid rgba(255,255,255,.3); padding: 8px 18px; border-radius: 999px; font-size: 17px; }
+  .title-slide .who { margin-top: 40px; color: #94a3b8; font-size: 18px; }
+  #hud { position: fixed; bottom: 0; left: 0; right: 0; height: 40px; background: #0f172a; color: #94a3b8; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; font-size: 14px; z-index: 50; }
+  #hud .keys span { margin-right: 16px; }
+  #bar { position: fixed; top: 0; left: 0; height: 4px; background: #2563eb; z-index: 60; transition: width .25s; }
+  #notes { position: fixed; bottom: 40px; left: 0; right: 0; max-height: 34vh; overflow: auto; background: #fefce8; border-top: 2px solid #ca8a04; padding: 14px 24px; font-size: 16px; line-height: 1.55; color: #422006; display: none; z-index: 40; }
+  #notes.show { display: block; }
+  #notes b { color: #713f12; }
+  .note-src { display: none; }
+  .race { display: flex; gap: 24px; flex: 1; align-items: stretch; }
+  .race .lane { flex: 1; background: #fff; border: 2px solid #cbd5e1; border-radius: 12px; padding: 18px 22px; font-size: 18px; }
+  .race .lane h3 { font-size: 20px; margin-bottom: 10px; }
+  .race .lane.win { border-color: #16a34a; } .race .lane.lose { border-color: #dc2626; }
+  .race .step { background: #f1f5f9; border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; font-size: 16.5px; }
+  .race .step.hl-g { background: #dcfce7; color: #14532d; font-weight: bold; }
+  .race .step.hl-r { background: #fee2e2; color: #7f1d1d; font-weight: bold; }
+  .race .mid { display: flex; flex-direction: column; justify-content: center; gap: 10px; font-size: 16px; color: #334155; max-width: 250px; }
+  .race .mid .db { background: #e0f2fe; border: 2px solid #0284c7; border-radius: 10px; padding: 12px; text-align: center; font-weight: bold; color: #0c4a6e; }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<div id="deck">
+
+<!-- 1 -->
+<section class="slide title-slide">
+  <h1>BidNet</h1>
+  <div class="sub">Sàn đấu giá sản phẩm trực tuyến — Back-end REST API + Realtime</div>
+  <div class="tech">
+    <span>ASP.NET Core 10</span><span>EF Core 10 + SQL Server</span><span>JWT + PBKDF2</span>
+    <span>SignalR</span><span>Cloudinary</span><span>Serilog</span><span>xUnit</span>
+  </div>
+  <div class="who">Người trình bày: ……………………… • Lớp: ………………………<br>Mở bằng trình duyệt — phím ←/→ chuyển slide, phím N bật ghi chú người nói</div>
+  <div class="note-src">Chào thầy và các bạn. Hôm nay nhóm em trình bày đề tài BidNet — sàn đấu giá sản phẩm trực tuyến. Em sẽ đi qua bài toán, kiến trúc, các luồng nghiệp vụ quan trọng nhất là đặt giá chống tranh chấp và vòng đời phiên tự động, sau đó demo trực tiếp trên hệ thống đang chạy.</div>
+</section>
+
+<!-- 2 -->
+<section class="slide">
+  <h2>1. Bài toán &amp; phạm vi phiên bản 1</h2>
+  <div class="sub">Một phiên đấu giá = một sản phẩm = một người bán = tối đa một người thắng</div>
+  <div class="cols">
+    <div class="col green"><h3>✔ Đã triển khai</h3><ul>
+      <li>Đăng ký / đăng nhập JWT, hồ sơ cá nhân</li>
+      <li>Đăng &amp; sửa sản phẩm trước giờ mở phiên</li>
+      <li>Tìm kiếm, lọc, phân trang danh sách phiên</li>
+      <li>Đặt giá tăng dần, bước giá tối thiểu 1.000 VND</li>
+      <li>Worker tự mở / đóng phiên, chốt người thắng</li>
+      <li>Realtime SignalR: giá mới &amp; kết quả phiên</li>
+      <li>Admin khóa tài khoản, hủy phiên vi phạm</li>
+      <li>Upload ảnh Cloudinary, Swagger/OpenAPI, 11 test</li>
+    </ul></div>
+    <div class="col red"><h3>✘ Ngoài phạm vi v1 (nói rõ trước)</h3><ul>
+      <li>Không thanh toán thật / ví / đặt cọc — cột <code>Balance</code> chưa dùng</li>
+      <li>Không đấu giá tự động, mua ngay, trả giá kín</li>
+      <li>Không chat, đánh giá, login bên thứ ba</li>
+      <li>Repo này là <b>Back-end</b>; demo bằng Swagger UI (frontend là dự án riêng, cổng 3000)</li>
+    </ul></div>
+  </div>
+  <div class="note-src">BidNet giải quyết bài toán đấu giá online: người bán đăng sản phẩm kèm khung giờ, người mua đặt giá tăng dần, hết giờ hệ thống tự chốt người thắng. Phạm vi v1 tập trung vào tính đúng đắn của nghiệp vụ đấu giá: giá chỉ tăng, không đua ghi sai, phiên tự mở đóng. Phần thanh toán chưa làm — cột Balance chỉ là chỗ chờ, bọn em không hiển thị nó như số dư giao dịch được.</div>
+</section>
+
+<!-- 3 -->
+<section class="slide">
+  <h2>2. Kiến trúc tổng thể</h2>
+  <div class="body"><img class="diagram" src="images/architecture.svg" alt="Kiến trúc BidNet"></div>
+  <div class="note-src">Hệ thống phân lớp rõ: Controller chỉ nhận request và trả status, toàn bộ nghiệp vụ nằm ở Services, truy cập dữ liệu qua Repositories và AppDbContext của EF Core. Hai thành phần chạy song song với HTTP: AuctionHub của SignalR pushing sự kiện realtime, và worker nền AuctionClosingService quét mỗi 5 giây để mở/đóng phiên. Ảnh sản phẩm lưu trên Cloudinary, database chỉ chứa metadata. Điểm đáng nhớ: BidService cố tình dùng thẳng DbContext để INSERT Bid và UPDATE CurrentPrice nằm trong MỘT transaction.</div>
+</section>
+
+<!-- 4 -->
+<section class="slide">
+  <h2>3. Cơ sở dữ liệu — 4 bảng</h2>
+  <div class="body"><img class="diagram" src="images/erd.svg" alt="ERD BidNet"></div>
+  <div class="note-src">Bốn bảng: Users, Products, Bids, ProductImages. Tiền dùng decimal(18,2) chứ không float để tránh sai số. Username/Email có unique index chặn trùng ngay cả khi hai request đồng thời. Products có cột RowVersion kiểu rowversion của SQL Server — chìa khóa chống đua giá. Index (Status, StartTime, EndTime) giúp worker quét nhanh. Khóa ngoại Seller/Winner/User dùng Restrict để không xóa cứng người đã tham gia phiên. Schema quản lý bằng 4 migration trong Git.</div>
+</section>
+
+<!-- 5 -->
+<section class="slide">
+  <h2>4. Vòng đời phiên đấu giá</h2>
+  <div class="body"><img class="diagram" src="images/state-machine.svg" alt="Vòng đời phiên"></div>
+  <div class="note-src">Phiên mới tạo ở trạng thái Scheduled. Worker nền tự chuyển sang Active khi đến StartTime, và sang Completed khi qua EndTime — không cần bất kỳ request nào từ client. Admin có thể hủy phiên Scheduled hoặc Active sang Cancelled kèm lý do. Quy tắc sống còn: API đặt giá không tin nhãn trạng thái vì worker có độ trễ 5 giây — BidService luôn tự kiểm tra StartTime ≤ now &lt; EndTime bằng giờ UTC của server. Phiên đã Completed/Cancelled không nhận giá mới.</div>
+</section>
+
+<!-- 6 -->
+<section class="slide">
+  <h2>5. Xác thực: PBKDF2 + JWT</h2>
+  <div class="body"><img class="diagram" src="images/auth-flow.svg" alt="Luồng xác thực"></div>
+  <div class="note-src">Đăng ký: mật khẩu băm PBKDF2-SHA256 với 210 nghìn vòng lặp và salt ngẫu nhiên 16 byte — không bao giờ lưu mật khẩu rõ; role luôn là User, không thể tự đăng ký Admin. Đăng nhập: so hash bằng FixedTimeEquals chống timing attack, tài khoản bị khóa trả 403, đúng thì phát JWT hạn 60 phút chứa Id, Username, Role ký HMAC-SHA256. Điểm ăn điểm: mọi hành động nhạy cảm gọi CurrentUser.RequireActiveAsync đọc LẠI database — nên Admin khóa tài khoản là mất quyền ngay lập tức dù token còn hạn.</div>
+</section>
+
+<!-- 7 -->
+<section class="slide">
+  <h2>6. Đăng &amp; sửa sản phẩm — quy tắc phía server</h2>
+  <div class="body"><ul class="points">
+    <li><code>POST /api/products</code> — <b>SellerId lấy từ JWT</b>, client không được gửi; phiên mới = <code>Scheduled</code>, <code>CurrentPrice = StartingPrice</code> <i>(ProductService.cs:57–80)</i></li>
+    <li>Validate: tên ≤ 200 ký tự; giá <b>nguyên VND ≥ 1.000</b> (chặn số thập phân); <code>StartTime &gt; now</code>, <code>EndTime &gt; StartTime</code>, bắt buộc UTC <i>(ProductService.cs:135–150)</i></li>
+    <li><code>PUT /api/products/{id}</code> — chỉ <b>chủ sở hữu</b> (403 nếu không), chỉ khi <b>Scheduled + chưa đến giờ + chưa có bid</b> (409 <code>auction_started</code>) <i>(ProductService.cs:92–94)</i></li>
+    <li>Không cho đổi <code>SellerId / WinnerId / CurrentPrice</code> qua API sửa — server tự quyết định các trường này</li>
+    <li>Xung đột RowVersion khi sửa → 409 <code>product_changed</code> <i>(ProductService.cs:106–110)</i></li>
+    <li>Danh sách: lọc theo tên/danh mục/trạng thái/khoảng giá, phân trang <code>pageSize ≤ 100</code>, sort ổn định, <code>AsNoTracking</code></li>
+    <li>Không xóa vật lý sản phẩm đã có bid — Admin chỉ hủy mềm kèm lý do (BR-06)</li>
+  </ul></div>
+  <div class="note-src">Toàn bộ quy tắc nằm trong ProductService chứ không phải controller. Ba câu thầy hay hỏi: vì sao không nhận SellerId từ client? — chống giả mạo danh tính. Vì sao chỉ sửa khi Scheduled và chưa có bid? — bảo vệ tính công bằng của phiên đã chạy. Vì sao chặn giá thập phân? — tiền VND là số nguyên, decimal.Truncate được dùng để kiểm tra.</div>
+</section>
+
+<!-- 8 -->
+<section class="slide">
+  <h2>7. Luồng đặt giá — trái tim của hệ thống</h2>
+  <div class="body"><img class="diagram" src="images/bid-sequence.svg" alt="Luồng đặt giá"></div>
+  <div class="note-src">POST /api/products/{id}/bids đi vào BidService.PlaceAsync — điểm ghi bid DUY NHẤT. Mười bước: kiểm tra tài khoản active đọc từ DB; tải sản phẩm; chặn người bán tự đặt (403); kiểm tra cửa sổ thời gian bằng giờ server (409); giá phải nguyên VND dương; bid đầu ≥ giá khởi điểm, bid sau ≥ CurrentPrice + 1000; rồi MỘT SaveChanges ghi cả Bid lẫn CurrentPrice; conflict thì 409; chỉ SAU commit mới phát SignalR BidAccepted; trả 201. Lỗi gửi SignalR chỉ log warning vì bid đã lưu — trả lỗi HTTP sẽ khiến client gửi lại tạo bid trùng.</div>
+</section>
+
+<!-- 9 -->
+<section class="slide">
+  <h2>8. Hai người đặt giá cùng lúc? — RowVersion</h2>
+  <div class="sub">Optimistic concurrency: <code>UPDATE Products SET ... WHERE Id=@id AND RowVersion=@cũ</code> — SQL Server tự đổi RowVersion mỗi UPDATE</div>
+  <div class="race">
+    <div class="lane win"><h3 style="color:#15803d">Request A — đến trước</h3>
+      <div class="step">Đọc CurrentPrice = 100.000, RowVersion = v1</div>
+      <div class="step">Đặt 150.000 → INSERT Bid + UPDATE</div>
+      <div class="step hl-g">WHERE RowVersion=v1 khớp → COMMIT, RowVersion → v2</div>
+      <div class="step hl-g">201 Created + SignalR BidAccepted</div>
+    </div>
+    <div class="mid"><div class="db">SQL Server<br>BidNetDb<br><span style="font-weight:normal;font-size:14px">Products.RowVersion<br>tự tăng mỗi UPDATE</span></div>
+      <div>EF đưa RowVersion đã đọc vào mệnh đề WHERE của câu UPDATE</div></div>
+    <div class="lane lose"><h3 style="color:#b91c1c">Request B — đến sau</h3>
+      <div class="step">Cũng đọc CurrentPrice = 100.000, RowVersion = v1</div>
+      <div class="step">Đặt 120.000 → INSERT Bid + UPDATE</div>
+      <div class="step hl-r">WHERE RowVersion=v1 khớp 0 DÒNG → DbUpdateConcurrencyException</div>
+      <div class="step hl-r">409 bid_conflict — rollback toàn bộ, KHÔNG ghi đè</div>
+      <div class="step">Client tải lại giá mới (150.000) rồi đặt tiếp</div>
+    </div>
+  </div>
+  <div class="note-src">Đây là slide quan trọng nhất. Không dùng lock bi quan vì đọc nhiều ghi ít; dùng rowversion lạc quan. Hai request cùng đọc một giá, ai commit trước thắng; câu UPDATE của người đến sau chứa RowVersion cũ nên khớp 0 dòng, EF ném DbUpdateConcurrencyException, BidService bắt và trả 409. Vì Bid và CurrentPrice chung một SaveChanges nên không bao giờ có chuyện bid lưu mà giá không đổi. Nhóm có test StaleBid chạy trên SQL Server thật chứng minh điều này — InMemory không mô phỏng rowversion nên phải test riêng.</div>
+</section>
+
+<!-- 10 -->
+<section class="slide">
+  <h2>9. Worker nền — tự mở/đóng phiên &amp; chọn người thắng</h2>
+  <div class="body"><img class="diagram" src="images/worker-flow.svg" alt="Worker nền"></div>
+  <div class="note-src">AuctionClosingService là BackgroundService đăng ký bằng AddHostedService, quét mỗi 5 giây, mỗi lượt tối đa 50 phiên, mỗi lượt tạo DI scope riêng vì worker singleton còn DbContext scoped. Mở phiên: Scheduled đến giờ → Active. Đóng phiên: Active quá giờ → tìm bid thắng bằng OrderByDescending(Amount).ThenBy(BidTime).ThenBy(Id): giá cao nhất thắng, hòa giá thì ai đặt sớm hơn thắng; không có bid thì WinnerId null. Mỗi lượt đọc lại trạng thái trước khi ghi và có RowVersion bảo vệ nên chạy lại không tạo kết quả thứ hai — idempotent. Sau commit phát AuctionClosed cho nhóm đang xem.</div>
+</section>
+
+<!-- 11 -->
+<section class="slide">
+  <h2>10. Realtime SignalR — /hubs/auction</h2>
+  <div class="body"><img class="diagram" src="images/realtime.svg" alt="SignalR"></div>
+  <div class="note-src">Hub yêu cầu JWT; vì WebSocket không gắn header được nên token đi qua query access_token — Program.cs chỉ cho phép riêng đường dẫn hub này. Client gọi JoinProduct(id) để vào nhóm auction:{id}; kiểm tra lại tài khoản active và sản phẩm tồn tại mỗi lần join. Sự kiện BidAccepted và AuctionClosed chỉ phát SAU khi database commit, và chỉ tới đúng nhóm đang xem phiên đó. Nguyên tắc vàng: database là nguồn sự thật, SignalR là thông báo phụ — mất kết nối xong client phải gọi lại GET /api/products/{id} để đồng bộ.</div>
+</section>
+
+<!-- 12 -->
+<section class="slide">
+  <h2>11. Admin &amp; ảnh sản phẩm Cloudinary</h2>
+  <div class="cols">
+    <div class="col blue"><h3>Admin — [Authorize(Roles="Admin")]</h3><ul>
+      <li><code>GET /api/admin/users</code>: tìm kiếm, lọc Role, sắp xếp, phân trang ≤ 50</li>
+      <li><code>PATCH .../users/{id}/status</code>: khóa/mở mềm <code>IsActive</code>; <b>không được tự khóa mình</b> (400)</li>
+      <li>Người bị khóa: token còn hạn vẫn bị chặn <b>ngay</b> ở mọi hành động (RequireActiveAsync đọc DB)</li>
+      <li><code>PATCH .../products/{id}/cancel</code>: bắt buộc lý do; phiên đã đóng → 409; conflict → 409; lưu xong phát AuctionClosed</li>
+      <li>Admin đầu tiên tạo bằng thao tác DBA trên SQL Server — không qua API đăng ký</li>
+    </ul></div>
+    <div class="col green"><h3>Ảnh — Cloudinary CDN</h3><ul>
+      <li><code>POST /api/products/{id}/images</code> (multipart): đúng chủ sở hữu (403)</li>
+      <li>Whitelist MIME: jpeg/png/webp/gif • tối đa <b>5MB</b> (400)</li>
+      <li>Upload folder <code>bidnet/products/{id}</code>, transform auto quality/format</li>
+      <li>DB chỉ lưu <code>CloudinaryPublicId</code> + <code>CloudinaryUrl</code>; cập nhật <code>Product.ImageUrl</code> cùng một SaveChanges</li>
+      <li>Xóa: destroy trên Cloudinary <b>trước</b>, rồi xóa row DB → 204</li>
+      <li>Lỗi Cloudinary → 502, không lộ chi tiết nội bộ</li>
+    </ul></div>
+  </div>
+  <div class="note-src">Admin chỉ có hai quyền đặc biệt: khóa/mở tài khoản và hủy phiên vi phạm — và Admin không miễn quy tắc đặt giá. Khóa là khóa mềm IsActive, kết hợp RequireActiveAsync nên có hiệu lực tức thì. Ảnh không lưu nhị phân trong database: file nằm trên Cloudinary CDN, DB giữ metadata để hiển thị và xóa. Trước khi upload kiểm tra quyền chủ sở hữu, loại file và dung lượng.</div>
+</section>
+
+<!-- 13 -->
+<section class="slide">
+  <h2>12. Middleware, bảo mật &amp; xử lý lỗi thống nhất</h2>
+  <div class="body"><img class="diagram" src="images/pipeline.svg" alt="Pipeline"></div>
+  <div class="note-src">Thứ tự pipeline là điểm dễ bị hỏi: ExceptionHandling ngoài cùng bắt mọi lỗi; Authentication đứng TRƯỚC RateLimiter để policy bid đếm theo username đã xác thực. Rate limit: auth 10 lần/phút theo IP chống dò mật khẩu, bid 30 lần/phút theo user chống spam; hết quota trả 429 ngay không xếp hàng. Mọi lỗi nghiệp vụ ném ApiException có mã ổn định, middleware đổi thành JSON statusCode/message/traceId — lỗi 500 không lộ stack trace ngoài Development. TraceId giúp đối chiếu với log Serilog ghi file cuộn ngày. ErrorsController là endpoint demo cố tình ném lỗi để chứng minh middleware.</div>
+</section>
+
+<!-- 14 -->
+<section class="slide">
+  <h2>13. DEMO trực tiếp — Swagger UI</h2>
+  <div class="sub">Hệ thống đang chạy: https://localhost:7010/swagger • SQL Server Express • worker 5s</div>
+  <div class="body" style="flex-direction:row; gap:24px; align-items:flex-start;">
+    <img class="shot" src="screenshots/01-swagger-overview.png" alt="Swagger UI" style="max-height:66vh;">
+    <ul class="points" style="font-size:18px; flex:1;">
+      <li>① Login <code>seller_demo</code> → Authorize dán token</li>
+      <li>② Tạo phiên: StartTime = +30 giây</li>
+      <li>③ Cả lớp nhìn <b>worker tự mở</b>: Scheduled → Active</li>
+      <li>④ Đổi token <code>bidder_demo</code> → đặt giá = giá khởi điểm → 201</li>
+      <li>⑤ Đặt thấp hơn bước giá → 400 • seller tự đặt → 403</li>
+      <li>⑥ Admin khóa bidder → đặt tiếp bị 403 <b>ngay</b></li>
+      <li>⑦ <code>GET /api/Errors/server</code> → 500 + traceId → tìm trong Logs</li>
+      <li>Script tự động: <code>demo-data.ps1</code></li>
+    </ul>
+  </div>
+  <div class="note-src">Bây giờ em demo trên hệ thống thật. Kịch bản: đăng nhập người bán, tạo phiên bắt đầu sau 30 giây để cả lớp thấy worker tự chuyển trạng thái mà không cần ai gọi API. Sau đó đổi sang người mua đặt giá hợp lệ và các ca bị từ chối. Cuối cùng dùng tài khoản Admin khóa người mua và cho thấy token còn hạn vẫn bị chặn ngay — chứng minh RequireActiveAsync đọc DB mỗi lần. Nếu mạng khỏe có thể mở thêm cửa sổ SignalR để thấy giá nhảy realtime.</div>
+</section>
+
+<!-- 15 -->
+<section class="slide">
+  <h2>14. Kết quả demo đã chạy thật (23/11/2026)</h2>
+  <div class="sub">Product #4 — iPhone 15 Pro Max • giá khởi điểm 100.000 VND • seller_demo (507), bidder_demo (508), bidder_demo2 (509)</div>
+  <div class="body">
+    <table class="demo">
+      <tr><th>Ca thử</th><th>Kỳ vọng</th><th>Kết quả thật</th><th>Ném ra từ</th></tr>
+      <tr><td>Tạo phiên, StartTime = +20s</td><td>Scheduled → worker tự mở</td><td class="ok">Active sau ~20 giây ✔</td><td>AuctionClosingService.cs:41–55</td></tr>
+      <tr><td>Seller tự đặt 200.000</td><td>403 seller_cannot_bid</td><td class="err">403 ✔</td><td>BidService.cs:24</td></tr>
+      <tr><td>Bidder đặt 50.000 (&lt; khởi điểm)</td><td>400 bid_too_low</td><td class="err">400 "tối thiểu 100000" ✔</td><td>BidService.cs:41</td></tr>
+      <tr><td>Bidder đặt 100.000 (= khởi điểm)</td><td>201, bid đầu hợp lệ</td><td class="ok">201, bid Id 1 ✔</td><td>BidService.cs:43–51</td></tr>
+      <tr><td>Bidder2 đặt 100.500 (&lt; bước 1.000)</td><td>400 bid_too_low</td><td class="err">400 "tối thiểu 101000" ✔</td><td>BidService.cs:41</td></tr>
+      <tr><td>Bidder2 đặt 150.000</td><td>201, CurrentPrice tăng</td><td class="ok">201, CurrentPrice = 150.000 ✔</td><td>BidService.cs:43–51</td></tr>
+      <tr><td>Lịch sử công khai</td><td>Ẩn UserId người đặt</td><td class="ok">2 bid, không có UserId ✔</td><td>BidService.cs:75–93</td></tr>
+    </table>
+    <p style="margin-top:14px; font-size:17px; color:#334155;">Ảnh chụp response thật và JSON lỗi đầy đủ (kèm traceId, stack trace chỉ hiện ở Development): xem <code>BAO-CAO-THUYET-TRINH.md</code> mục 11 và thư mục <code>screenshots/</code>.</p>
+  </div>
+  <div class="note-src">Bảng này là kết quả chạy thật bằng script demo-data.ps1 trên máy này sáng nay: mọi ca đều đúng đặc tả. Đáng chú ý nhất là thông báo lỗi trả về đúng giá tối thiểu hiện tại — 100000 rồi 101000 — chứng minh bước giá được tính từ CurrentPrice mới nhất trong DB, và lịch sử công khai không lộ danh tính người đặt.</div>
+</section>
+
+<!-- 15b -->
+<section class="slide">
+  <h2>14b. Ảnh chụp hệ thống thật đang chạy</h2>
+  <div class="sub">Swagger UI gọi thật trên https://localhost:7010 — trái: chi tiết phiên #4 (Active, CurrentPrice 150.000) • phải: lịch sử giá công khai ẩn UserId</div>
+  <div class="body" style="flex-direction:row; gap:20px; justify-content:center; align-items:flex-start;">
+    <img class="shot" src="screenshots/02-product-4-response.png" alt="Response chi tiết phiên 4" style="max-height:68vh;">
+    <img class="shot" src="screenshots/03-bid-history-public.png" alt="Lịch sử bid công khai" style="max-height:68vh;">
+  </div>
+  <div class="note-src">Hai ảnh này chụp trực tiếp từ Swagger UI của hệ thống đang chạy. Bên trái: GET /api/products/4 trả status Active, currentPrice 150000 sau hai lượt đặt, winnerId null vì phiên chưa đóng. Bên phải: GET /api/products/4/bids trả lịch sử công khai — chỉ có id, amount, bidTime, KHÔNG có UserId, đúng chính sách ẩn danh người đặt giá. Phân trang trả kèm page, pageSize, totalCount.</div>
+</section>
+
+<!-- 16 -->
+<section class="slide">
+  <h2>15. Kiểm thử — 11 test tự động</h2>
+  <div class="cols">
+    <div class="col green"><h3>10 test nghiệp vụ (EF InMemory)</h3><ul>
+      <li>Hash ≠ plaintext; khóa tài khoản → 403; trùng username/email → 409</li>
+      <li>Giá thập phân → 400; SellerId từ identity; Scheduled + CurrentPrice = StartingPrice</li>
+      <li>Seller tự đặt → 403; thiếu bước giá → 400 và DB không đổi</li>
+      <li>Người khác sửa → 403; phiên Active sửa → 409; hết hạn đặt → 409</li>
+      <li>Phân trang + lọc status; update profile qua repository</li>
+      <li><b>Worker thật chạy trong test</b>: đóng phiên, WinnerId = người đặt cao nhất</li>
+      <li>Mỗi test một DB GUID riêng, mock SignalR bằng Moq</li>
+    </ul></div>
+    <div class="col blue"><h3>1 test SQL Server thật (opt-in)</h3><ul>
+      <li><code>StaleBid_CannotOverwriteCommittedPrice</code></li>
+      <li>Bật bằng <code>BIDNET_TEST_SQL=1</code> + connection string</li>
+      <li>Tạo DB tạm <code>BidNet_Test_&lt;guid&gt;</code>, xóa sau test</li>
+      <li>2 DbContext cùng đọc 1 RowVersion → cái thứ hai <b>phải</b> ném DbUpdateConcurrencyException</li>
+      <li>Vì sao tách riêng? <b>InMemory không thi hành rowversion</b></li>
+      <li>Chạy: <code>dotnet test Tests/BidNet.Tests.csproj</code></li>
+    </ul></div>
+  </div>
+  <div class="note-src">Bộ test phủ đúng 12 ca nghiệm thu bắt buộc trong đặc tả mục 10. Điểm nhấn là test concurrency chạy SQL Server thật vì provider InMemory không mô phỏng rowversion — nhóm ý thức được giới hạn của mock và chứng minh cơ chế quan trọng nhất trên hạ tầng thật. Test worker dùng DI ServiceProvider thật và chờ tối đa 2 giây để worker đóng phiên.</div>
+</section>
+
+<!-- 17 -->
+<section class="slide">
+  <h2>16. Hạn chế &amp; hướng phát triển</h2>
+  <div class="body"><ul class="points">
+    <li><b>Chưa có thanh toán/đặt cọc</b> — Balance chưa dùng; v2 cần sổ giao dịch + quy trình giữ tiền trước khi đấu giá</li>
+    <li><b>Chưa có frontend trong repo</b> — demo qua Swagger; CORS đã cấu hình sẵn cho frontend cổng 3000</li>
+    <li>Worker quét 5s → độ trễ mở/đóng tối đa 5s (đã bù bằng kiểm tra giờ trực tiếp trong BidService)</li>
+    <li>Nhiều instance cần cơ chế phối hợp ở DB để không đóng phiên hai lần (đặc tả mục 7 ghi nhận)</li>
+    <li><code>appsettings.json</code> còn JWT key fallback mặc định — triển khai thật phải thay bằng secret riêng từng môi trường</li>
+    <li>Cảnh báo NU1902/NU1903: package <code>System.Security.Cryptography.Pkcs 9.0.11</code> có lỗ hổng đã công bố → cần nâng bản vá</li>
+    <li>Hướng v2: đấu giá tự động theo mức giá tối đa, mua ngay, gia hạn phiên khi có bid phút chót (anti-sniping), chat, đánh giá người bán</li>
+  </ul></div>
+  <div class="note-src">Em chủ động nêu hạn chế trước khi bị hỏi. Quan trọng nhất: hệ thống chưa giữ tiền nên chưa chống được người thắng không thanh toán — đó là lý do Balance chưa dùng và thanh toán nằm ngoài phạm vi v1. Về vận hành, độ trễ worker 5 giây đã được bù bằng kiểm tra thời gian trực tiếp; còn scale nhiều instance thì cần phối hợp thêm ở database. Nhóm cũng ghi nhận cảnh báo vulnerability của một package phụ thuộc và sẽ nâng cấp.</div>
+</section>
+
+<!-- 18 -->
+<section class="slide title-slide">
+  <h1 style="font-size:52px;">Kết luận</h1>
+  <div class="sub" style="max-width:900px;">
+    Ba điểm mạnh của BidNet:<br><br>
+    ① Đặt giá đúng đắn dưới tranh chấp — RowVersion + một transaction + 409<br>
+    ② Vòng đời phiên tự động, idempotent — worker nền chọn người thắng công bằng<br>
+    ③ Realtime sau commit — DB là nguồn sự thật, SignalR chỉ thông báo
+  </div>
+  <div class="who" style="font-size:26px; color:#e0f2fe; margin-top:44px;">Em xin hết — mời thầy đặt câu hỏi ạ!</div>
+  <div class="note-src">Tóm lại, BidNet giải quyết đúng ba bài toán khó nhất của đấu giá online: tranh chấp giá đồng thời, vòng đời phiên tự động và cập nhật realtime nhất quán. Toàn bộ quy tắc được kiểm chứng bằng 11 test và demo thật. Em xin hết và mời thầy đặt câu hỏi. Chuẩn bị sẵn: mục 12 Q&A trong báo cáo có 20 câu hỏi phản biện kèm trả lời và vị trí code.</div>
+</section>
+
+</div>
+
+<div id="notes"></div>
+<div id="hud">
+  <div class="keys"><span>←/→ hoặc Space: chuyển slide</span><span>N: ghi chú người nói</span><span>Home/End: đầu/cuối</span></div>
+  <div id="counter"></div>
+</div>
+
+<script>
+  const slides = [...document.querySelectorAll('.slide')];
+  let i = 0, notesOn = false;
+  const notesBox = document.getElementById('notes');
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    document.getElementById('counter').textContent = (i + 1) + ' / ' + slides.length;
+    document.getElementById('bar').style.width = ((i + 1) / slides.length * 100) + '%';
+    const src = slides[i].querySelector('.note-src');
+    notesBox.innerHTML = '<b>🗣 Ghi chú người nói (slide ' + (i + 1) + '):</b> ' + (src ? src.textContent : '(không có)');
+    notesBox.classList.toggle('show', notesOn);
+    location.hash = '#' + (i + 1);
+  }
+  document.addEventListener('keydown', e => {
+    if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); show(i + 1); }
+    else if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); show(i - 1); }
+    else if (e.key === 'Home') show(0);
+    else if (e.key === 'End') show(slides.length - 1);
+    else if (e.key.toLowerCase() === 'n') { notesOn = !notesOn; show(i); }
+  });
+  document.addEventListener('click', e => {
+    if (e.target.closest('#hud') || e.target.closest('#notes')) return;
+    show(i + (e.clientX > window.innerWidth / 2 ? 1 : -1));
+  });
+  const h = parseInt(location.hash.slice(1)); show(isNaN(h) ? 0 : h - 1);
+</script>
+</body>
+</html>

@@ -48,6 +48,11 @@ namespace BidNet.Models
         [MaxLength(100)]
         public string? Category { get; set; }
 
+        // Khóa ngoại liên kết tới bảng Categories (chuẩn hóa danh mục)
+        public int? CategoryId { get; set; }
+        [ForeignKey("CategoryId")]
+        public virtual Category? CategoryRef { get; set; }
+
         [MaxLength(500)]
         public string? CancellationReason { get; set; }
 
@@ -63,6 +68,9 @@ namespace BidNet.Models
 
         // Navigation: danh sách ảnh của sản phẩm 
         public virtual ICollection<ProductImage> Images { get; set; } = new List<ProductImage>();
+
+        // Navigation: đơn hàng sinh ra khi phiên này kết thúc có người thắng
+        public virtual Order? Order { get; set; }
     }
 
     public enum ProductStatus

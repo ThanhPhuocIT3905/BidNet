@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="780" viewBox="0 0 1240 780" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1240" height="780" fill="#f8fafc"/>
+  <text x="620" y="38" text-anchor="middle" font-size="25" font-weight="bold" fill="#0f172a">Xác thực: Đăng ký → Đăng nhập → JWT → Gọi API</text>
+  <text x="620" y="62" text-anchor="middle" font-size="13.5" fill="#475569">Services/AuthService.cs • Repositories/AuthRepository.cs • Middleware JWT trong Program.cs (dòng 95–121)</text>
+
+  <!-- Register -->
+  <rect x="60" y="90" width="540" height="290" rx="12" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="330" y="120" text-anchor="middle" font-size="17" font-weight="bold" fill="#1e3a8a">① POST /api/auth/register (Public, rate limit 10/phút/IP)</text>
+  <g font-size="13.5" fill="#1e40af">
+    <text x="84" y="150">1. DTO validation: username ≥ 3 ký tự, email hợp lệ, password ≥ 8</text>
+    <text x="84" y="174">2. Trim username • email lowercase • kiểm tra trùng → 409 account_exists</text>
+    <text x="84" y="198">3. Sinh salt ngẫu nhiên 16 byte (RandomNumberGenerator)</text>
+    <text x="84" y="222">4. Hash = PBKDF2-SHA256(password, salt, 210.000 vòng, 32 byte)</text>
+    <text x="84" y="246">5. Role LUÔN = "User" — không thể tự đăng ký Admin</text>
+    <text x="84" y="270">6. INSERT — nếu vẫn trùng (đua 2 request): SqlException 2601/2627 → 409</text>
+    <text x="84" y="294">7. Trả 201 + UserResponseDto (KHÔNG có hash/salt)</text>
+  </g>
+  <rect x="84" y="312" width="492" height="50" rx="8" fill="#ffffff" stroke="#2563eb" stroke-dasharray="5 4"/>
+  <text x="330" y="333" text-anchor="middle" font-size="12.5" fill="#1e3a8a">Mật khẩu không bao giờ lưu rõ • so sánh hash dùng FixedTimeEquals</text>
+  <text x="330" y="352" text-anchor="middle" font-size="12.5" fill="#1e3a8a">(chống tấn công dò thời gian — timing attack)</text>
+
+  <!-- Login -->
+  <rect x="640" y="90" width="540" height="290" rx="12" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="910" y="120" text-anchor="middle" font-size="17" font-weight="bold" fill="#14532d">② POST /api/auth/login (Public, rate limit 10/phút/IP)</text>
+  <g font-size="13.5" fill="#166534">
+    <text x="664" y="150">1. Tìm user theo username HOẶC email</text>
+    <text x="664" y="174">2. VerifyPassword: băm lại password với salt đã lưu → so hash</text>
+    <text x="682" y="196">Sai → 401 invalid_credentials (không nói rõ sai username hay pass)</text>
+    <text x="664" y="220">3. IsActive = false → 403 account_inactive (tài khoản bị khóa)</text>
+    <text x="664" y="244">4. GenerateJwtToken (AuthService.cs dòng 94–121):</text>
+    <text x="682" y="266">Claims: NameIdentifier = Id, Name = Username, Role = từ DB</text>
+    <text x="682" y="288">Ký HMAC-SHA256 • hạn 60 phút • issuer/audience = "BidNet"</text>
+    <text x="664" y="312">5. Trả 200 { accessToken, user }</text>
+  </g>
+  <rect x="664" y="326" width="492" height="40" rx="8" fill="#ffffff" stroke="#16a34a" stroke-dasharray="5 4"/>
+  <text x="910" y="351" text-anchor="middle" font-size="12.5" fill="#14532d">Khóa ký ≥ 32 byte, thiếu là DỪNG khởi động (Program.cs dòng 90–92)</text>
+
+  <!-- Using token -->
+  <rect x="60" y="410" width="1120" height="180" rx="12" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+  <text x="620" y="440" text-anchor="middle" font-size="17" font-weight="bold" fill="#92400e">③ Mỗi request sau đó: Authorization: Bearer &lt;token&gt;</text>
+  <g font-size="13.5" fill="#78350f">
+    <text x="90" y="470">1. Middleware JwtBearer kiểm: chữ ký + issuer + audience + hạn (ClockSkew 30s) → sai: 401</text>
+    <text x="90" y="494">2. [Authorize(Roles="Admin")] cho API quản trị → thiếu vai trò: 403</text>
+    <text x="90" y="518">3. CurrentUser.RequireActiveAsync ĐỌC LẠI DB mỗi thao tác nhạy cảm → tài khoản vừa bị khóa mất quyền NGAY, không chờ token hết hạn</text>
+    <text x="90" y="542">4. UserId/SellerId luôn lấy từ claim trong token — client KHÔNG được gửi các trường danh tính này</text>
+    <text x="90" y="566">5. Riêng WebSocket SignalR: token gửi qua query ?access_token= (trình duyệt không gắn header được cho WS) — chỉ áp dụng /hubs/auction</text>
+  </g>
+
+  <!-- why box -->
+  <rect x="60" y="615" width="1120" height="130" rx="12" fill="#f1f5f9" stroke="#334155" stroke-width="1.5"/>
+  <text x="620" y="645" text-anchor="middle" font-size="15.5" font-weight="bold" fill="#0f172a">Câu hỏi thầy hay hỏi — trả lời nhanh</text>
+  <g font-size="13.5" fill="#334155">
+    <text x="90" y="673">• Vì sao JWT mà không session? → Stateless: server không lưu trạng thái đăng nhập, phù hợp REST API + nhiều client; thông tin user nằm trong token đã ký.</text>
+    <text x="90" y="697">• Vì sao PBKDF2 210.000 vòng? → Hàm băm chậm chuyên dụng cho mật khẩu + salt ngẫu nhiên chống rainbow table; SHA-256 thường tự ghép là KHÔNG đủ an toàn.</text>
+    <text x="90" y="721">• Token bị lộ rồi khóa tài khoản có kịp không? → Có: mọi hành động nhạy cảm gọi RequireActiveAsync đọc DB trực tiếp (CurrentUser.cs dòng 11–22).</text>
+  </g>
+</svg>

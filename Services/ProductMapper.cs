@@ -19,6 +19,7 @@ public static class ProductMapper
         Status = p.Status.ToString(),
         ImageUrl = p.ImageUrl,
         Category = p.Category,
+        CategoryId = p.CategoryId,
         SellerId = p.SellerId,
         SellerName = p.Seller.Username,
         WinnerId = p.WinnerId,

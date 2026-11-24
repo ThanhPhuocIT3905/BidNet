@@ -31,6 +31,9 @@ namespace BidNet.DTOs
 
         [MaxLength(100)]
         public string? Category { get; set; }
+
+        // ID danh mục từ bảng Categories (tùy chọn)
+        public int? CategoryId { get; set; }
     }
 
     // Khi sửa, service chỉ chấp nhận phiên Scheduled chưa bắt đầu/chưa có bid.
@@ -47,6 +50,10 @@ namespace BidNet.DTOs
 
         [MaxLength(100)]
         public string? Category { get; set; }
+
+        // ID danh mục từ bảng Categories (tùy chọn)
+        public int? CategoryId { get; set; }
+
         public decimal StartingPrice { get; set; }
         public DateTime StartTime { get; set; }
         public DateTime EndTime { get; set; }
@@ -65,6 +72,7 @@ namespace BidNet.DTOs
         public string Status { get; set; } = string.Empty;
         public string? ImageUrl { get; set; }
         public string? Category { get; set; }
+        public int? CategoryId { get; set; }
 
         public int SellerId { get; set; }
         public string SellerName { get; set; } = string.Empty;

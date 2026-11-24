@@ -1,0 +1,806 @@
+{
+  "info": {
+    "name": "BidNet API - Buổi 15 Báo Cáo & Bảo Vệ Đồ Án",
+    "_postman_id": "bidnet-api-buoi15-collection",
+    "description": "Bộ sưu tập API hoàn chỉnh của dự án BidNet theo tiêu chuẩn Buổi 15: Xác thực JWT, Phân quyền RBAC, Đặt giá Realtime, Quản lý Danh mục, Đơn hàng sau đấu giá, Thông báo và các kịch bản kiểm thử luồng sai (400, 401, 403, 409, 500).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5014",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "sellerToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bidderToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "productId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "orderId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "categoryId",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "01. Authentication & Profile",
+      "item": [
+        {
+          "name": "Đăng ký tài khoản mới (POST /api/auth/register)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"sinhvien_test\",\n  \"email\": \"sinhvien@donga.edu.vn\",\n  \"password\": \"Demo@12345\",\n  \"fullName\": \"Sinh Vien Dong A\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Đăng nhập Admin (POST /api/auth/login)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.accessToken) {",
+                  "    pm.collectionVariables.set('adminToken', jsonData.accessToken);",
+                  "    console.log('Admin token saved!');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"usernameOrEmail\": \"admin\",\n  \"password\": \"Admin@12345\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Đăng nhập Seller (POST /api/auth/login)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.accessToken) {",
+                  "    pm.collectionVariables.set('sellerToken', jsonData.accessToken);",
+                  "    console.log('Seller token saved!');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"usernameOrEmail\": \"seller_demo\",\n  \"password\": \"Demo@12345\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Đăng nhập Bidder (POST /api/auth/login)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.accessToken) {",
+                  "    pm.collectionVariables.set('bidderToken', jsonData.accessToken);",
+                  "    console.log('Bidder token saved!');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"usernameOrEmail\": \"bidder_demo\",\n  \"password\": \"Demo@12345\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Lấy thông tin cá nhân (GET /api/auth/me)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bidderToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02. Categories (Quản lý Danh mục)",
+      "item": [
+        {
+          "name": "Lấy danh sách Danh mục (GET /api/categories - Public)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin tạo Danh mục mới (POST /api/categories - Role: Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Đồ gia dụng & Nội thất\",\n  \"description\": \"Bàn ghế, tủ gỗ, thiết bị nhà bếp thông minh\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Phân quyền: User gọi API Admin tạo Danh mục (Kỳ vọng 403 Forbidden)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bidderToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Danh mục trái phép\",\n  \"description\": \"User thường cố tình gọi API của Admin\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03. Products (Quản lý Phiên đấu giá)",
+      "item": [
+        {
+          "name": "Xem danh sách sản phẩm phân trang & lọc (GET /api/products)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/products?page=1&pageSize=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Xem chi tiết sản phẩm (GET /api/products/{id})",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/products/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "{{productId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Seller tạo phiên đấu giá mới (POST /api/products)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sellerToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Laptop Dell XPS 15 9530 (Hàng chính hãng)\",\n  \"description\": \"Core i9 13900H, 32GB RAM, 1TB SSD, RTX 4070. Máy đẹp like new.\",\n  \"startingPrice\": 35000000,\n  \"stepPrice\": 500000,\n  \"startTime\": \"2026-11-24T12:00:00Z\",\n  \"endTime\": \"2026-11-24T18:00:00Z\",\n  \"categoryId\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04. Bidding (Đặt giá trực tuyến & Luồng nghiệp vụ)",
+      "item": [
+        {
+          "name": "Happy Path: Đặt giá hợp lệ (POST /api/products/{id}/bids)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bidderToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 2600000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/products/1/bids",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "1",
+                "bids"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Bắt lỗi 403: Seller tự đặt giá sản phẩm của chính mình (Kỳ vọng 403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sellerToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 99999999\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/products/4/bids",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "4",
+                "bids"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Bắt lỗi 400: Đặt giá thấp hơn giá hiện tại (Kỳ vọng 400 bid_too_low)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bidderToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 1000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/products/1/bids",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "1",
+                "bids"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Xem lịch sử đặt giá công khai - Ẩn danh người đặt (GET /api/products/{id}/bids)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/products/1/bids",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "1",
+                "bids"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Xem lịch sử đặt giá của tôi (GET /api/bids/me)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bidderToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/bids/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bids",
+                "me"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05. Orders (Đơn hàng sau đấu giá)",
+      "item": [
+        {
+          "name": "Xem danh sách đơn hàng của tôi (GET /api/orders/me)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bidderToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Người mua cập nhật địa chỉ nhận hàng (PATCH /api/orders/{id}/shipping-address)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bidderToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shippingAddress\": \"33 Xô Viết Nghệ Tĩnh, Quận Hải Châu, TP Đà Nẵng\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}/shipping-address",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{orderId}}",
+                "shipping-address"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Người bán / Admin cập nhật trạng thái đơn hàng (PATCH /api/orders/{id}/status)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Delivered\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{orderId}}",
+                "status"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06. Notifications (Thông báo hệ thống)",
+      "item": [
+        {
+          "name": "Xem danh sách thông báo cá nhân (GET /api/notifications/me)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bidderToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Đánh dấu đã đọc tất cả thông báo (PATCH /api/notifications/read-all)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bidderToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/read-all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "read-all"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07. Admin & Bảo mật & Bắt lỗi hệ thống",
+      "item": [
+        {
+          "name": "Admin xem danh sách người dùng (GET /api/admin/users - Role: Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Phân quyền: User gọi API Admin (Kỳ vọng 403 Forbidden)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bidderToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin khóa tài khoản User vi phạm (PATCH /api/admin/users/{id}/status)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/509/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "509",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin hủy phiên đấu giá vi phạm (POST /api/admin/products/{id}/cancel)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Sản phẩm phát hiện nghi vấn hàng giả, vi phạm điều khoản quy chế sàn.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/products/4/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "products",
+                "4",
+                "cancel"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Kiểm tra xử lý lỗi hệ thống 500 & TraceId (GET /api/Errors/server)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/Errors/server",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "Errors",
+                "server"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

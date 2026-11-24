@@ -42,5 +42,12 @@ namespace BidNet.Models
         public virtual ICollection<Product> WonProducts { get; set; } = new List<Product>();
 
         public virtual ICollection<Bid> Bids { get; set; } = new List<Bid>();
+
+        // Navigation: Danh sách đơn hàng đã mua (thắng cuộc) và đã bán
+        public virtual ICollection<Order> BoughtOrders { get; set; } = new List<Order>();
+        public virtual ICollection<Order> SoldOrders { get; set; } = new List<Order>();
+
+        // Navigation: Danh sách thông báo của người dùng
+        public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     }
 }

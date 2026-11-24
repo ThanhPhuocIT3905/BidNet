@@ -40,10 +40,39 @@ public class BidService(
         if (amount < minimum)
             throw new ApiException(400, "bid_too_low", $"Giá tối thiểu hiện tại là {minimum} VND.");
 
+        // Tìm người đang giữ giá cao nhất trước lượt này để gửi thông báo bị vượt giá
+        var previousBidderId = await db.Bids.AsNoTracking()
+            .Where(b => b.ProductId == productId && b.UserId != user.Id)
+            .OrderByDescending(b => b.Amount)
+            .Select(b => (int?)b.UserId)
+            .FirstOrDefaultAsync(ct);
+
         var bid = new Bid { ProductId = productId, UserId = user.Id, Amount = amount, BidTime = now };
         db.Bids.Add(bid);
         product.CurrentPrice = amount;
         product.UpdatedAt = now;
+
+        // Tự động tạo thông báo gửi tới người vừa bị trả giá cao hơn
+        if (previousBidderId.HasValue)
+        {
+            db.Notifications.Add(new Notification
+            {
+                UserId = previousBidderId.Value,
+                Title = "Giá đấu bị vượt!",
+                Message = $"Mức giá của bạn cho sản phẩm '{product.Name}' đã bị người khác vượt qua với giá {amount:N0} VNĐ.",
+                CreatedAt = now
+            });
+        }
+
+        // Tự động tạo thông báo gửi tới người bán sản phẩm
+        db.Notifications.Add(new Notification
+        {
+            UserId = product.SellerId,
+            Title = "Lượt đặt giá mới",
+            Message = $"Sản phẩm '{product.Name}' của bạn vừa có lượt đặt giá mới: {amount:N0} VNĐ.",
+            CreatedAt = now
+        });
+
         try
         {
             // EF lưu Bid và CurrentPrice trong cùng SaveChanges. RowVersion của

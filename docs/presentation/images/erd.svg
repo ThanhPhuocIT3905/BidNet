@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1360" height="920" viewBox="0 0 1360 920" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1360" height="920" fill="#f8fafc"/>
+  <text x="680" y="42" text-anchor="middle" font-size="26" font-weight="bold" fill="#0f172a">Sơ đồ cơ sở dữ liệu BidNetDb (7 bảng hoàn chỉnh — EF Core Migrations)</text>
+  <text x="680" y="68" text-anchor="middle" font-size="14" fill="#64748b">Hệ thống Đấu giá Trực tuyến theo chuẩn Kiến trúc Báo cáo Đồ án Buổi 15</text>
+
+  <!-- Categories (Mới) -->
+  <rect x="40" y="100" width="280" height="210" rx="10" fill="#ffffff" stroke="#0284c7" stroke-width="2"/>
+  <rect x="40" y="100" width="280" height="38" rx="10" fill="#0284c7"/>
+  <text x="180" y="126" text-anchor="middle" font-size="16" font-weight="bold" fill="#ffffff">Categories (Danh mục)</text>
+  <g font-size="13" fill="#0f172a">
+    <text x="56" y="160">🔑 Id (int, PK)</text>
+    <text x="56" y="186">Name (nvarchar 100, UNIQUE)</text>
+    <text x="56" y="212">Description? (nvarchar 500)</text>
+    <text x="56" y="238">CreatedAt (datetime2, UTC)</text>
+  </g>
+  <text x="56" y="280" font-size="11.5" fill="#64748b">Models/Category.cs • Chuẩn hóa danh mục</text>
+
+  <!-- Products -->
+  <rect x="370" y="100" width="360" height="420" rx="10" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <rect x="370" y="100" width="360" height="38" rx="10" fill="#16a34a"/>
+  <text x="550" y="126" text-anchor="middle" font-size="16" font-weight="bold" fill="#ffffff">Products (Sản phẩm đấu giá)</text>
+  <g font-size="13" fill="#0f172a">
+    <text x="386" y="160">🔑 Id (int, PK)</text>
+    <text x="386" y="184">Name (nvarchar 200)</text>
+    <text x="386" y="208">StartingPrice / CurrentPrice decimal(18,2)</text>
+    <text x="386" y="232">StepPrice decimal(18,2)</text>
+    <text x="386" y="256">StartTime / EndTime (datetime2, UTC)</text>
+    <text x="386" y="280">Status (Scheduled / Active / Completed / Cancelled)</text>
+    <text x="386" y="304">🔗 CategoryId? → Categories.Id (SetNull)</text>
+    <text x="386" y="328">🔗 SellerId → Users.Id (Restrict)</text>
+    <text x="386" y="352">🔗 WinnerId? → Users.Id (Restrict)</text>
+    <text x="386" y="376">⚡ RowVersion (byte[] [Timestamp] - Concurrency)</text>
+    <text x="386" y="400">CancellationReason? (nvarchar 500)</text>
+  </g>
+  <text x="386" y="445" font-size="11.5" fill="#64748b">Models/Product.cs • 1 sản phẩm = 1 phiên đấu giá</text>
+  <text x="386" y="465" font-size="11.5" fill="#64748b">Index (Status, StartTime, EndTime) phục vụ Worker</text>
+
+  <!-- ProductImages -->
+  <rect x="780" y="100" width="280" height="210" rx="10" fill="#ffffff" stroke="#0d9488" stroke-width="2"/>
+  <rect x="780" y="100" width="280" height="38" rx="10" fill="#0d9488"/>
+  <text x="920" y="126" text-anchor="middle" font-size="16" font-weight="bold" fill="#ffffff">ProductImages (Ảnh)</text>
+  <g font-size="13" fill="#0f172a">
+    <text x="796" y="160">🔑 Id (int, PK)</text>
+    <text x="796" y="186">🔗 ProductId → Products.Id (Cascade)</text>
+    <text x="796" y="212">ImageUrl (nvarchar 500)</text>
+    <text x="796" y="238">PublicId (nvarchar 200, Cloudinary)</text>
+    <text x="796" y="264">DisplayOrder (int)</text>
+  </g>
+  <text x="796" y="295" font-size="11.5" fill="#64748b">Models/ProductImage.cs • 1..N ảnh Cloudinary</text>
+
+  <!-- Users -->
+  <rect x="40" y="360" width="280" height="360" rx="10" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
+  <rect x="40" y="360" width="280" height="38" rx="10" fill="#2563eb"/>
+  <text x="180" y="386" text-anchor="middle" font-size="16" font-weight="bold" fill="#ffffff">Users (Người dùng)</text>
+  <g font-size="13" fill="#0f172a">
+    <text x="56" y="420">🔑 Id (int, PK)</text>
+    <text x="56" y="444">Username (nvarchar 50, UNIQUE)</text>
+    <text x="56" y="468">Email (nvarchar 100, UNIQUE)</text>
+    <text x="56" y="492">PasswordHash / PasswordSalt (binary)</text>
+    <text x="56" y="516">FullName? / PhoneNumber?</text>
+    <text x="56" y="540">Role ("User" | "Admin")</text>
+    <text x="56" y="564">IsActive (bit — khóa mềm)</text>
+    <text x="56" y="588">Balance decimal(18,2)</text>
+    <text x="56" y="612">CreatedAt / UpdatedAt (UTC)</text>
+  </g>
+  <text x="56" y="650" font-size="11.5" fill="#64748b">Models/User.cs • Không trả hash ra API</text>
+  <text x="56" y="670" font-size="11.5" fill="#64748b">PBKDF2-SHA256, 210.000 vòng lặp</text>
+
+  <!-- Bids -->
+  <rect x="370" y="560" width="360" height="240" rx="10" fill="#ffffff" stroke="#d97706" stroke-width="2"/>
+  <rect x="370" y="560" width="360" height="38" rx="10" fill="#d97706"/>
+  <text x="550" y="586" text-anchor="middle" font-size="16" font-weight="bold" fill="#ffffff">Bids (Lịch sử đặt giá)</text>
+  <g font-size="13" fill="#0f172a">
+    <text x="386" y="620">🔑 Id (int, PK)</text>
+    <text x="386" y="646">🔗 ProductId → Products.Id (Cascade)</text>
+    <text x="386" y="672">🔗 UserId → Users.Id (Restrict)</text>
+    <text x="386" y="698">Amount decimal(18,2)</text>
+    <text x="386" y="724">BidTime (datetime2, UTC)</text>
+  </g>
+  <text x="386" y="760" font-size="11.5" fill="#64748b">Models/Bid.cs • Ghi nhận từng bước giá</text>
+  <text x="386" y="780" font-size="11.5" fill="#64748b">Public API ẩn UserId (chỉ hiện B***r)</text>
+
+  <!-- Orders (Mới) -->
+  <rect x="780" y="360" width="320" height="330" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="2"/>
+  <rect x="780" y="360" width="320" height="330" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="2"/>
+  <rect x="780" y="360" width="320" height="38" rx="10" fill="#7c3aed"/>
+  <text x="940" y="386" text-anchor="middle" font-size="16" font-weight="bold" fill="#ffffff">Orders (Đơn hàng sau đấu giá)</text>
+  <g font-size="13" fill="#0f172a">
+    <text x="796" y="420">🔑 Id (int, PK)</text>
+    <text x="796" y="444">🔗 ProductId → Products.Id (UNIQUE, Restrict)</text>
+    <text x="796" y="468">🔗 BuyerId → Users.Id (Restrict)</text>
+    <text x="796" y="492">🔗 SellerId → Users.Id (Restrict)</text>
+    <text x="796" y="516">FinalPrice decimal(18,2)</text>
+    <text x="796" y="540">ShippingAddress? (nvarchar 500)</text>
+    <text x="796" y="564">Status (Pending / Paid / Delivered / Cancelled)</text>
+    <text x="796" y="588">CreatedAt / CompletedAt (UTC)</text>
+  </g>
+  <text x="796" y="630" font-size="11.5" fill="#64748b">Models/Order.cs • Quan hệ 1-1 với Product</text>
+  <text x="796" y="650" font-size="11.5" fill="#64748b">Worker tự chốt Order cho người thắng cuộc</text>
+
+  <!-- Notifications (Mới) -->
+  <rect x="40" y="750" width="280" height="150" rx="10" fill="#ffffff" stroke="#e11d48" stroke-width="2"/>
+  <rect x="40" y="750" width="280" height="38" rx="10" fill="#e11d48"/>
+  <text x="180" y="776" text-anchor="middle" font-size="16" font-weight="bold" fill="#ffffff">Notifications (Thông báo)</text>
+  <g font-size="13" fill="#0f172a">
+    <text x="56" y="810">🔑 Id (int, PK)</text>
+    <text x="56" y="832">🔗 UserId → Users.Id (Cascade)</text>
+    <text x="56" y="854">Title (200) / Message (1000)</text>
+    <text x="56" y="876">IsRead (bit) / CreatedAt (UTC)</text>
+  </g>
+
+  <!-- Quan hệ (Arrows & Labels) -->
+  <!-- Categories -> Products -->
+  <line x1="320" y1="180" x2="370" y2="180" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="345" y="172" text-anchor="middle" font-size="11" fill="#475569">1 - N</text>
+
+  <!-- Products -> ProductImages -->
+  <line x1="730" y1="180" x2="780" y2="180" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="755" y="172" text-anchor="middle" font-size="11" fill="#475569">1 - N</text>
+
+  <!-- Users -> Products (Seller) -->
+  <path d="M 320 420 L 345 420 L 345 330 L 370 330" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="350" y="375" text-anchor="middle" font-size="11" fill="#475569">1 - N</text>
+
+  <!-- Products -> Bids -->
+  <line x1="550" y1="520" x2="550" y2="560" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="565" y="542" text-anchor="middle" font-size="11" fill="#475569">1 - N</text>
+
+  <!-- Users -> Bids -->
+  <path d="M 320 620 L 370 620" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="345" y="612" text-anchor="middle" font-size="11" fill="#475569">1 - N</text>
+
+  <!-- Products -> Orders (1-1) -->
+  <line x1="730" y1="440" x2="780" y2="440" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="755" y="432" text-anchor="middle" font-size="11" fill="#7c3aed" font-weight="bold">1 - 1</text>
+
+  <!-- Users -> Notifications -->
+  <line x1="180" y1="720" x2="180" y2="750" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="195" y="738" text-anchor="middle" font-size="11" fill="#475569">1 - N</text>
+
+  <!-- Box Legend & Bảo vệ dữ liệu -->
+  <rect x="780" y="720" width="540" height="180" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="796" y="746" font-size="14" font-weight="bold" fill="#0f172a">🛡️ 4 Cơ chế Bảo vệ Toàn vẹn Dữ liệu Đồ án:</text>
+  <text x="796" y="774" font-size="12.5" fill="#334155">1. Optimistic Concurrency: RowVersion chống 2 người đặt trùng giá cùng mili-giây.</text>
+  <text x="796" y="800" font-size="12.5" fill="#334155">2. OnDelete Restrict: Không xóa cascade User/Product để bảo tồn lịch sử kế toán.</text>
+  <text x="796" y="826" font-size="12.5" fill="#334155">3. Chốt đơn tự động: Worker đóng phiên tự tạo Order và gửi Notification.</text>
+  <text x="796" y="852" font-size="12.5" fill="#334155">4. Bảo mật mật khẩu: PBKDF2-SHA256, 210.000 vòng lặp, salt ngẫu nhiên 16 byte.</text>
+</svg>

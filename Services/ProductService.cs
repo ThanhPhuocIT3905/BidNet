@@ -70,6 +70,7 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
             EndTime = request.EndTime,
             ImageUrl = request.ImageUrl,
             Category = request.Category?.Trim(),
+            CategoryId = request.CategoryId,
             SellerId = user.Id,
             Seller = user,
             Status = ProductStatus.Scheduled
@@ -101,6 +102,7 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
         product.EndTime = request.EndTime;
         product.ImageUrl = request.ImageUrl;
         product.Category = request.Category?.Trim();
+        product.CategoryId = request.CategoryId;
         product.UpdatedAt = DateTime.UtcNow;
         // RowVersion làm SaveChanges thất bại nếu worker/request khác vừa đổi phiên.
         try { await db.SaveChangesAsync(ct); }

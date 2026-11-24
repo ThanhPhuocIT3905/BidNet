@@ -144,7 +144,7 @@ try
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0
+                PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0
             }));
         options.AddPolicy("bid", context => RateLimitPartition.GetFixedWindowLimiter(
             context.User.Identity?.Name ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",

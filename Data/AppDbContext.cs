@@ -9,11 +9,14 @@ namespace BidNet.Data
         public AppDbContext(DbContextOptions<AppDbContext> options)
             : base(options) { }
 
-        // DbSet là điểm bắt đầu truy vấn và ghi dữ liệu; migration tạo các bảng này.
+        // DbSet là điểm bắt đầu truy vấn và ghi dữ liệu; migration tạo 7 bảng này.
         public DbSet<User> Users => Set<User>();
         public DbSet<Product> Products => Set<Product>();
         public DbSet<Bid> Bids => Set<Bid>();
         public DbSet<ProductImage> ProductImages => Set<ProductImage>();
+        public DbSet<Category> Categories => Set<Category>();
+        public DbSet<Order> Orders => Set<Order>();
+        public DbSet<Notification> Notifications => Set<Notification>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -71,6 +74,56 @@ namespace BidNet.Data
                 .WithMany(p => p.Images)
                 .HasForeignKey(pi => pi.ProductId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            // ── 1. Cấu hình bảng Categories ─────────────────────────────────────────
+            // Tên danh mục là duy nhất để tránh trùng lặp
+            modelBuilder.Entity<Category>()
+                .HasIndex(c => c.Name)
+                .IsUnique();
+
+            // SetNull: Khi xóa Category, sản phẩm chuyển CategoryId về null (không xóa mất sản phẩm)
+            modelBuilder.Entity<Product>()
+                .HasOne(p => p.CategoryRef)
+                .WithMany(c => c.Products)
+                .HasForeignKey(p => p.CategoryId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // ── 2. Cấu hình bảng Orders ──────────────────────────────────────────────
+            // Mỗi sản phẩm chỉ sinh tối đa 1 đơn hàng khi đấu giá kết thúc
+            modelBuilder.Entity<Order>()
+                .HasIndex(o => o.ProductId)
+                .IsUnique();
+
+            modelBuilder.Entity<Order>()
+                .HasOne(o => o.Product)
+                .WithOne(p => p.Order)
+                .HasForeignKey<Order>(o => o.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Restrict: Không xóa User nếu đang có đơn hàng liên quan để giữ lịch sử giao dịch
+            modelBuilder.Entity<Order>()
+                .HasOne(o => o.Buyer)
+                .WithMany(u => u.BoughtOrders)
+                .HasForeignKey(o => o.BuyerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Order>()
+                .HasOne(o => o.Seller)
+                .WithMany(u => u.SoldOrders)
+                .HasForeignKey(o => o.SellerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ── 3. Cấu hình bảng Notifications ───────────────────────────────────────
+            // Tăng tốc truy vấn danh sách thông báo theo từng người dùng
+            modelBuilder.Entity<Notification>()
+                .HasIndex(n => new { n.UserId, n.IsRead });
+
+            // Cascade: Khi xóa tài khoản User, các thông báo liên quan được xóa theo
+            modelBuilder.Entity<Notification>()
+                .HasOne(n => n.User)
+                .WithMany(u => u.Notifications)
+                .HasForeignKey(n => n.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

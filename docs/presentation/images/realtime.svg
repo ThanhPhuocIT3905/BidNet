@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="700" viewBox="0 0 1240 700" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#475569"/>
+    </marker>
+    <marker id="arrPurple" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#7c3aed"/>
+    </marker>
+  </defs>
+  <rect width="1240" height="700" fill="#f8fafc"/>
+  <text x="620" y="38" text-anchor="middle" font-size="25" font-weight="bold" fill="#0f172a">Realtime SignalR — /hubs/auction</text>
+  <text x="620" y="62" text-anchor="middle" font-size="13.5" fill="#475569">Hubs/AuctionHub.cs • nhóm theo ProductId • sự kiện chỉ phát SAU khi database commit</text>
+
+  <!-- clients -->
+  <rect x="60" y="100" width="220" height="80" rx="10" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="170" y="130" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e3a8a">Người xem A</text>
+  <text x="170" y="155" text-anchor="middle" font-size="12.5" fill="#1e40af">đang mở phiên #5</text>
+  <rect x="60" y="210" width="220" height="80" rx="10" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="170" y="240" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e3a8a">Người xem B</text>
+  <text x="170" y="265" text-anchor="middle" font-size="12.5" fill="#1e40af">cũng xem phiên #5</text>
+  <rect x="60" y="320" width="220" height="80" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+  <text x="170" y="350" text-anchor="middle" font-size="15" font-weight="bold" fill="#334155">Người xem C</text>
+  <text x="170" y="375" text-anchor="middle" font-size="12.5" fill="#64748b">xem phiên #9 → KHÔNG nhận</text>
+
+  <!-- hub -->
+  <rect x="430" y="140" width="330" height="230" rx="12" fill="#ede9fe" stroke="#7c3aed" stroke-width="2.5"/>
+  <text x="595" y="172" text-anchor="middle" font-size="17" font-weight="bold" fill="#4c1d95">AuctionHub [Authorize]</text>
+  <g font-size="13" fill="#5b21b6">
+    <text x="452" y="200">OnConnectedAsync: kiểm JWT + IsActive</text>
+    <text x="452" y="224">JoinProduct(id): kiểm lại active + sản phẩm tồn tại</text>
+    <text x="452" y="248">→ Groups.AddToGroup("auction:{id}")</text>
+    <text x="452" y="272">LeaveProduct(id): rời nhóm, ngừng nhận</text>
+    <text x="452" y="300" font-size="12" fill="#64748b">Hub KHÔNG quyết định giá thắng — chỉ phát tin</text>
+    <text x="452" y="322" font-size="12" fill="#64748b">Token WS: ?access_token=... (Program.cs dòng 113–119)</text>
+    <text x="452" y="344" font-size="12" fill="#64748b">CORS "FrontendOnly" áp dụng cho cả SignalR</text>
+  </g>
+
+  <!-- connect arrows -->
+  <line x1="280" y1="140" x2="430" y2="180" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="280" y1="250" x2="430" y2="250" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="290" y="165" font-size="12" fill="#475569">WebSocket + JWT</text>
+  <text x="290" y="240" font-size="12" fill="#475569">JoinProduct(5)</text>
+
+  <!-- senders -->
+  <rect x="900" y="100" width="290" height="90" rx="10" fill="#ffedd5" stroke="#ea580c" stroke-width="2"/>
+  <text x="1045" y="130" text-anchor="middle" font-size="15" font-weight="bold" fill="#7c2d12">BidService.PlaceAsync</text>
+  <text x="1045" y="155" text-anchor="middle" font-size="12.5" fill="#9a3412">Sau SaveChanges thành công →</text>
+  <text x="1045" y="175" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#9a3412">"BidAccepted" {currentPrice, bidTime}</text>
+
+  <rect x="900" y="220" width="290" height="90" rx="10" fill="#fce7f3" stroke="#db2777" stroke-width="2"/>
+  <text x="1045" y="250" text-anchor="middle" font-size="15" font-weight="bold" fill="#831843">AuctionClosingService</text>
+  <text x="1045" y="275" text-anchor="middle" font-size="12.5" fill="#9d174d">Sau khi chốt Completed →</text>
+  <text x="1045" y="295" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#9d174d">"AuctionClosed" {winnerId}</text>
+
+  <rect x="900" y="340" width="290" height="70" rx="10" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="1045" y="368" text-anchor="middle" font-size="15" font-weight="bold" fill="#7f1d1d">AdminController (hủy phiên)</text>
+  <text x="1045" y="392" text-anchor="middle" font-size="12.5" fill="#991b1b">Sau SaveChanges → "AuctionClosed"</text>
+
+  <line x1="900" y1="145" x2="760" y2="185" stroke="#7c3aed" stroke-width="2" stroke-dasharray="7 4" marker-end="url(#arrPurple)"/>
+  <line x1="900" y1="265" x2="760" y2="265" stroke="#7c3aed" stroke-width="2" stroke-dasharray="7 4" marker-end="url(#arrPurple)"/>
+  <line x1="900" y1="375" x2="760" y2="330" stroke="#7c3aed" stroke-width="2" stroke-dasharray="7 4" marker-end="url(#arrPurple)"/>
+  <text x="785" y="150" font-size="12" fill="#7c3aed">IHubContext.Clients.Group(...)</text>
+
+  <!-- broadcast -->
+  <path d="M 430 300 L 280 270" stroke="#7c3aed" stroke-width="2.5" marker-end="url(#arrPurple)"/>
+  <path d="M 430 210 L 280 160" stroke="#7c3aed" stroke-width="2.5" marker-end="url(#arrPurple)"/>
+  <text x="292" y="310" font-size="12.5" font-weight="bold" fill="#7c3aed">chỉ nhóm auction:5 nhận</text>
+
+  <!-- reconnect box -->
+  <rect x="60" y="450" width="1130" height="110" rx="12" fill="#fefce8" stroke="#ca8a04" stroke-width="2"/>
+  <text x="620" y="480" text-anchor="middle" font-size="15.5" font-weight="bold" fill="#713f12">Nguyên tắc vàng: Database là nguồn sự thật — SignalR chỉ là thông báo phụ</text>
+  <g font-size="13.5" fill="#422006">
+    <text x="90" y="508">• Không phát sự kiện trước khi commit → client không bao giờ thấy giá "ảo" của bid bị từ chối/rollback.</text>
+    <text x="90" y="532">• Gửi SignalR lỗi → chỉ log warning, không đổi kết quả HTTP (tránh client gửi lại tạo bid trùng).</text>
+    <text x="90" y="552" font-size="12.5" fill="#64748b">• Mất kết nối / reconnect → client gọi lại GET /api/products/{id} để đồng bộ dữ liệu mới nhất từ DB.</text>
+  </g>
+
+  <text x="620" y="620" text-anchor="middle" font-size="14" font-weight="bold" fill="#0f172a">Luồng demo trước lớp: mở 2 cửa sổ Swagger/browser cùng xem 1 phiên → đặt giá ở cửa sổ 1 → cửa sổ 2 nhận BidAccepted ngay</text>
+  <text x="620" y="650" text-anchor="middle" font-size="12.5" fill="#64748b">Sự kiện ẩn danh người đặt (chỉ currentPrice + bidTime) theo chính sách hiển thị — lịch sử công khai cũng không lộ UserId</text>
+</svg>
