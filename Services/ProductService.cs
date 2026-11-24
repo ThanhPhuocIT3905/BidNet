@@ -60,6 +60,9 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
         // Phiên mới ở Scheduled và CurrentPrice ban đầu bằng StartingPrice.
         var user = await currentUser.RequireActiveAsync(ct);
         Validate(request.Name, request.StartingPrice, request.StartTime, request.EndTime, request.ImageUrl);
+        // Danh mục phải tồn tại; nếu chỉ gửi tên (dữ liệu cũ) thì cố gắng khớp
+        // với bảng Categories để giữ nhất quán giữa CategoryId và tên danh mục.
+        var category = await ResolveCategoryAsync(request.CategoryId, request.Category, ct);
         var product = new Product
         {
             Name = request.Name.Trim(),
@@ -69,8 +72,8 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
             StartTime = request.StartTime,
             EndTime = request.EndTime,
             ImageUrl = request.ImageUrl,
-            Category = request.Category?.Trim(),
-            CategoryId = request.CategoryId,
+            Category = category?.Name ?? request.Category?.Trim(),
+            CategoryId = category?.Id ?? request.CategoryId,
             SellerId = user.Id,
             Seller = user,
             Status = ProductStatus.Scheduled
@@ -94,6 +97,7 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
             await db.Bids.AnyAsync(b => b.ProductId == id, ct))
             throw new ApiException(409, "auction_started", "Không thể sửa phiên đã bắt đầu hoặc đã có giá.");
         Validate(request.Name, request.StartingPrice, request.StartTime, request.EndTime, request.ImageUrl);
+        var category = await ResolveCategoryAsync(request.CategoryId, request.Category, ct);
         product.Name = request.Name.Trim();
         product.Description = request.Description?.Trim();
         product.StartingPrice = request.StartingPrice;
@@ -101,8 +105,8 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
         product.StartTime = request.StartTime;
         product.EndTime = request.EndTime;
         product.ImageUrl = request.ImageUrl;
-        product.Category = request.Category?.Trim();
-        product.CategoryId = request.CategoryId;
+        product.Category = category?.Name ?? request.Category?.Trim();
+        product.CategoryId = category?.Id ?? request.CategoryId;
         product.UpdatedAt = DateTime.UtcNow;
         // RowVersion làm SaveChanges thất bại nếu worker/request khác vừa đổi phiên.
         try { await db.SaveChangesAsync(ct); }
@@ -114,6 +118,23 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
     }
 
     // Mapper dùng Seller.Username và Winner.Username nên truy vấn phải Include trước.
+    // Xác định danh mục hợp lệ: ưu tiên CategoryId, sau đó khớp theo tên.
+    // Trả null nếu client chỉ gửi chuỗi danh mục tự do (tương thích dữ liệu cũ).
+    private async Task<Category?> ResolveCategoryAsync(int? categoryId, string? categoryName, CancellationToken ct)
+    {
+        if (categoryId is int id)
+        {
+            return await db.Categories.FirstOrDefaultAsync(c => c.Id == id, ct)
+                ?? throw new ApiException(400, "category_not_found", $"Không tìm thấy danh mục ID {id}.");
+        }
+        if (!string.IsNullOrWhiteSpace(categoryName))
+        {
+            var name = categoryName.Trim();
+            return await db.Categories.FirstOrDefaultAsync(c => c.Name == name, ct);
+        }
+        return null;
+    }
+
     private static IQueryable<Product> WithUsers(IQueryable<Product> query) =>
         query.Include(p => p.Seller).Include(p => p.Winner);
 

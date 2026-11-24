@@ -33,5 +33,6 @@ public class UpdateShippingAddressDto
 public class UpdateOrderStatusDto
 {
     [Required(ErrorMessage = "Vui lòng chọn trạng thái đơn hàng.")]
+    [EnumDataType(typeof(OrderStatus), ErrorMessage = "Trạng thái đơn hàng không hợp lệ.")]
     public OrderStatus Status { get; set; }
 }

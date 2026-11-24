@@ -1,0 +1,11 @@
+**/.git
+**/.vs
+**/bin
+**/obj
+**/publish
+**/publish_self
+**/Logs
+**/*.user
+**/*.suo
+.vscode/
+.idea/

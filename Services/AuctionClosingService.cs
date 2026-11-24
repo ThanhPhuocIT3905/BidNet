@@ -112,6 +112,13 @@ public class AuctionClosingService(
             {
                 // Phiên đã được request/worker khác thay đổi; bỏ kết quả tính trên
                 // dữ liệu cũ và để lượt quét sau đọc lại trạng thái mới.
+                // Gỡ cả Order/Notification vừa Add khỏi change tracker; nếu không,
+                // chúng sẽ bị lưu nhầm ở vòng lặp sản phẩm kế tiếp.
+                foreach (var entry in db.ChangeTracker.Entries()
+                             .Where(e => e.State is EntityState.Added or EntityState.Modified).ToList())
+                {
+                    entry.State = EntityState.Detached;
+                }
                 db.Entry(product).State = EntityState.Detached;
                 continue;
             }

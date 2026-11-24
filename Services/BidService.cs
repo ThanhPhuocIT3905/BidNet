@@ -40,10 +40,12 @@ public class BidService(
         if (amount < minimum)
             throw new ApiException(400, "bid_too_low", $"Giá tối thiểu hiện tại là {minimum} VND.");
 
-        // Tìm người đang giữ giá cao nhất trước lượt này để gửi thông báo bị vượt giá
+        // Tìm người đang giữ giá cao nhất TRƯỚC lượt này (không loại trừ ai) để gửi
+        // thông báo bị vượt giá. Nếu chính người đang dẫn đầu tự nâng giá thì không
+        // gửi, tránh báo nhầm cho người giữ giá thứ hai.
         var previousBidderId = await db.Bids.AsNoTracking()
-            .Where(b => b.ProductId == productId && b.UserId != user.Id)
-            .OrderByDescending(b => b.Amount)
+            .Where(b => b.ProductId == productId)
+            .OrderByDescending(b => b.Amount).ThenBy(b => b.BidTime).ThenBy(b => b.Id)
             .Select(b => (int?)b.UserId)
             .FirstOrDefaultAsync(ct);
 
@@ -52,8 +54,8 @@ public class BidService(
         product.CurrentPrice = amount;
         product.UpdatedAt = now;
 
-        // Tự động tạo thông báo gửi tới người vừa bị trả giá cao hơn
-        if (previousBidderId.HasValue)
+        // Chỉ báo "bị vượt giá" khi người dẫn đầu trước đó KHÔNG phải chính mình.
+        if (previousBidderId.HasValue && previousBidderId.Value != user.Id)
         {
             db.Notifications.Add(new Notification
             {

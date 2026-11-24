@@ -61,7 +61,7 @@ public class OrdersController(AppDbContext db, CurrentUser currentUser) : Contro
 
         // Kiểm tra quyền: Người mua, người bán hoặc Admin mới được xem
         if (order.BuyerId != user.Id && order.SellerId != user.Id && user.Role != "Admin")
-            throw new UnauthorizedException("Bạn không có quyền truy cập vào đơn hàng này.");
+            throw new ForbiddenException("Bạn không có quyền truy cập vào đơn hàng này.");
 
         return Ok(new OrderResponseDto
         {
@@ -98,7 +98,7 @@ public class OrdersController(AppDbContext db, CurrentUser currentUser) : Contro
 
         // Chỉ người thắng cuộc (Buyer) mới có quyền cập nhật địa chỉ của mình
         if (order.BuyerId != user.Id)
-            throw new UnauthorizedException("Chỉ người mua mới có quyền cập nhật địa chỉ giao hàng.");
+            throw new ForbiddenException("Chỉ người mua mới có quyền cập nhật địa chỉ giao hàng.");
 
         order.ShippingAddress = dto.ShippingAddress.Trim();
         await db.SaveChangesAsync(ct);
@@ -138,13 +138,21 @@ public class OrdersController(AppDbContext db, CurrentUser currentUser) : Contro
 
         // Người bán hoặc Admin mới được đổi trạng thái đơn
         if (order.SellerId != user.Id && user.Role != "Admin")
-            throw new UnauthorizedException("Chỉ người bán hoặc Admin mới có quyền cập nhật trạng thái đơn hàng.");
+            throw new ForbiddenException("Chỉ người bán hoặc Admin mới có quyền cập nhật trạng thái đơn hàng.");
+
+        // Chỉ cho phép tiến trình hợp lệ: Pending -> Paid/Cancelled,
+        // Paid -> Delivered/Cancelled. Delivered/Cancelled là trạng thái cuối.
+        var allowed = order.Status switch
+        {
+            OrderStatus.Pending => dto.Status is OrderStatus.Paid or OrderStatus.Cancelled,
+            OrderStatus.Paid => dto.Status is OrderStatus.Delivered or OrderStatus.Cancelled,
+            _ => false
+        };
+        if (dto.Status != order.Status && !allowed)
+            throw new BadRequestException($"Không thể chuyển đơn hàng từ {order.Status} sang {dto.Status}.");
 
         order.Status = dto.Status;
-        if (dto.Status == OrderStatus.Delivered)
-        {
-            order.CompletedAt = DateTime.UtcNow;
-        }
+        order.CompletedAt = dto.Status == OrderStatus.Delivered ? DateTime.UtcNow : null;
 
         await db.SaveChangesAsync(ct);
 

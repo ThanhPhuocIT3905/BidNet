@@ -3,3 +3,7 @@
 .vs/
 *.user
 Logs/
+publish/
+publish_self/
+.tmp_report/
+.tmp_*/

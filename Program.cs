@@ -46,6 +46,7 @@ try
             document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
             document.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
             {
+                Description = "Nhập JWT token (Swagger sẽ tự thêm tiền tố Bearer).",
                 Type = SecuritySchemeType.Http,
                 Scheme = "bearer",
                 BearerFormat = "JWT"
@@ -122,10 +123,17 @@ try
     builder.Services.AddAuthorization();
     builder.Services.AddSignalR();
 
-    // Cấu hình CORS: Chỉ cho phép đúng 1 Frontend duy nhất truy cập
+    // Cấu hình CORS: Cho phép Frontend (React/Vue/Angular) truy cập theo chuẩn Buổi 13
     var frontendUrl = builder.Configuration["FrontendUrl"] ?? "http://localhost:3000";
     builder.Services.AddCors(options =>
     {
+        options.AddPolicy("AllowFrontend", policy =>
+        {
+            policy.WithOrigins(frontendUrl)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials();
+        });
         options.AddPolicy("FrontendOnly", policy =>
         {
             policy.WithOrigins(frontendUrl)
@@ -214,8 +222,8 @@ try
         app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "BidNet API v1"));
     }
     app.UseRouting();
-    // Bật CORS ngay sau UseRouting và trước Authentication để áp dụng cho Controller & SignalR
-    app.UseCors("FrontendOnly");
+    // Bật CORS ngay sau UseRouting và trước Authentication theo đúng chuẩn Buổi 13
+    app.UseCors("AllowFrontend");
     // Thứ tự quan trọng: đọc JWT trước để rate limit biết tài khoản nào đang gọi,
     // sau đó Authorization mới kiểm tra [Authorize]/vai trò Admin.
     app.UseAuthentication();

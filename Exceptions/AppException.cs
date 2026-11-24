@@ -34,4 +34,14 @@ namespace BidNet.Exceptions
         {
         }
     }
+
+    // Đã đăng nhập nhưng không đủ quyền trên tài nguyên (401 là chưa xác thực,
+    // 403 mới đúng ngữ nghĩa "không có quyền").
+    public class ForbiddenException : AppException
+    {
+        public ForbiddenException(string message)
+            : base(message, StatusCodes.Status403Forbidden)
+        {
+        }
+    }
 }

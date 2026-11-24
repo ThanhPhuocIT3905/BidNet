@@ -1,8 +1,12 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace BidNet.DTOs;
 
 public class PlaceBidDto
 {
     // Client chỉ gửi giá; UserId và thời điểm đặt lấy ở server.
+    [Required(ErrorMessage = "Số tiền đặt giá là bắt buộc.")]
+    [Range(0.01, 100000000000, ErrorMessage = "Số tiền đặt giá phải lớn hơn 0.")]
     public decimal Amount { get; set; }
 }
 
