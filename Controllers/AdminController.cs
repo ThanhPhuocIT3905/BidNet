@@ -22,12 +22,27 @@ public class AdminController(
     [HttpGet("users")]
     // Dùng AsNoTracking vì chỉ hiển thị; phân trang để không trả toàn bộ user.
     public async Task<ActionResult<PagedResponseDto<UserResponseDto>>> Users(
-        int page = 1, int pageSize = 20, CancellationToken ct = default)
+        int page = 1, int pageSize = 20, CancellationToken ct = default,
+        string? searchTerm = null, string? role = null, string? sortBy = null, bool isDescending = false)
     {
         await currentUser.RequireActiveAsync(ct);
         var args = PageArgs.Validate(page, pageSize);
-        var count = await db.Users.CountAsync(ct);
-        var users = await db.Users.AsNoTracking().OrderBy(u => u.Id)
+        var query = db.Users.AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var term = searchTerm.Trim();
+            query = query.Where(u => u.Username.Contains(term) || u.Email.Contains(term));
+        }
+        if (!string.IsNullOrWhiteSpace(role)) query = query.Where(u => u.Role == role);
+        var count = await query.CountAsync(ct);
+        var sorted = sortBy?.ToLowerInvariant() switch
+        {
+            "username" => isDescending ? query.OrderByDescending(u => u.Username) : query.OrderBy(u => u.Username),
+            "email" => isDescending ? query.OrderByDescending(u => u.Email) : query.OrderBy(u => u.Email),
+            "createdat" => isDescending ? query.OrderByDescending(u => u.CreatedAt) : query.OrderBy(u => u.CreatedAt),
+            _ => query.OrderBy(u => u.Id)
+        };
+        var users = await sorted.ThenBy(u => u.Id)
             .Skip((args.Page - 1) * args.PageSize).Take(args.PageSize).ToListAsync(ct);
         return Ok(new PagedResponseDto<UserResponseDto>
         {

@@ -1,0 +1,139 @@
+.admin-shell {
+  display: grid;
+  grid-template-columns: 205px minmax(0, 1fr);
+  gap: clamp(18px, 3vw, 40px);
+  align-items: start;
+}
+.admin-nav {
+  position: sticky;
+  top: 90px;
+  background: var(--green);
+  color: white;
+  border-radius: 12px;
+  padding: 20px 12px;
+}
+.admin-nav strong {
+  display: block;
+  font-family: var(--display);
+  font-size: 22px;
+  margin: 0 8px 16px;
+}
+.admin-nav nav {
+  display: grid;
+  gap: 4px;
+}
+.admin-nav a {
+  padding: 11px 12px;
+  border-radius: 5px;
+}
+.admin-nav a:hover,
+.admin-nav a[aria-current] {
+  background: #e3edce;
+  color: #19392b;
+}
+.admin-body {
+  min-width: 0;
+}
+.admin-body h1 {
+  font: 500 clamp(28px, 3vw, 42px) / 1.15 var(--display);
+  margin: 10px 0 22px;
+}
+.admin-body .section-head {
+  margin-top: 0;
+}
+.admin-body .split {
+  grid-template-columns: minmax(0, 1.5fr) minmax(230px, 1fr);
+}
+.admin-body .table a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.admin-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  gap: 12px;
+}
+.admin-metrics section {
+  margin: 0;
+}
+.admin-metrics h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+.admin-metrics strong {
+  display: block;
+  font: 42px var(--display);
+  margin: 12px 0;
+}
+.admin-metrics a {
+  color: var(--green);
+  text-decoration: underline;
+}
+.admin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  margin: 0 0 18px;
+}
+.admin-filters label,
+.cancel-form label {
+  display: grid;
+  gap: 5px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.admin-filters input,
+.admin-filters select,
+.cancel-form textarea {
+  background: white;
+  color: var(--ink);
+  border: 1px solid #bcc8bd;
+  border-radius: 6px;
+  padding: 10px;
+  max-width: 100%;
+  font: inherit;
+}
+.cancel-form {
+  min-width: 180px;
+  display: grid;
+  gap: 10px;
+}
+.cancel-form textarea {
+  width: 100%;
+  resize: vertical;
+}
+.admin-body .table {
+  background: white;
+}
+.admin-body .table-wrap {
+  max-width: 100%;
+}
+@media (max-width: 980px) {
+  .admin-body .split {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 760px) {
+  .admin-shell {
+    display: block;
+  }
+  .admin-nav {
+    position: static;
+    margin-bottom: 20px;
+    padding: 12px;
+  }
+  .admin-nav strong {
+    margin: 0 0 6px;
+  }
+  .admin-nav nav {
+    display: flex;
+    overflow: auto;
+  }
+  .admin-nav a {
+    white-space: nowrap;
+  }
+  .admin-filters label {
+    flex: 1 1 140px;
+  }
+}
