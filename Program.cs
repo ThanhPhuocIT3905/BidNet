@@ -166,6 +166,8 @@ if (app.Environment.IsDevelopment())
     // Swagger UI đọc cùng tài liệu OpenAPI; chỉ mở trong môi trường Development.
     app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "BidNet API v1"));
 }
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseRouting();
 // Thứ tự quan trọng: đọc JWT trước để rate limit biết tài khoản nào đang gọi,
 // sau đó Authorization mới kiểm tra [Authorize]/vai trò Admin.

@@ -121,6 +121,6 @@ public class BidService(
         ProductId = bid.ProductId,
         UserId = bid.UserId,
         Amount = bid.Amount,
-        BidTime = bid.BidTime
+        BidTime = DateTime.SpecifyKind(bid.BidTime, DateTimeKind.Utc)
     };
 }

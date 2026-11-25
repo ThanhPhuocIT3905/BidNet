@@ -141,7 +141,7 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
         if (price < 1000 || price != decimal.Truncate(price) || price > 9_999_999_999_999_999m)
             throw new ApiException(400, "invalid_price", "Giá khởi điểm phải là số nguyên VND từ 1.000.");
         if (start.Kind != DateTimeKind.Utc || end.Kind != DateTimeKind.Utc ||
-            start <= DateTime.UtcNow || end <= start)
+            start < DateTime.UtcNow.AddSeconds(-60) || end <= start)
             throw new ApiException(400, "invalid_time", "Thời gian phải là UTC, bắt đầu trong tương lai và kết thúc sau khi bắt đầu.");
         if (!string.IsNullOrWhiteSpace(imageUrl) &&
             (!Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri) ||
