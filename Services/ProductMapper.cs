@@ -14,8 +14,8 @@ public static class ProductMapper
         Description = p.Description,
         StartingPrice = p.StartingPrice,
         CurrentPrice = p.CurrentPrice,
-        StartTime = p.StartTime,
-        EndTime = p.EndTime,
+        StartTime = DateTime.SpecifyKind(p.StartTime, DateTimeKind.Utc),
+        EndTime = DateTime.SpecifyKind(p.EndTime, DateTimeKind.Utc),
         Status = p.Status.ToString(),
         ImageUrl = p.ImageUrl,
         Category = p.Category ?? p.CategoryEntity?.Name,
@@ -24,7 +24,7 @@ public static class ProductMapper
         SellerName = p.Seller.Username,
         WinnerId = p.WinnerId,
         WinnerName = p.Winner?.Username,
-        CreatedAt = p.CreatedAt,
+        CreatedAt = DateTime.SpecifyKind(p.CreatedAt, DateTimeKind.Utc),
         CancellationReason = p.CancellationReason
     };
 }

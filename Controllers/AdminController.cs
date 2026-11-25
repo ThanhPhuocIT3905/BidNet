@@ -136,16 +136,14 @@ public class AdminController(
     public async Task<ActionResult<ProductResponseDto>> Cancel(
         int id, CancelProductDto request, CancellationToken ct)
     {
-        // Hủy mềm thay trạng thái thay vì xóa sản phẩm/bid. Phiên đã kết thúc
-        // hoặc đã hủy không được xử lý lại.
         await currentUser.RequireActiveAsync(ct);
         if (string.IsNullOrWhiteSpace(request.Reason))
             throw new ApiException(400, "invalid_reason", "Cần ghi lý do hủy phiên.");
         var product = await db.Products.Include(p => p.Seller).Include(p => p.Winner)
             .FirstOrDefaultAsync(p => p.Id == id, ct)
             ?? throw new ApiException(404, "product_not_found", "Không tìm thấy sản phẩm.");
-        if (product.Status is ProductStatus.Completed or ProductStatus.Cancelled)
-            throw new ApiException(409, "auction_closed", "Phiên đã kết thúc hoặc đã hủy.");
+        if (product.Status is ProductStatus.Cancelled)
+            throw new ApiException(409, "auction_closed", "Phiên này đã bị hủy trước đó.");
         product.Status = ProductStatus.Cancelled;
         product.CancellationReason = request.Reason.Trim();
         product.UpdatedAt = DateTime.UtcNow;
@@ -167,5 +165,17 @@ public class AdminController(
             logger.LogWarning(ex, "Không gửi được AuctionClosed cho phiên {ProductId}", id);
         }
         return Ok(ProductMapper.ToResponse(product));
+    }
+
+    [HttpDelete("products/{id:int}")]
+    public async Task<ActionResult> DeleteProduct(int id, CancellationToken ct)
+    {
+        await currentUser.RequireActiveAsync(ct);
+        var product = await db.Products.Include(p => p.Bids).FirstOrDefaultAsync(p => p.Id == id, ct)
+            ?? throw new ApiException(404, "product_not_found", "Không tìm thấy sản phẩm.");
+        db.Bids.RemoveRange(product.Bids);
+        db.Products.Remove(product);
+        await db.SaveChangesAsync(ct);
+        return NoContent();
     }
 }

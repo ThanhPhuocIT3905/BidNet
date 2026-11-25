@@ -90,7 +90,7 @@ public class BidService(
             UserId = bid.UserId,
             Username = user.Username,
             Amount = bid.Amount,
-            BidTime = bid.BidTime
+            BidTime = DateTime.SpecifyKind(bid.BidTime, DateTimeKind.Utc)
         };
         // Chỉ phát SignalR khi DB đã lưu thành công, tránh báo bid bị từ chối.
         try
@@ -148,6 +148,12 @@ public class BidService(
                 BidTime = b.BidTime
             })
             .ToListAsync(ct);
+
+        foreach (var item in items)
+        {
+            item.BidTime = DateTime.SpecifyKind(item.BidTime, DateTimeKind.Utc);
+        }
+
         return new PagedResponseDto<BidResponseDto>
         {
             Items = items,

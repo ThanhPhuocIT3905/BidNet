@@ -1,0 +1,1589 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BidNet - Sàn Đấu Giá Trực Tuyến</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- SignalR Client -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+  <!-- Google Fonts Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.85; transform: scale(1.02); }
+    }
+    .live-badge { animation: pulse-subtle 1.8s infinite; }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #1e293b; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-brand-500 selection:text-slate-900">
+
+  <!-- MAIN NAVIGATION -->
+  <nav class="bg-slate-900 border-b border-slate-800/80 px-4 py-3 sticky top-0 z-40 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <!-- LOGO -->
+      <div class="flex items-center space-x-3 cursor-pointer" onclick="switchTab('marketplace')">
+        <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+          <i class="fa-solid fa-gavel text-slate-950 text-xl font-bold"></i>
+        </div>
+        <div>
+          <span class="text-xl font-black tracking-tight text-white flex items-center gap-1.5">
+            BidNet <span class="text-xs px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/30">v1.0</span>
+          </span>
+          <p class="text-[11px] text-slate-400 -mt-0.5">Sàn Đấu Giá Trực Tuyến Thời Gian Thực</p>
+        </div>
+      </div>
+
+      <!-- NAV TABS -->
+      <div class="hidden md:flex items-center space-x-1">
+        <button id="nav-marketplace" onclick="switchTab('marketplace')" class="nav-btn px-4 py-2 rounded-lg text-sm font-semibold transition bg-brand-500 text-slate-950 shadow-sm">
+          <i class="fa-solid fa-store mr-1.5"></i> Sàn Đấu Giá
+        </button>
+        <button id="nav-create" onclick="switchTab('create')" class="nav-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition">
+          <i class="fa-solid fa-plus-circle mr-1.5"></i> Đăng Sản Phẩm
+        </button>
+        <button id="nav-myproducts" onclick="switchTab('myproducts')" class="nav-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition">
+          <i class="fa-solid fa-box-archive mr-1.5"></i> Sản Phẩm Của Tôi
+        </button>
+        <button id="nav-mybids" onclick="switchTab('mybids')" class="nav-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition">
+          <i class="fa-solid fa-hand-holding-dollar mr-1.5"></i> Lịch Sử Đặt Giá
+        </button>
+        <button id="nav-wonproducts" onclick="switchTab('wonproducts')" class="nav-btn px-4 py-2 rounded-lg text-sm font-semibold text-amber-300 hover:text-white hover:bg-slate-800 transition">
+          <i class="fa-solid fa-trophy mr-1.5 text-amber-400"></i> Đã Trúng Thầu
+        </button>
+        <button id="nav-admin" onclick="switchTab('admin')" class="nav-btn hidden px-4 py-2 rounded-lg text-sm font-semibold text-rose-300 hover:text-white hover:bg-rose-950/40 border border-rose-900/40 transition">
+          <i class="fa-solid fa-screwdriver-wrench mr-1.5"></i> Quản Trị (Admin)
+        </button>
+      </div>
+
+      <!-- RIGHT SIDE: DOCS & USER AUTH -->
+      <div class="flex items-center gap-3">
+        <div class="hidden lg:flex items-center gap-2 text-xs border-r border-slate-800 pr-3 mr-1">
+          <a href="/scalar/v1" target="_blank" class="text-slate-400 hover:text-slate-200 transition" title="Mở Scalar Doc">
+            <i class="fa-solid fa-book-open text-slate-500 mr-1"></i> Scalar
+          </a>
+          <span class="text-slate-700">|</span>
+          <a href="/swagger" target="_blank" class="text-slate-400 hover:text-slate-200 transition" title="Mở Swagger UI">
+            <i class="fa-solid fa-code text-slate-500 mr-1"></i> Swagger
+          </a>
+        </div>
+        <div id="auth-container" class="flex items-center gap-3">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- REALTIME ALERT TOAST NOTIFICATION BANNER -->
+  <div id="realtime-toast" class="hidden fixed bottom-6 right-6 z-50 max-w-md bg-slate-900 border border-brand-500/50 rounded-xl p-4 shadow-2xl shadow-brand-500/10 flex items-start space-x-3 transition-all duration-300 transform translate-y-2">
+    <div class="h-9 w-9 rounded-lg bg-brand-500/20 text-brand-400 flex items-center justify-center shrink-0">
+      <i class="fa-solid fa-bolt text-lg"></i>
+    </div>
+    <div class="flex-1">
+      <h4 class="text-xs font-semibold uppercase tracking-wider text-brand-400 flex items-center gap-1.5">
+        <span class="h-2 w-2 rounded-full bg-brand-400 animate-ping"></span> Realtime SignalR
+      </h4>
+      <p id="realtime-toast-msg" class="text-sm text-slate-200 mt-0.5">Có cập nhật mới từ phiên đấu giá</p>
+    </div>
+    <button onclick="hideToast()" class="text-slate-500 hover:text-slate-300 text-sm">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+  </div>
+
+  <!-- MAIN CONTENT AREA -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+
+    <!-- TAB 1: SÀN ĐẤU GIÁ (MARKETPLACE) -->
+    <section id="tab-marketplace" class="space-y-6">
+      <!-- HERO BANNER & SEARCH BAR -->
+      <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border border-slate-800 p-6 sm:p-8">
+        <div class="max-w-2xl space-y-3">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 text-xs font-semibold">
+            <i class="fa-solid fa-signal"></i> Trực tiếp SignalR WebSocket
+          </div>
+          <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            Sàn Đấu Giá Trực Tuyến Minh Bạch & An Toàn
+          </h1>
+          <p class="text-sm text-slate-400">
+            Hệ thống đấu giá thời gian thực với khóa lạc quan (Optimistic Concurrency Control), đảm bảo không ghi đè giá và chốt người thắng tự động.
+          </p>
+        </div>
+
+        <!-- SEARCH & FILTER BAR -->
+        <div class="mt-6 flex flex-wrap items-center gap-3">
+          <div class="relative flex-1 min-w-[240px]">
+            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm"></i>
+            <input id="search-query" type="text" placeholder="Tìm tên sản phẩm..." onkeyup="if(event.key==='Enter') loadProducts()" class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-700/80 text-sm text-slate-200 focus:outline-none focus:border-brand-500 transition">
+          </div>
+          
+          <select id="filter-status" onchange="loadProducts()" class="px-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-700/80 text-sm text-slate-200 focus:outline-none focus:border-brand-500 transition">
+            <option value="">Tất cả trạng thái</option>
+            <option value="Active">Đang diễn ra (Active)</option>
+            <option value="Scheduled">Sắp diễn ra (Scheduled)</option>
+            <option value="Completed">Đã kết thúc (Completed)</option>
+            <option value="Cancelled">Đã hủy (Cancelled)</option>
+          </select>
+
+          <button onclick="loadProducts()" class="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold text-sm transition flex items-center gap-2 shadow-lg shadow-brand-500/20">
+            <i class="fa-solid fa-filter"></i> Lọc
+          </button>
+        </div>
+      </div>
+
+      <!-- PRODUCT GRID -->
+      <div>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-bold text-slate-200 flex items-center gap-2">
+            <span>Danh sách phiên đấu giá</span>
+            <span id="product-count" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">0 sản phẩm</span>
+          </h2>
+          <button onclick="loadProducts()" class="text-xs text-slate-400 hover:text-brand-400 flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-rotate"></i> Làm mới
+          </button>
+        </div>
+
+        <div id="products-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <!-- Rendered dynamically by JS -->
+        </div>
+
+        <div id="products-empty" class="hidden text-center py-16 bg-slate-900/40 rounded-2xl border border-slate-800/80 p-8">
+          <div class="h-16 w-16 mx-auto mb-4 rounded-full bg-slate-800/80 flex items-center justify-center text-slate-500 text-2xl">
+            <i class="fa-solid fa-box-open"></i>
+          </div>
+          <h3 class="text-base font-semibold text-slate-300">Chưa có sản phẩm nào</h3>
+          <p class="text-xs text-slate-500 max-w-sm mx-auto mt-1">Hãy đăng sản phẩm đầu tiên để bắt đầu phiên đấu giá.</p>
+          <button onclick="switchTab('create')" class="mt-4 px-4 py-2 rounded-xl bg-brand-500 text-slate-950 font-bold text-xs hover:bg-brand-600 transition">
+            <i class="fa-solid fa-plus-circle mr-1"></i> Đăng Sản Phẩm Ngay
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: ĐĂNG SẢN PHẨM MỚI -->
+    <section id="tab-create" class="hidden max-w-2xl mx-auto">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6">
+        <div>
+          <h2 class="text-xl font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-plus-circle text-brand-400"></i> Tạo Phiên Đấu Giá Mới
+          </h2>
+          <p class="text-xs text-slate-400 mt-1">Người bán đăng sản phẩm. Phiên mới sẽ ở trạng thái <code class="text-amber-400">Scheduled</code> cho đến giờ bắt đầu.</p>
+        </div>
+
+        <form id="create-product-form" onsubmit="handleCreateProduct(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Tên sản phẩm *</label>
+            <input type="text" id="cp-name" required placeholder="VD: Laptop Gaming ASUS ROG Strix G16" class="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5">Giá khởi điểm (VNĐ) *</label>
+              <input type="number" id="cp-price" min="1000" step="1000" required value="100000" class="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5">Danh mục</label>
+              <input type="text" id="cp-category" placeholder="Điện tử, Xe cộ, Đồng hồ..." value="Thiết bị điện tử" class="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Link ảnh sản phẩm (URL)</label>
+            <input type="url" id="cp-image" placeholder="https://images.unsplash.com/photo-..." class="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Mô tả sản phẩm</label>
+            <textarea id="cp-desc" rows="3" placeholder="Mô tả chi tiết tình trạng, cấu hình..." class="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-brand-500"></textarea>
+          </div>
+
+          <!-- TIME PRESET BUTTONS -->
+          <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+            <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-clock-rotate-left text-brand-400"></i> Thiết lập thời gian nhanh:
+            </span>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" onclick="setTimePreset(10, 180)" class="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-medium transition">
+                ⚡ Mở sau 10 giây & Đóng sau 3 phút
+              </button>
+              <button type="button" onclick="setTimePreset(5, 300)" class="px-3 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 text-xs font-medium transition">
+                ⏱️ Mở sau 5 giây & Đóng sau 5 phút
+              </button>
+              <button type="button" onclick="setTimePreset(60, 600)" class="px-3 py-1.5 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-300 border border-violet-500/30 text-xs font-medium transition">
+                🕐 Mở sau 1 phút & Đóng sau 10 phút
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5">Thời gian bắt đầu *</label>
+              <input type="datetime-local" id="cp-start" step="1" required class="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5">Thời gian kết thúc *</label>
+              <input type="datetime-local" id="cp-end" step="1" required class="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
+            </div>
+          </div>
+
+          <button type="submit" class="w-full py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold text-sm transition shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2">
+            <i class="fa-solid fa-upload"></i> Đăng Phiên Đấu Giá
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- TAB 3: SẢN PHẨM CỦA TÔI -->
+    <section id="tab-myproducts" class="hidden space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-box-archive text-brand-400"></i> Sản phẩm tôi đã đăng
+        </h2>
+        <button onclick="loadMyProducts()" class="text-xs text-slate-400 hover:text-brand-400 flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-rotate"></i> Tải lại
+        </button>
+      </div>
+      <div id="myproducts-list" class="space-y-3">
+        <!-- Rendered by JS -->
+      </div>
+    </section>
+
+    <!-- TAB 4: LỊCH SỬ ĐẶT GIÁ CÁ NHÂN -->
+    <section id="tab-mybids" class="hidden space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-hand-holding-dollar text-brand-400"></i> Lịch sử các lần đặt giá của tôi
+        </h2>
+        <button onclick="loadMyBids()" class="text-xs text-slate-400 hover:text-brand-400 flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-rotate"></i> Tải lại
+        </button>
+      </div>
+      <div id="mybids-list" class="space-y-3">
+        <!-- Rendered by JS -->
+      </div>
+    </section>
+
+    <!-- TAB 5: SẢN PHẨM ĐÃ TRÚNG ĐẤU GIÁ (DÀNH CHO NGƯỜI THẮNG) -->
+    <section id="tab-wonproducts" class="hidden space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-bold text-amber-300 flex items-center gap-2">
+            <i class="fa-solid fa-trophy text-amber-400"></i> Sản Phẩm Tôi Đã Trúng Đấu Giá
+          </h2>
+          <p class="text-xs text-slate-400 mt-1">Danh sách sản phẩm bạn là người đặt giá cao nhất khi phiên kết thúc — sản phẩm chính thức thuộc về bạn.</p>
+        </div>
+        <button onclick="loadWonProducts()" class="text-xs text-slate-400 hover:text-amber-400 flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-rotate"></i> Tải lại
+        </button>
+      </div>
+      <div id="wonproducts-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Rendered by JS -->
+      </div>
+    </section>
+
+    <!-- TAB 5: QUẢN TRỊ ADMIN -->
+    <section id="tab-admin" class="hidden space-y-6">
+      <div class="bg-rose-950/20 border border-rose-900/50 rounded-2xl p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-xl font-bold text-rose-300 flex items-center gap-2">
+              <i class="fa-solid fa-shield-halved"></i> Bảng Quản Trị Hệ Thống (Admin Panel)
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">Chỉ tài khoản mang quyền <code class="text-rose-400">Admin</code> mới truy cập được các API này.</p>
+          </div>
+          <button onclick="loadAdminUsers()" class="px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-semibold border border-rose-500/30 transition">
+            <i class="fa-solid fa-rotate mr-1"></i> Tải lại danh sách
+          </button>
+        </div>
+      </div>
+
+      <!-- USERS MANAGEMENT TABLE -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+        <div class="p-4 border-b border-slate-800">
+          <h3 class="text-sm font-bold text-slate-200">Quản lý Tài Khoản Người Dùng (Khóa / Mở Khóa)</h3>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="bg-slate-950 text-slate-400 uppercase font-semibold border-b border-slate-800">
+              <tr>
+                <th class="py-3 px-4">ID</th>
+                <th class="py-3 px-4">Tài khoản</th>
+                <th class="py-3 px-4">Họ tên & Email</th>
+                <th class="py-3 px-4">Vai trò (Role)</th>
+                <th class="py-3 px-4">Trạng thái</th>
+                <th class="py-3 px-4 text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="admin-users-table" class="divide-y divide-slate-800/60">
+              <!-- Rendered by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- PRODUCTS MANAGEMENT TABLE FOR ADMIN -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden mt-6">
+        <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-bold text-slate-200">Quản lý Tất Cả Phiên Đấu Giá (Hủy phiên / Xóa sản phẩm)</h3>
+            <p class="text-[11px] text-slate-400">Admin có quyền hủy bất kỳ phiên nào (kể cả đã kết thúc) hoặc xóa hoàn toàn khỏi sàn.</p>
+          </div>
+          <button onclick="loadAdminProducts()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-semibold transition flex items-center gap-1.5">
+            <i class="fa-solid fa-rotate"></i> Làm mới danh sách
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="bg-slate-950 text-slate-400 uppercase font-semibold border-b border-slate-800">
+              <tr>
+                <th class="py-3 px-4">ID</th>
+                <th class="py-3 px-4">Tên sản phẩm</th>
+                <th class="py-3 px-4">Người bán</th>
+                <th class="py-3 px-4">Giá hiện tại</th>
+                <th class="py-3 px-4">Trạng thái</th>
+                <th class="py-3 px-4 text-right">Thao tác Admin</th>
+              </tr>
+            </thead>
+            <tbody id="admin-products-table" class="divide-y divide-slate-800/60">
+              <!-- Rendered by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL: PRODUCT DETAIL & LIVE BIDDING -->
+  <div id="bid-modal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="relative w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
+      <!-- HEADER -->
+      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+        <div class="flex items-center gap-2">
+          <span id="modal-status-badge"></span>
+          <span class="text-xs text-slate-400 font-mono">#<span id="modal-product-id"></span></span>
+          <div class="flex items-center gap-1.5 ml-2 text-emerald-400 text-xs font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+            <span class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span> SignalR Live
+          </div>
+        </div>
+        <button onclick="closeBidModal()" class="text-slate-400 hover:text-white text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- BODY GRID -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+        <!-- LEFT: PRODUCT INFO -->
+        <div class="space-y-4">
+          <div class="h-56 w-full rounded-xl bg-slate-950 overflow-hidden border border-slate-800 relative">
+            <img id="modal-img" src="" alt="Sản phẩm" class="w-full h-full object-cover">
+          </div>
+          <div>
+            <h3 id="modal-name" class="text-lg font-bold text-white"></h3>
+            <p id="modal-category" class="text-xs text-slate-400 mt-0.5"></p>
+            <p id="modal-desc" class="text-xs text-slate-300 mt-2 bg-slate-950 p-3 rounded-lg border border-slate-800/80 leading-relaxed"></p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 text-xs bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+            <div>
+              <span class="text-slate-500 block">Người bán</span>
+              <span id="modal-seller" class="font-semibold text-slate-200"></span>
+            </div>
+            <div>
+              <span class="text-slate-500 block">Giá khởi điểm</span>
+              <span id="modal-start-price" class="font-semibold text-slate-200"></span>
+            </div>
+            <div>
+              <span class="text-slate-500 block">Thời gian mở</span>
+              <span id="modal-start-time" class="text-slate-300"></span>
+            </div>
+            <div>
+              <span class="text-slate-500 block">Thời gian đóng</span>
+              <span id="modal-end-time" class="text-slate-300"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: LIVE BIDDING ENGINE -->
+        <div class="flex flex-col space-y-4 bg-slate-950/80 p-5 rounded-xl border border-slate-800">
+          <!-- CURRENT PRICE BOX -->
+          <div class="p-4 rounded-xl bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-700/80">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Giá Cao Nhất Hiện Tại</span>
+            <div class="flex items-baseline gap-2 mt-1">
+              <span id="modal-current-price" class="text-3xl font-black text-brand-400">0 đ</span>
+            </div>
+            <div id="modal-winner-box" class="mt-2 text-xs text-slate-300 flex items-center gap-1.5">
+              <!-- Rendered by JS -->
+            </div>
+          </div>
+
+          <!-- BID INPUT & ACTION -->
+          <div id="bid-action-box" class="space-y-3">
+            <div class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+              <span>Mức giá bạn muốn đặt:</span>
+              <span class="text-slate-400 text-[11px]">Bước giá tối thiểu: <b class="text-brand-400">+1.000 đ</b></span>
+            </div>
+
+            <!-- QUICK BID CHIPS -->
+            <div class="grid grid-cols-4 gap-1.5">
+              <button onclick="addQuickBid(1000)" class="py-1 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-brand-300 border border-slate-700 transition">
+                +1K
+              </button>
+              <button onclick="addQuickBid(5000)" class="py-1 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-brand-300 border border-slate-700 transition">
+                +5K
+              </button>
+              <button onclick="addQuickBid(10000)" class="py-1 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-brand-300 border border-slate-700 transition">
+                +10K
+              </button>
+              <button onclick="addQuickBid(50000)" class="py-1 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-brand-300 border border-slate-700 transition">
+                +50K
+              </button>
+            </div>
+
+            <div class="relative">
+              <input type="number" id="bid-amount-input" step="1000" class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-lg font-bold text-white focus:outline-none focus:border-brand-500">
+              <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">VNĐ</span>
+            </div>
+
+            <button onclick="submitBid()" id="btn-submit-bid" class="w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-emerald-400 hover:from-brand-600 hover:to-emerald-500 text-slate-950 font-black text-sm tracking-wide transition shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2">
+              <i class="fa-solid fa-gavel"></i> XÁC NHẬN ĐẶT GIÁ
+            </button>
+          </div>
+
+          <!-- ADMIN CANCEL OPTION -->
+          <div id="admin-cancel-box" class="hidden pt-2 border-t border-slate-800">
+            <button onclick="adminCancelProduct()" class="w-full py-2 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-semibold transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-ban"></i> [Admin] Hủy Phiên Đấu Giá Vi Phạm Này
+            </button>
+          </div>
+
+          <!-- LIVE BID HISTORY LIST -->
+          <div class="flex-1 flex flex-col min-h-[160px]">
+            <span class="text-xs font-semibold text-slate-400 mb-2 flex items-center justify-between">
+              <span>Lịch sử đặt giá (<span id="modal-bids-count">0</span>)</span>
+              <span class="text-[10px] text-slate-500">Mới nhất ở trên</span>
+            </span>
+            <div id="modal-bids-list" class="flex-1 max-h-44 overflow-y-auto space-y-2 pr-1 text-xs">
+              <!-- Rendered by JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AUTH MODAL (LOGIN & REGISTER) -->
+  <div id="auth-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl">
+      <button onclick="closeAuthModal()" class="absolute right-4 top-4 text-slate-400 hover:text-white">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <!-- TABS LOGIN/REGISTER -->
+      <div class="flex border-b border-slate-800 mb-6">
+        <button id="auth-tab-login" onclick="switchAuthTab('login')" class="flex-1 py-2 text-center text-sm font-bold border-b-2 border-brand-500 text-brand-400">
+          Đăng Nhập
+        </button>
+        <button id="auth-tab-register" onclick="switchAuthTab('register')" class="flex-1 py-2 text-center text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200">
+          Đăng Ký
+        </button>
+      </div>
+
+      <!-- FORM LOGIN -->
+      <form id="form-login" onsubmit="handleLogin(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Tên đăng nhập hoặc Email</label>
+          <input type="text" id="login-user" required placeholder="Nhập username hoặc email" class="w-full px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Mật khẩu</label>
+          <input type="password" id="login-pass" required placeholder="Password123!" class="w-full px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
+        </div>
+        <button type="submit" class="w-full py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold text-sm transition shadow-lg shadow-brand-500/20">
+          Đăng Nhập
+        </button>
+      </form>
+
+      <!-- FORM REGISTER -->
+      <form id="form-register" onsubmit="handleRegister(event)" class="hidden space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Tên đăng nhập (Username) *</label>
+          <input type="text" id="reg-user" required placeholder="nguyenvan_a" class="w-full px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Họ và tên</label>
+          <input type="text" id="reg-name" placeholder="Nguyễn Văn A" class="w-full px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Email *</label>
+          <input type="email" id="reg-email" required placeholder="a@gmail.com" class="w-full px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Mật khẩu (ít nhất 8 ký tự) *</label>
+          <input type="password" id="reg-pass" required minlength="8" placeholder="Password123!" class="w-full px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
+        </div>
+        <button type="submit" class="w-full py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold text-sm transition shadow-lg shadow-brand-500/20">
+          Đăng Ký Tài Khoản
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- SCRIPT LOGIC -->
+  <script>
+    // Global State
+    let currentUser = null;
+    let authToken = localStorage.getItem('bidnet_token') || null;
+    let signalrConn = null;
+    let activeProduct = null;
+    let activeProductId = null;
+    let currentActiveTab = 'marketplace';
+
+    const API_BASE = '/api';
+
+    // Parse API ISO Date (auto-append Z if missing to guarantee UTC parsing)
+    function parseApiDate(isoStr) {
+      if (!isoStr) return null;
+      if (isoStr instanceof Date) return isoStr;
+      let s = String(isoStr).trim();
+      if (!s.endsWith('Z') && !/[+-]\d{2}(:\d{2})?$/.test(s)) {
+        s += 'Z';
+      }
+      return new Date(s);
+    }
+
+    // Format currency VND
+    function formatVND(amount) {
+      if (amount == null) return '0 đ';
+      return new Intl.NumberFormat('vi-VN').format(amount) + ' đ';
+    }
+
+    // Format DateTime Local (Chuyển đổi giờ UTC từ server sang giờ địa phương máy người dùng)
+    function formatTime(isoStr) {
+      if (!isoStr) return '--';
+      const d = parseApiDate(isoStr);
+      if (!d || isNaN(d.getTime())) return '--';
+      return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' ' + d.toLocaleDateString('vi-VN');
+    }
+
+    // Toast notification
+    let toastTimeout;
+    function showToast(message) {
+      const toast = document.getElementById('realtime-toast');
+      document.getElementById('realtime-toast-msg').innerText = message;
+      toast.classList.remove('hidden');
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(hideToast, 4000);
+    }
+    function hideToast() {
+      document.getElementById('realtime-toast').classList.add('hidden');
+    }
+
+    // Switch Nav Tabs
+    function switchTab(tabId) {
+      currentActiveTab = tabId;
+      const tabs = ['marketplace', 'create', 'myproducts', 'mybids', 'wonproducts', 'admin'];
+      tabs.forEach(t => {
+        const el = document.getElementById(`tab-${t}`);
+        const nav = document.getElementById(`nav-${t}`);
+        if (el) el.classList.toggle('hidden', t !== tabId);
+        if (nav) {
+          if (t === tabId) {
+            nav.className = 'nav-btn px-4 py-2 rounded-lg text-sm font-semibold transition bg-brand-500 text-slate-950 shadow-sm';
+          } else {
+            nav.className = 'nav-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition';
+          }
+        }
+      });
+
+      if (tabId === 'marketplace') loadProducts();
+      if (tabId === 'myproducts') loadMyProducts();
+      if (tabId === 'mybids') loadMyBids();
+      if (tabId === 'wonproducts') loadWonProducts();
+      if (tabId === 'admin') { loadAdminUsers(); loadAdminProducts(); }
+    }
+
+    // Time Preset Buttons for Create Product
+    function setTimePreset(startOffsetSec, durationSec) {
+      const now = new Date();
+      const start = new Date(now.getTime() + startOffsetSec * 1000);
+      const end = new Date(start.getTime() + durationSec * 1000);
+
+      // Format for datetime-local with seconds
+      const toLocalISO = (d) => {
+        const tzOffset = d.getTimezoneOffset() * 60000;
+        return new Date(d.getTime() - tzOffset).toISOString().slice(0, 19);
+      };
+
+      document.getElementById('cp-start').value = toLocalISO(start);
+      document.getElementById('cp-end').value = toLocalISO(end);
+      showToast(`Đã đặt giờ: Mở sau ${startOffsetSec}s và đóng sau ${durationSec}s`);
+    }
+
+    // Init App
+    window.addEventListener('DOMContentLoaded', async () => {
+      setTimePreset(10, 180);
+      if (authToken) {
+        await fetchCurrentUser();
+      } else {
+        renderAuthUI();
+      }
+      loadProducts();
+      initSignalR();
+    });
+
+    // SignalR Connection
+    async function initSignalR() {
+      if (!authToken) return;
+      try {
+        if (signalrConn) {
+          await signalrConn.stop();
+        }
+        signalrConn = new signalR.HubConnectionBuilder()
+          .withUrl("/hubs/auction", {
+            accessTokenFactory: () => authToken
+          })
+          .withAutomaticReconnect()
+          .build();
+
+        signalrConn.on("BidAccepted", (data) => {
+          console.log("Realtime BidAccepted:", data);
+          showToast(`Lượt giá mới: ${formatVND(data.currentPrice)} cho sản phẩm #${data.productId}!`);
+          if (activeProductId === data.productId) {
+            document.getElementById('modal-current-price').innerText = formatVND(data.currentPrice);
+            loadProductDetail(data.productId);
+          }
+          loadProducts();
+        });
+
+        signalrConn.on("AuctionClosed", (data) => {
+          console.log("Realtime AuctionClosed:", data);
+          showToast(`Phiên đấu giá #${data.productId} đã KẾT THÚC!`);
+          if (activeProductId === data.productId) {
+            loadProductDetail(data.productId);
+          }
+          loadProducts();
+        });
+
+        await signalrConn.start();
+        console.log("SignalR connected successfully!");
+      } catch (err) {
+        console.warn("SignalR connection error:", err);
+      }
+    }
+
+    // Fetch Current User Profile
+    async function fetchCurrentUser() {
+      try {
+        const res = await fetch(`${API_BASE}/users/me`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (res.ok) {
+          currentUser = await res.json();
+          renderAuthUI();
+        } else {
+          logout();
+        }
+      } catch {
+        logout();
+      }
+    }
+
+    // Render Auth UI
+    function renderAuthUI() {
+      const container = document.getElementById('auth-container');
+      const adminNav = document.getElementById('nav-admin');
+
+      if (currentUser && currentUser.role === 'Admin') {
+        adminNav.classList.remove('hidden');
+      } else {
+        adminNav.classList.add('hidden');
+      }
+
+      if (currentUser) {
+        const roleBadge = currentUser.role === 'Admin' 
+          ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">ADMIN</span>'
+          : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">USER</span>';
+
+        container.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="text-right">
+              <div class="flex items-center gap-1.5 justify-end">
+                <span class="text-sm font-bold text-white">${currentUser.username}</span>
+                ${roleBadge}
+              </div>
+              <span class="text-[11px] text-slate-400">${currentUser.email}</span>
+            </div>
+            <button onclick="logout()" class="p-2 rounded-lg bg-slate-800 hover:bg-rose-950/40 hover:text-rose-400 text-slate-400 transition" title="Đăng xuất">
+              <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            </button>
+          </div>
+        `;
+      } else {
+        container.innerHTML = `
+          <button onclick="openAuthModal('login')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition">
+            Đăng Nhập
+          </button>
+          <button onclick="openAuthModal('register')" class="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 text-xs font-bold transition shadow-sm">
+            Đăng Ký
+          </button>
+        `;
+      }
+    }
+
+    // Perform Login
+    async function performLogin(username, password) {
+      try {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ usernameOrEmail: username, password })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          authToken = data.accessToken;
+          localStorage.setItem('bidnet_token', authToken);
+          currentUser = data.user;
+          renderAuthUI();
+          initSignalR();
+          showToast(`Đăng nhập thành công: ${currentUser.username} (${currentUser.role})`);
+          
+          // Re-render marketplace để cập nhật quyền các nút Hủy/Xóa theo role mới
+          loadProducts();
+          if (document.getElementById('bid-modal').classList.contains('hidden') === false && activeProductId) {
+            loadProductDetail(activeProductId);
+          }
+          // Nếu chuyển sang tài khoản không phải Admin mà đang ở tab Admin, chuyển về marketplace
+          if (currentUser.role !== 'Admin' && currentActiveTab === 'admin') {
+            switchTab('marketplace');
+          }
+        } else {
+          alert("Tên đăng nhập hoặc mật khẩu không chính xác.");
+        }
+      } catch (err) {
+        alert("Lỗi kết nối tới máy chủ.");
+      }
+    }
+
+    // Logout
+    function logout() {
+      authToken = null;
+      currentUser = null;
+      localStorage.removeItem('bidnet_token');
+      renderAuthUI();
+      if (signalrConn) signalrConn.stop();
+      showToast("Đã đăng xuất tài khoản.");
+
+      // Re-render marketplace để xóa quyền Admin khỏi các card sản phẩm
+      loadProducts();
+      const adminCancelBox = document.getElementById('admin-cancel-box');
+      if (adminCancelBox) adminCancelBox.classList.add('hidden');
+      if (currentActiveTab === 'admin' || currentActiveTab === 'myproducts' || currentActiveTab === 'mybids' || currentActiveTab === 'wonproducts') {
+        switchTab('marketplace');
+      }
+    }
+
+    // Auth Modal Handlers
+    function openAuthModal(mode) {
+      document.getElementById('auth-modal').classList.remove('hidden');
+      switchAuthTab(mode);
+    }
+    function closeAuthModal() {
+      document.getElementById('auth-modal').classList.add('hidden');
+    }
+    function switchAuthTab(mode) {
+      const isLogin = mode === 'login';
+      document.getElementById('form-login').classList.toggle('hidden', !isLogin);
+      document.getElementById('form-register').classList.toggle('hidden', isLogin);
+      document.getElementById('auth-tab-login').className = isLogin 
+        ? 'flex-1 py-2 text-center text-sm font-bold border-b-2 border-brand-500 text-brand-400'
+        : 'flex-1 py-2 text-center text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200';
+      document.getElementById('auth-tab-register').className = !isLogin 
+        ? 'flex-1 py-2 text-center text-sm font-bold border-b-2 border-brand-500 text-brand-400'
+        : 'flex-1 py-2 text-center text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200';
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const u = document.getElementById('login-user').value;
+      const p = document.getElementById('login-pass').value;
+      await performLogin(u, p);
+      closeAuthModal();
+    }
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      const u = document.getElementById('reg-user').value;
+      const f = document.getElementById('reg-name').value;
+      const em = document.getElementById('reg-email').value;
+      const p = document.getElementById('reg-pass').value;
+
+      try {
+        const res = await fetch(`${API_BASE}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: u, fullName: f, email: em, password: p })
+        });
+        if (res.ok) {
+          showToast("Đăng ký thành công! Đang tự động đăng nhập...");
+          await performLogin(u, p);
+          closeAuthModal();
+        } else {
+          const err = await res.json();
+          alert("Đăng ký không thành công: " + (err.title || err.message || "Vui lòng kiểm tra lại"));
+        }
+      } catch {
+        alert("Lỗi kết nối.");
+      }
+    }
+
+    // Load Products
+    async function loadProducts() {
+      const q = document.getElementById('search-query')?.value || '';
+      const status = document.getElementById('filter-status')?.value || '';
+      const grid = document.getElementById('products-grid');
+      const empty = document.getElementById('products-empty');
+
+      try {
+        let url = `${API_BASE}/products?pageSize=30`;
+        if (q) url += `&q=${encodeURIComponent(q)}`;
+        if (status) url += `&status=${encodeURIComponent(status)}`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+        const items = data.items || [];
+
+        document.getElementById('product-count').innerText = `${items.length} sản phẩm`;
+
+        if (items.length === 0) {
+          grid.innerHTML = '';
+          empty.classList.remove('hidden');
+          return;
+        }
+
+        empty.classList.add('hidden');
+        grid.innerHTML = items.map(p => {
+          let badge = '';
+          if (p.status === 'Active') {
+            badge = '<span class="px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 live-badge"><i class="fa-solid fa-circle text-[8px] mr-1"></i> ĐANG DIỄN RA</span>';
+          } else if (p.status === 'Scheduled') {
+            badge = '<span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40"><i class="fa-regular fa-clock mr-1"></i> SẮP MỞ</span>';
+          } else if (p.status === 'Completed') {
+            badge = '<span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-700/60 text-slate-300 border border-slate-600"><i class="fa-solid fa-check mr-1"></i> ĐÃ KẾT THÚC</span>';
+          } else {
+            badge = '<span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-500/20 text-rose-400 border border-rose-500/40"><i class="fa-solid fa-ban mr-1"></i> ĐÃ HỦY</span>';
+          }
+
+          const img = p.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80';
+
+          return `
+            <div class="group bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-all duration-300 flex flex-col hover:shadow-xl hover:shadow-black/50">
+              <div class="h-48 w-full bg-slate-950 relative overflow-hidden">
+                <img src="${img}" alt="${p.name}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                <div class="absolute top-3 left-3">${badge}</div>
+                <div class="absolute top-3 right-3 text-[10px] font-mono bg-black/60 px-2 py-0.5 rounded text-slate-300 backdrop-blur-sm">
+                  #${p.id}
+                </div>
+              </div>
+
+              <div class="p-5 flex-1 flex flex-col justify-between space-y-4">
+                <div>
+                  <span class="text-[11px] font-semibold uppercase tracking-wider text-brand-400">${p.category || 'Chung'}</span>
+                  <h3 class="text-base font-bold text-white line-clamp-1 group-hover:text-brand-300 transition">${p.name}</h3>
+                  <p class="text-xs text-slate-400 line-clamp-2 mt-1">${p.description || 'Chưa có mô tả chi tiết.'}</p>
+                </div>
+
+                <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800/80 space-y-2">
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="text-slate-500">Giá hiện tại:</span>
+                    <span class="text-base font-black text-brand-400">${formatVND(p.currentPrice)}</span>
+                  </div>
+                  <div class="flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-900 pt-1.5">
+                    <span>Người bán: <b class="text-slate-300">${p.seller?.username || 'user'}</b></span>
+                    <span>Đóng: <b class="text-slate-300">${formatTime(p.endTime)}</b></span>
+                  </div>
+                </div>
+
+                <button onclick="openBidModal(${p.id})" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-brand-500 hover:text-slate-950 text-slate-200 font-bold text-xs transition flex items-center justify-center gap-2 group-hover:shadow-md">
+                  <i class="fa-solid fa-gavel"></i> Xem Chi Tiết & Đấu Giá
+                </button>
+                ${currentUser && currentUser.role === 'Admin' ? `
+                  <div class="pt-2 border-t border-slate-800 flex items-center gap-2">
+                    ${p.status !== 'Cancelled' ? `
+                      <button onclick="adminCancelProductById(${p.id}, event)" class="flex-1 py-1.5 px-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[11px] font-semibold transition flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-ban"></i> Hủy phiên
+                      </button>
+                    ` : `
+                      <span class="flex-1 py-1 text-center text-rose-500 text-[11px] font-semibold">Đã hủy</span>
+                    `}
+                    <button onclick="adminDeleteProductById(${p.id}, event)" class="py-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 border border-slate-700 text-[11px] font-semibold transition flex items-center justify-center gap-1" title="Xóa bỏ sản phẩm này">
+                      <i class="fa-solid fa-trash"></i> Xóa
+                    </button>
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (err) {
+        console.error("Load products error:", err);
+      }
+    }
+
+    // Open Bid Modal & Connect SignalR Group
+    async function openBidModal(productId) {
+      activeProductId = productId;
+      document.getElementById('bid-modal').classList.remove('hidden');
+      await loadProductDetail(productId);
+
+      if (signalrConn && signalrConn.state === signalR.HubConnectionState.Connected) {
+        try {
+          await signalrConn.invoke("JoinProduct", productId);
+          console.log(`Joined SignalR group for product #${productId}`);
+        } catch (e) {
+          console.warn("Could not join SignalR group:", e);
+        }
+      }
+    }
+
+    // Close Bid Modal
+    async function closeBidModal() {
+      if (activeProductId && signalrConn && signalrConn.state === signalR.HubConnectionState.Connected) {
+        try {
+          await signalrConn.invoke("LeaveProduct", activeProductId);
+        } catch {}
+      }
+      activeProductId = null;
+      activeProduct = null;
+      document.getElementById('bid-modal').classList.add('hidden');
+    }
+
+    // Load Product Detail & Bids
+    async function loadProductDetail(id) {
+      try {
+        const res = await fetch(`${API_BASE}/products/${id}`);
+        if (!res.ok) return;
+        const p = await res.json();
+        activeProduct = p;
+
+        document.getElementById('modal-product-id').innerText = p.id;
+        document.getElementById('modal-name').innerText = p.name;
+        document.getElementById('modal-category').innerText = p.category || 'Danh mục chung';
+        document.getElementById('modal-desc').innerText = p.description || 'Không có mô tả thêm.';
+        document.getElementById('modal-img').src = p.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80';
+        document.getElementById('modal-seller').innerText = p.seller?.fullName ? `${p.seller.fullName} (@${p.seller.username})` : (p.seller?.username || 'Ẩn danh');
+        document.getElementById('modal-start-price').innerText = formatVND(p.startingPrice);
+        document.getElementById('modal-current-price').innerText = formatVND(p.currentPrice);
+        document.getElementById('modal-start-time').innerText = formatTime(p.startTime);
+        document.getElementById('modal-end-time').innerText = formatTime(p.endTime);
+
+        // Status Badge
+        let badgeHtml = '';
+        if (p.status === 'Active') {
+          badgeHtml = '<span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">ĐANG DIỄN RA</span>';
+        } else if (p.status === 'Scheduled') {
+          badgeHtml = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40">SẮP MỞ</span>';
+        } else if (p.status === 'Completed') {
+          badgeHtml = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-700 text-slate-300 border border-slate-600">ĐÃ KẾT THÚC</span>';
+        } else {
+          badgeHtml = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/20 text-rose-400 border border-rose-500/40">ĐÃ HỦY</span>';
+        }
+        document.getElementById('modal-status-badge').innerHTML = badgeHtml;
+
+        // Winner box
+        const winnerBox = document.getElementById('modal-winner-box');
+        if (p.status === 'Completed') {
+          const winnerName = p.winnerName || p.winner?.username;
+          const isMeWinner = currentUser && (currentUser.id === p.winnerId || (currentUser.username && currentUser.username === winnerName));
+
+          if (winnerName || p.winnerId) {
+            if (isMeWinner) {
+              winnerBox.innerHTML = `
+                <div class="p-3.5 rounded-xl bg-emerald-500/20 border-2 border-emerald-500/50 text-emerald-200 space-y-1.5 shadow-lg shadow-emerald-950/50">
+                  <div class="flex items-center gap-2 font-black text-sm text-emerald-300">
+                    <i class="fa-solid fa-crown text-amber-400 text-base"></i>
+                    <span>CHÚC MỪNG! BẠN ĐÃ TRÚNG ĐẤU GIÁ SẢN PHẨM NÀY!</span>
+                  </div>
+                  <p class="text-xs text-slate-300">
+                    Bạn là người đặt giá cao nhất: <b class="text-brand-400 font-bold">${formatVND(p.currentPrice)}</b>. Sản phẩm này đã chính thức thuộc về bạn!
+                  </p>
+                  <div class="pt-2 flex items-center justify-between text-[11px] text-emerald-300/80 border-t border-emerald-500/20">
+                    <span>Người bán: <b>@${p.sellerName || 'user'}</b></span>
+                    <span class="bg-emerald-500/30 px-2 py-0.5 rounded text-emerald-300 font-bold border border-emerald-500/40">
+                      <i class="fa-solid fa-circle-check mr-1"></i> Đã Thuộc Quyền Sở Hữu
+                    </span>
+                  </div>
+                </div>
+              `;
+            } else {
+              winnerBox.innerHTML = `
+                <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-xs flex items-center justify-between">
+                  <span>🏆 Người chiến thắng: <b class="text-emerald-400 ml-1">@${winnerName}</b></span>
+                  <span>Mức giá thắng: <b class="text-brand-400">${formatVND(p.currentPrice)}</b></span>
+                </div>
+              `;
+            }
+          } else {
+            winnerBox.innerHTML = `
+              <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 text-xs text-center">
+                ⚠️ Phiên kết thúc không có người đặt giá.
+              </div>
+            `;
+          }
+        } else {
+          winnerBox.innerHTML = ``;
+        }
+
+        // Suggest minimum next bid
+        const nextMin = (p.currentPrice || p.startingPrice) + 1000;
+        document.getElementById('bid-amount-input').value = nextMin;
+
+        // Bidding ability
+        const actionBox = document.getElementById('bid-action-box');
+        if (p.status !== 'Active') {
+          actionBox.classList.add('opacity-50', 'pointer-events-none');
+        } else {
+          actionBox.classList.remove('opacity-50', 'pointer-events-none');
+        }
+
+        // Admin Cancel box
+        const adminCancelBox = document.getElementById('admin-cancel-box');
+        if (currentUser && currentUser.role === 'Admin') {
+          adminCancelBox.classList.remove('hidden');
+          adminCancelBox.innerHTML = `
+            <div class="flex items-center gap-2">
+              ${p.status !== 'Cancelled' ? `
+                <button onclick="adminCancelProduct()" class="flex-1 py-2 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-semibold transition flex items-center justify-center gap-2">
+                  <i class="fa-solid fa-ban"></i> [Admin] Hủy Phiên Đấu Giá Này
+                </button>
+              ` : `
+                <div class="flex-1 text-center py-2 text-xs text-rose-400 font-semibold bg-rose-950/40 rounded-lg border border-rose-900/40">
+                  <i class="fa-solid fa-circle-exclamation mr-1"></i> Phiên này đã bị hủy: ${p.cancellationReason || 'Vi phạm quy định'}
+                </div>
+              `}
+              <button onclick="adminDeleteProductById(${p.id})" class="py-2 px-3 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-700 text-xs font-semibold transition flex items-center justify-center gap-1.5" title="Xóa vĩnh viễn khỏi sàn">
+                <i class="fa-solid fa-trash"></i> Xóa
+              </button>
+            </div>
+          `;
+        } else {
+          adminCancelBox.classList.add('hidden');
+        }
+
+        // Load Bids History
+        await loadProductBids(id);
+      } catch (err) {
+        console.error("Load product detail error:", err);
+      }
+    }
+
+    // Load Product Bids
+    async function loadProductBids(productId) {
+      try {
+        const res = await fetch(`${API_BASE}/products/${productId}/bids?pageSize=50`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const bids = data.items || [];
+
+        document.getElementById('modal-bids-count').innerText = bids.length;
+        const list = document.getElementById('modal-bids-list');
+
+        if (bids.length === 0) {
+          list.innerHTML = `<p class="text-slate-500 text-center py-4">Chưa có ai đặt giá.</p>`;
+          return;
+        }
+
+        list.innerHTML = bids.map((b, idx) => `
+          <div class="flex items-center justify-between p-2.5 rounded-lg ${idx === 0 ? 'bg-brand-500/10 border border-brand-500/30' : 'bg-slate-900/60 border border-slate-800'}">
+            <div class="flex items-center gap-2">
+              <span class="font-bold ${idx === 0 ? 'text-brand-300' : 'text-slate-300'}">
+                ${b.user?.username || 'Người dùng'}
+              </span>
+              ${idx === 0 ? '<span class="text-[10px] bg-brand-500/20 text-brand-400 px-1.5 py-0.2 rounded font-bold">Dẫn đầu</span>' : ''}
+            </div>
+            <div class="text-right">
+              <span class="font-extrabold ${idx === 0 ? 'text-brand-400' : 'text-slate-200'}">${formatVND(b.amount)}</span>
+              <span class="block text-[10px] text-slate-500">${formatTime(b.bidTime)}</span>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error("Load bids error:", err);
+      }
+    }
+
+    // Quick Bid Chips
+    function addQuickBid(amount) {
+      const cur = activeProduct?.currentPrice || activeProduct?.startingPrice || 0;
+      document.getElementById('bid-amount-input').value = cur + amount;
+    }
+
+    // Submit Bid
+    async function submitBid() {
+      if (!authToken) {
+        alert("Vui lòng đăng nhập trước khi tham gia đấu giá!");
+        openAuthModal('login');
+        return;
+      }
+      const amount = parseInt(document.getElementById('bid-amount-input').value, 10);
+      if (!amount || isNaN(amount)) {
+        alert("Vui lòng nhập số tiền hợp lệ!");
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/products/${activeProductId}/bids`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify({ amount })
+        });
+
+        if (res.ok) {
+          showToast(`Đặt giá thành công: ${formatVND(amount)}!`);
+          await loadProductDetail(activeProductId);
+        } else {
+          const err = await res.json();
+          alert("Lỗi đặt giá: " + (err.title || err.detail || err.message || "Không thể đặt giá"));
+        }
+      } catch {
+        alert("Lỗi kết nối tới máy chủ.");
+      }
+    }
+
+    // Admin Cancel Product in Modal
+    async function adminCancelProduct() {
+      if (!activeProductId) return;
+      await adminCancelProductById(activeProductId);
+    }
+
+    // Admin Cancel Product By ID
+    async function adminCancelProductById(id, event) {
+      if (event) event.stopPropagation();
+      const reason = prompt("Nhập lý do hủy phiên đấu giá này:", "Vi phạm quy định của sàn");
+      if (!reason || !reason.trim()) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/admin/products/${id}/cancel`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify({ reason: reason.trim() })
+        });
+        if (res.ok) {
+          showToast(`Đã hủy phiên đấu giá #${id} thành công!`);
+          loadProducts();
+          if (activeProductId === id) loadProductDetail(id);
+          const adminTab = document.getElementById('tab-admin');
+          if (adminTab && !adminTab.classList.contains('hidden')) loadAdminProducts();
+        } else {
+          const err = await res.json();
+          alert("Lỗi: " + (err.title || err.detail || err.message || "Không thể hủy"));
+        }
+      } catch {
+        alert("Lỗi kết nối tới máy chủ.");
+      }
+    }
+
+    // Admin Delete Product By ID
+    async function adminDeleteProductById(id, event) {
+      if (event) event.stopPropagation();
+      if (!confirm(`Bạn có chắc chắn muốn XÓA VĨNH VIỄN sản phẩm #${id} và toàn bộ lượt đặt giá của nó khỏi hệ thống?`)) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/admin/products/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        if (res.ok || res.status === 204) {
+          showToast(`Đã xóa vĩnh viễn sản phẩm #${id}!`);
+          if (activeProductId === id) closeBidModal();
+          loadProducts();
+          const adminTab = document.getElementById('tab-admin');
+          if (adminTab && !adminTab.classList.contains('hidden')) loadAdminProducts();
+        } else {
+          const err = await res.json();
+          alert("Lỗi xóa: " + (err.title || err.detail || err.message || "Không thể xóa"));
+        }
+      } catch {
+        alert("Lỗi kết nối.");
+      }
+    }
+
+    // Load Admin Products Table
+    async function loadAdminProducts() {
+      if (!authToken) return;
+      try {
+        const res = await fetch(`${API_BASE}/products?pageSize=100`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const items = data.items || [];
+        const table = document.getElementById('admin-products-table');
+        if (!table) return;
+
+        if (items.length === 0) {
+          table.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500">Chưa có phiên đấu giá nào.</td></tr>`;
+          return;
+        }
+
+        table.innerHTML = items.map(p => {
+          let badge = '';
+          if (p.status === 'Active') {
+            badge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">ĐANG DIỄN RA</span>';
+          } else if (p.status === 'Scheduled') {
+            badge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">SẮP MỞ</span>';
+          } else if (p.status === 'Completed') {
+            badge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-slate-300 border border-slate-600">ĐÃ KẾT THÚC</span>';
+          } else {
+            badge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40" title="${p.cancellationReason || ''}">ĐÃ HỦY</span>`;
+          }
+
+          return `
+            <tr class="hover:bg-slate-800/40 transition">
+              <td class="py-3 px-4 font-mono font-bold text-slate-400">#${p.id}</td>
+              <td class="py-3 px-4">
+                <div class="font-bold text-white line-clamp-1">${p.name}</div>
+                <div class="text-[11px] text-slate-500 font-mono">${p.category || 'Chung'}</div>
+              </td>
+              <td class="py-3 px-4 text-slate-300 font-semibold">${p.seller?.username || 'user'}</td>
+              <td class="py-3 px-4 text-brand-400 font-bold">${formatVND(p.currentPrice)}</td>
+              <td class="py-3 px-4">${badge}</td>
+              <td class="py-3 px-4 text-right">
+                <div class="flex items-center justify-end gap-1.5">
+                  ${p.status !== 'Cancelled' ? `
+                    <button onclick="adminCancelProductById(${p.id})" class="px-2.5 py-1 rounded bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 border border-rose-500/30 text-[11px] font-semibold transition flex items-center gap-1">
+                      <i class="fa-solid fa-ban"></i> Hủy phiên
+                    </button>
+                  ` : `
+                    <span class="text-[11px] text-rose-500 italic pr-1">Đã hủy</span>
+                  `}
+                  <button onclick="adminDeleteProductById(${p.id})" class="px-2 py-1 rounded bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-700 text-[11px] font-semibold transition" title="Xóa bỏ">
+                    <i class="fa-solid fa-trash"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      } catch (err) {
+        console.error("Load admin products error:", err);
+      }
+    }
+
+    // Handle Create Product
+    async function handleCreateProduct(e) {
+      e.preventDefault();
+      if (!authToken) {
+        alert("Vui lòng đăng nhập để đăng sản phẩm!");
+        openAuthModal('login');
+        return;
+      }
+
+      const name = document.getElementById('cp-name').value;
+      const startingPrice = parseInt(document.getElementById('cp-price').value, 10);
+      const category = document.getElementById('cp-category').value;
+      const imageUrl = document.getElementById('cp-image').value || null;
+      const description = document.getElementById('cp-desc').value;
+
+      let startVal = document.getElementById('cp-start').value;
+      let endVal = document.getElementById('cp-end').value;
+
+      const now = new Date();
+      // datetime-local value has no timezone → browser parses as local time, which is correct
+      let startDate = startVal ? new Date(startVal) : new Date(now.getTime() + 10000);
+      let endDate = endVal ? new Date(endVal) : new Date();
+
+      // Add 3s buffer to ensure start time is strictly in the future when server receives it
+      const minStart = new Date(now.getTime() + 3000);
+      if (isNaN(startDate.getTime()) || startDate.getTime() < minStart.getTime()) {
+        startDate = new Date(now.getTime() + 10 * 1000);
+        showToast('⚠️ Giờ bắt đầu đã qua, tự động điều chỉnh lên +10 giây', 'warn');
+      }
+      // Ensure end time is after start time (at least 60 seconds gap)
+      if (isNaN(endDate.getTime()) || endDate.getTime() <= startDate.getTime() + 60000) {
+        endDate = new Date(startDate.getTime() + 180 * 1000);
+      }
+
+      const startTime = startDate.toISOString();
+      const endTime = endDate.toISOString();
+
+      try {
+        const res = await fetch(`${API_BASE}/products`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify({ name, startingPrice, category, imageUrl, description, startTime, endTime })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          showToast(`Đăng sản phẩm #${data.id} thành công!`);
+          document.getElementById('create-product-form').reset();
+          setTimePreset(10, 180);
+          switchTab('marketplace');
+        } else {
+          const err = await res.json();
+          alert("Lỗi tạo sản phẩm: " + (err.title || err.detail || JSON.stringify(err.errors || '')));
+        }
+      } catch {
+        alert("Lỗi kết nối tới máy chủ.");
+      }
+    }
+
+    // Load My Products
+    async function loadMyProducts() {
+      if (!authToken) {
+        document.getElementById('myproducts-list').innerHTML = `<p class="text-slate-500 py-8 text-center">Vui lòng đăng nhập để xem sản phẩm của bạn.</p>`;
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/products/me`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+        const items = data.items || [];
+        const container = document.getElementById('myproducts-list');
+
+        if (items.length === 0) {
+          container.innerHTML = `<p class="text-slate-500 py-8 text-center">Bạn chưa đăng sản phẩm nào.</p>`;
+          return;
+        }
+
+        container.innerHTML = items.map(p => `
+          <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <img src="${p.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80'}" class="h-12 w-12 rounded-lg object-cover">
+              <div>
+                <h4 class="font-bold text-white text-sm">${p.name}</h4>
+                <span class="text-xs text-slate-400">Khởi điểm: ${formatVND(p.startingPrice)} | Hiện tại: <b class="text-brand-400">${formatVND(p.currentPrice)}</b></span>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="text-xs px-2.5 py-1 rounded-full font-semibold ${p.status === 'Active' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'}">${p.status}</span>
+              <button onclick="openBidModal(${p.id})" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200">Xem</button>
+            </div>
+          </div>
+        `).join('');
+      } catch {
+        console.error("Load my products failed");
+      }
+    }
+
+    // Load My Bids
+    async function loadMyBids() {
+      if (!authToken) {
+        document.getElementById('mybids-list').innerHTML = `<p class="text-slate-500 py-8 text-center">Vui lòng đăng nhập để xem lịch sử đặt giá.</p>`;
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/users/me/bids`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+        const items = data.items || [];
+        const container = document.getElementById('mybids-list');
+
+        if (items.length === 0) {
+          container.innerHTML = `<p class="text-slate-500 py-8 text-center">Bạn chưa tham gia đặt giá phiên nào.</p>`;
+          return;
+        }
+
+        container.innerHTML = items.map(b => `
+          <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+            <div>
+              <span class="text-xs text-brand-400 font-mono">Phiên #${b.productId}</span>
+              <h4 class="font-bold text-white text-sm">Mức giá đặt: <span class="text-brand-400">${formatVND(b.amount)}</span></h4>
+              <span class="text-[11px] text-slate-500">Thời gian: ${formatTime(b.bidTime)}</span>
+            </div>
+            <button onclick="openBidModal(${b.productId})" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200">
+              Vào phòng
+            </button>
+          </div>
+        `).join('');
+      } catch {
+        console.error("Load my bids failed");
+      }
+    }
+
+    // Load Won Products (Sản phẩm người dùng đã trúng đấu giá)
+    async function loadWonProducts() {
+      if (!authToken) {
+        document.getElementById('wonproducts-list').innerHTML = `<p class="col-span-full text-slate-500 py-8 text-center">Vui lòng đăng nhập để xem sản phẩm đã trúng đấu giá.</p>`;
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/users/me/won-products`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+        const items = data.items || [];
+        const container = document.getElementById('wonproducts-list');
+
+        if (items.length === 0) {
+          container.innerHTML = `
+            <div class="col-span-full py-12 text-center bg-slate-900/40 rounded-2xl border border-slate-800">
+              <i class="fa-solid fa-trophy text-slate-600 text-4xl mb-3"></i>
+              <h4 class="text-base font-bold text-slate-300">Bạn chưa có sản phẩm trúng đấu giá nào</h4>
+              <p class="text-xs text-slate-500 mt-1">Hãy tham gia đấu giá tại Sàn Đấu Giá và là người đặt mức giá cao nhất khi phiên kết thúc!</p>
+              <button onclick="switchTab('marketplace')" class="mt-4 px-4 py-2 rounded-xl bg-brand-500 text-slate-950 font-bold text-xs hover:bg-brand-400 transition">
+                Khám phá Sàn Đấu Giá
+              </button>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = items.map(p => `
+          <div class="bg-slate-900 border-2 border-emerald-500/40 rounded-2xl overflow-hidden flex flex-col justify-between shadow-xl shadow-emerald-950/20">
+            <div class="relative h-48 bg-slate-950 overflow-hidden">
+              <img src="${p.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80'}" class="w-full h-full object-cover">
+              <div class="absolute top-3 left-3 bg-emerald-500 text-slate-950 font-black text-xs px-3 py-1 rounded-full flex items-center gap-1 shadow-md">
+                <i class="fa-solid fa-crown text-amber-900"></i> ĐÃ CHIẾN THẮNG
+              </div>
+              <div class="absolute top-3 right-3 text-[10px] font-mono bg-black/70 px-2 py-0.5 rounded text-slate-300">
+                #${p.id}
+              </div>
+            </div>
+
+            <div class="p-5 flex-1 flex flex-col justify-between space-y-4">
+              <div>
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">${p.category || 'Chung'}</span>
+                <h3 class="text-base font-bold text-white line-clamp-1">${p.name}</h3>
+                <p class="text-xs text-slate-400 line-clamp-2 mt-1">${p.description || 'Chưa có mô tả.'}</p>
+              </div>
+
+              <div class="bg-slate-950/80 p-3.5 rounded-xl border border-emerald-500/30 space-y-2">
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-slate-400">Giá trúng thầu:</span>
+                  <span class="text-base font-black text-emerald-400">${formatVND(p.currentPrice)}</span>
+                </div>
+                <div class="flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-900 pt-1.5">
+                  <span>Người bán: <b class="text-slate-200">@${p.sellerName || 'user'}</b></span>
+                  <span>Đóng: <b class="text-slate-300">${formatTime(p.endTime)}</b></span>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <button onclick="openBidModal(${p.id})" class="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20">
+                  <i class="fa-solid fa-box-open"></i> Xem Chi Tiết
+                </button>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error("Load won products error:", err);
+      }
+    }
+
+    // Load Admin Users Table
+    async function loadAdminUsers() {
+      if (!authToken) return;
+      try {
+        const res = await fetch(`${API_BASE}/admin/users?pageSize=50`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!res.ok) {
+          alert("Chỉ tài khoản quyền Admin mới được xem danh sách này!");
+          return;
+        }
+        const data = await res.json();
+        const users = data.items || [];
+        const table = document.getElementById('admin-users-table');
+
+        table.innerHTML = users.map(u => {
+          const isSelf = currentUser && currentUser.id === u.id;
+          const statusBadge = u.isActive 
+            ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">Hoạt động</span>'
+            : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40">ĐÃ KHÓA</span>';
+
+          const btnAction = isSelf 
+            ? '<span class="text-[11px] text-slate-500 italic">Tài khoản của bạn</span>'
+            : (u.isActive 
+              ? `<button onclick="toggleUserStatus(${u.id}, false)" class="px-2.5 py-1 rounded bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 border border-rose-500/30 text-[11px] font-semibold transition">Khóa tài khoản</button>`
+              : `<button onclick="toggleUserStatus(${u.id}, true)" class="px-2.5 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold transition">Mở khóa</button>`);
+
+          return `
+            <tr class="hover:bg-slate-800/40 transition">
+              <td class="py-3 px-4 font-mono">${u.id}</td>
+              <td class="py-3 px-4 font-bold text-white">${u.username}</td>
+              <td class="py-3 px-4">
+                <div>${u.fullName || '--'}</div>
+                <div class="text-slate-500 text-[11px]">${u.email}</div>
+              </td>
+              <td class="py-3 px-4">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${u.role === 'Admin' ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800 text-slate-300'}">${u.role}</span>
+              </td>
+              <td class="py-3 px-4">${statusBadge}</td>
+              <td class="py-3 px-4 text-right">${btnAction}</td>
+            </tr>
+          `;
+        }).join('');
+      } catch (err) {
+        console.error("Load admin users error:", err);
+      }
+    }
+
+    // Toggle User Status (Lock/Unlock)
+    async function toggleUserStatus(userId, isActive) {
+      const actionName = isActive ? "MỞ KHÓA" : "KHÓA";
+      if (!confirm(`Bạn có chắc muốn ${actionName} tài khoản #${userId}?`)) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/admin/users/${userId}/status`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify({ isActive })
+        });
+        if (res.ok) {
+          showToast(`Đã ${actionName} tài khoản thành công!`);
+          loadAdminUsers();
+        } else {
+          const err = await res.json();
+          alert("Lỗi: " + (err.title || err.message));
+        }
+      } catch {
+        alert("Lỗi kết nối.");
+      }
+    }
+  </script>
+</body>
+</html>
