@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { LotPhoto, priceLabel } from "./Lot.jsx";
-import { api, date, money, query } from "./api";
+import {
+  BidGateCard,
+  CountdownBox,
+  LotPhoto,
+  priceLabel,
+  StatusBadge,
+} from "./Lot.jsx";
+import { api, money, query } from "./api";
 
 const statuses = {
   "": "Tất cả",
@@ -9,7 +15,22 @@ const statuses = {
   Completed: "Đã kết thúc",
   Cancelled: "Đã hủy",
 };
+
 const defaults = { q: "", category: "", minPrice: "", maxPrice: "" };
+
+const CATEGORY_ICONS = ["💻", "⌚", "🎨", "🚗", "📱", "📷", "🎧", "💎"];
+
+function parseRouteParams(route) {
+  const qs = route?.includes("?") ? route.split("?")[1] : "";
+  const sp = new URLSearchParams(qs);
+  return {
+    q: sp.get("q") || "",
+    category: sp.get("category") || "",
+    status: sp.get("status") || "",
+    minPrice: sp.get("minPrice") || "",
+    maxPrice: sp.get("maxPrice") || "",
+  };
+}
 
 function useQuery(path, revision = 0) {
   const [result, setResult] = useState(null);
@@ -27,117 +48,154 @@ function useQuery(path, revision = 0) {
   return result?.path === path && result.revision === revision ? result : {};
 }
 
-function Spotlight({ items }) {
-  const candidates = items
-    .filter((item) => item.imageUrl && item.status !== "Cancelled")
-    .sort(
-      (a, b) => Number(b.status === "Active") - Number(a.status === "Active"),
-    )
+function HeroCarousel({ items }) {
+  const slides = items
+    .filter((item) => item.status !== "Cancelled")
+    .sort((a, b) => {
+      const score = (x) =>
+        (x.status === "Active" ? 4 : x.status === "Scheduled" ? 2 : 0) +
+        (x.imageUrl ? 1 : 0);
+      return score(b) - score(a);
+    })
     .slice(0, 4);
+
   const [slide, setSlide] = useState(0);
-  const item = candidates[slide % candidates.length];
+  const count = slides.length;
+  const item = slides[slide % Math.max(count, 1)];
   if (!item) return null;
+
   return (
-    <section className="spotlight" aria-label="Phiên nổi bật">
-      <div className="spot-copy">
-        <div className="spot-kicker">
-          <i />
-          Phiên nổi bật <span>/</span> #{String(item.id).padStart(3, "0")}
+    <section className="hero-banner" aria-label="Banner phiên nổi bật">
+      <div className="hero-copy">
+        <div className="hero-tag">
+          <span>★</span>
+          Phiên nổi bật · #{String(item.id).padStart(3, "0")}
         </div>
         <h1>{item.name}</h1>
-        <div className="spot-facts">
+        <div className="hero-price-strip">
           <div>
             <small>{priceLabel(item)}</small>
             <strong>{money(item.currentPrice)}</strong>
           </div>
           <div>
             <small>Trạng thái</small>
-            <b>{statuses[item.status]}</b>
+            <StatusBadge value={item.status} />
           </div>
         </div>
-        <a className="spot-link" href={"#/product/" + item.id}>
-          Xem phiên đấu giá <span aria-hidden="true">↗</span>
-        </a>
+        <div style={{ maxWidth: 340 }}>
+          <CountdownBox item={item} />
+        </div>
+        <div className="actions">
+          <a className="btn" href={"#/product/" + item.id}>
+            {item.status === "Active" ? "Tham gia đấu giá ngay →" : "Xem chi tiết phiên →"}
+          </a>
+        </div>
       </div>
-      <div className="spot-image">
+
+      <div className="hero-media">
         <LotPhoto item={item} priority />
-        {candidates.length > 1 && (
-          <div className="slide-controls">
-            <button
-              aria-label="Phiên nổi bật trước"
-              onClick={() =>
-                setSlide((slide + candidates.length - 1) % candidates.length)
-              }
-            >
-              ←
-            </button>
-            <span>
-              {(slide % candidates.length) + 1} / {candidates.length}
-            </span>
-            <button
-              aria-label="Phiên nổi bật tiếp theo"
-              onClick={() => setSlide((slide + 1) % candidates.length)}
-            >
-              →
-            </button>
-          </div>
-        )}
       </div>
+
+      {count > 1 && (
+        <>
+          <button
+            type="button"
+            className="hero-arrow prev"
+            aria-label="Banner trước"
+            onClick={() => setSlide((slide + count - 1) % count)}
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            className="hero-arrow next"
+            aria-label="Banner tiếp theo"
+            onClick={() => setSlide((slide + 1) % count)}
+          >
+            ›
+          </button>
+          <div className="hero-dots" aria-label="Chọn banner">
+            {slides.map((s, idx) => (
+              <button
+                key={s.id}
+                type="button"
+                className={idx === slide % count ? "active" : ""}
+                aria-label={`Banner ${idx + 1}`}
+                onClick={() => setSlide(idx)}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </section>
   );
 }
 
-function AuctionRow({ item }) {
-  const upcoming = item.status === "Scheduled";
-  return (
-    <a className="auction-row" href={"#/product/" + item.id}>
-      <div className="row-photo">
-        <LotPhoto item={item} />
-      </div>
-      <div className="row-name">
-        <small>
-          {item.category || "Chưa phân loại"} · #{item.id}
-        </small>
-        <h3>{item.name}</h3>
-        <span className={"badge " + item.status}>{statuses[item.status]}</span>
-      </div>
-      <div className="row-fact">
-        <small>{priceLabel(item)}</small>
-        <strong>{money(item.currentPrice)}</strong>
-      </div>
-      <div className="row-fact row-date">
-        <small>{upcoming ? "Bắt đầu" : "Kết thúc"}</small>
-        <b>{date(upcoming ? item.startTime : item.endTime)}</b>
-      </div>
-      <span className="row-arrow" aria-hidden="true">
-        ↗
-      </span>
-    </a>
-  );
-}
-
-export default function Explore() {
-  const [draft, setDraft] = useState(defaults);
-  const [filters, setFilters] = useState(defaults);
-  const [status, setStatus] = useState("");
+export default function Explore({ route, user }) {
+  const initial = parseRouteParams(route);
+  const [draft, setDraft] = useState({
+    q: initial.q,
+    category: initial.category,
+    minPrice: initial.minPrice,
+    maxPrice: initial.maxPrice,
+  });
+  const [filters, setFilters] = useState({
+    q: initial.q,
+    category: initial.category,
+    minPrice: initial.minPrice,
+    maxPrice: initial.maxPrice,
+  });
+  const [status, setStatus] = useState(initial.status);
   const [page, setPage] = useState(1);
   const [revision, retry] = useState(0);
   const [invalid, setInvalid] = useState("");
-  const categories = useQuery("/api/Categories", revision);
+
+  useEffect(() => {
+    const next = parseRouteParams(route);
+    setDraft({
+      q: next.q,
+      category: next.category,
+      minPrice: next.minPrice,
+      maxPrice: next.maxPrice,
+    });
+    setFilters({
+      q: next.q,
+      category: next.category,
+      minPrice: next.minPrice,
+      maxPrice: next.maxPrice,
+    });
+    setStatus(next.status);
+    setPage(1);
+    setInvalid("");
+  }, [route]);
+
+  const categories = useQuery("/api/categories", revision);
   const base =
-    "/api/products?" +
-    query({ ...defaults, status: "", page: 1, pageSize: 12 });
+    "/api/products?" + query({ ...defaults, status: "", page: 1, pageSize: 15 });
   const featured = useQuery(base, revision);
+  const activeQuery = useQuery(
+    "/api/products?" + query({ status: "Active", page: 1, pageSize: 10 }),
+    revision,
+  );
   const path =
-    "/api/products?" + query({ ...filters, status, page, pageSize: 12 });
+    "/api/products?" + query({ ...filters, status, page, pageSize: 15 });
   const filtered = useQuery(path === base ? null : path, revision);
   const list = path === base ? featured : filtered;
   const data = list.data;
   const pages = data ? Math.ceil(data.totalCount / data.pageSize) : 0;
+
+  const hasFilter =
+    Boolean(status) ||
+    Boolean(filters.q) ||
+    Boolean(filters.category) ||
+    Boolean(filters.minPrice) ||
+    Boolean(filters.maxPrice);
+
   function change(event) {
     setInvalid("");
     setDraft({ ...draft, [event.target.name]: event.target.value });
   }
+
   function submit(event) {
     event.preventDefault();
     if (
@@ -151,21 +209,116 @@ export default function Explore() {
     setPage(1);
     setFilters({ ...draft, q: draft.q.trim() });
   }
+
   function reset() {
     setDraft(defaults);
     setFilters(defaults);
     setStatus("");
     setPage(1);
     setInvalid("");
+    if (location.hash.includes("?")) location.hash = "/";
   }
+
+  function selectCategory(catName) {
+    const nextCat = filters.category === catName ? "" : catName;
+    const next = { ...draft, category: nextCat };
+    setDraft(next);
+    setFilters(next);
+    setPage(1);
+    document.getElementById("catalog-section")?.scrollIntoView({ behavior: "smooth" });
+  }
+
   return (
     <>
-      <Spotlight items={featured.data?.items || []} />
-      <section className="catalog" aria-label="Danh sách phiên đấu giá">
-        <div className="catalog-title">
-          <h2>Khám phá phiên đấu giá</h2>
-          {data && <span>{data.totalCount} phiên</span>}
+      {/* 1. Fixed-height Banner Carousel */}
+      {!hasFilter && <HeroCarousel items={featured.data?.items || []} />}
+
+      {/* 2. Active Auctions Highlight Section (BidGate style) */}
+      {!hasFilter && activeQuery.data?.items?.length > 0 && (
+        <section className="bg-section" aria-label="Phiên đang diễn ra">
+          <div className="bg-section-head">
+            <h2>
+              Phiên đấu giá đang diễn ra
+              <span className="section-count-pill">
+                {activeQuery.data.totalCount} phiên trực tiếp
+              </span>
+            </h2>
+            <button
+              type="button"
+              className="btn outline sm"
+              onClick={() => {
+                setStatus("Active");
+                setPage(1);
+              }}
+            >
+              Xem tất cả →
+            </button>
+          </div>
+          <div className="bg-card-grid">
+            {activeQuery.data.items.slice(0, 5).map((item) => (
+              <BidGateCard key={item.id} item={item} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* 3. Product Categories Panel (BidGate style) */}
+      <section className="bg-section" aria-label="Danh mục sản phẩm">
+        <div className="bg-section-head">
+          <h2>Danh mục sản phẩm</h2>
+          {filters.category && (
+            <button type="button" className="btn secondary sm" onClick={reset}>
+              Đang lọc: {filters.category} ✕
+            </button>
+          )}
         </div>
+        <div className="category-panel">
+          {categories.error ? (
+            <div className="notice error meta-row">
+              <span>Chưa tải được danh mục: {categories.error}</span>
+              <button
+                className="btn secondary sm"
+                onClick={() => retry(revision + 1)}
+              >
+                Thử lại
+              </button>
+            </div>
+          ) : (
+            <div className="category-tiles">
+              {categories.data?.map((c, idx) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={`cat-tile ${filters.category === c.name ? "active" : ""}`}
+                  onClick={() => selectCategory(c.name)}
+                >
+                  <span className="cat-tile-icon" aria-hidden="true">
+                    {CATEGORY_ICONS[idx % CATEGORY_ICONS.length]}
+                  </span>
+                  <strong>{c.name}</strong>
+                  <small>{c.productCount} sản phẩm</small>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* 4. Full Filterable Auction Catalog */}
+      <section
+        id="catalog-section"
+        className="bg-section"
+        aria-label="Tất cả phiên đấu giá"
+      >
+        <div className="bg-section-head">
+          <h2>
+            {hasFilter ? "Kết quả lọc phiên đấu giá" : "Tất cả phiên đấu giá"}
+            {data && (
+              <span className="section-count-pill">{data.totalCount} phiên</span>
+            )}
+          </h2>
+        </div>
+
         <div className="status-tabs" aria-label="Lọc theo trạng thái">
           {Object.entries(statuses).map(([key, label]) => (
             <button
@@ -181,13 +334,14 @@ export default function Explore() {
             </button>
           ))}
         </div>
+
         <form className="catalog-filter" onSubmit={submit}>
           <label>
             Tên sản phẩm
             <input
               type="search"
               name="q"
-              placeholder="Tìm sản phẩm…"
+              placeholder="Nhập tên sản phẩm…"
               value={draft.q}
               onChange={change}
             />
@@ -197,7 +351,9 @@ export default function Explore() {
             <select name="category" value={draft.category} onChange={change}>
               <option value="">Tất cả danh mục</option>
               {categories.data?.map((c) => (
-                <option key={c.id}>{c.name}</option>
+                <option key={c.id} value={c.name}>
+                  {c.name}
+                </option>
               ))}
             </select>
           </label>
@@ -223,63 +379,88 @@ export default function Explore() {
               onChange={change}
             />
           </label>
-          <button className="btn dark">Tìm kiếm</button>
+          <button className="btn" type="submit">
+            Tìm kiếm
+          </button>
+          {hasFilter && (
+            <button className="btn secondary" type="button" onClick={reset}>
+              Xóa lọc
+            </button>
+          )}
         </form>
+
         {invalid && (
           <p className="notice error" role="alert">
             {invalid}
           </p>
         )}
-        {categories.error && (
-          <p className="notice error">
-            Chưa tải được danh mục.{" "}
-            <button onClick={() => retry(revision + 1)}>Thử lại</button>
-          </p>
-        )}
+
         {list.error ? (
-          <div className="notice error" role="alert">
-            {list.error}{" "}
-            <button onClick={() => retry(revision + 1)}>Thử lại</button>
+          <div className="notice error meta-row" role="alert">
+            <span>{list.error}</span>
+            <button
+              className="btn secondary sm"
+              onClick={() => retry(revision + 1)}
+            >
+              Thử lại
+            </button>
           </div>
         ) : !data ? (
           <p className="loading" role="status">
-            Đang tải phiên đấu giá…
+            Đang tải danh sách phiên đấu giá…
           </p>
         ) : data.items.length ? (
-          <div className="auction-list">
+          <div className="bg-card-grid">
             {data.items.map((item) => (
-              <AuctionRow key={item.id} item={item} />
+              <BidGateCard key={item.id} item={item} />
             ))}
           </div>
         ) : (
           <div className="empty">
-            <p>Chưa có phiên phù hợp.</p>
+            <p>Không tìm thấy phiên đấu giá nào khớp điều kiện.</p>
             <button className="btn secondary" onClick={reset}>
-              Xóa bộ lọc
+              Xem tất cả phiên
             </button>
           </div>
         )}
+
         {pages > 1 && (
           <div className="pagination">
             <button
-              className="btn secondary"
+              className="btn secondary sm"
               disabled={page <= 1}
               onClick={() => setPage(page - 1)}
             >
-              Trước
+              ← Trước
             </button>
             <span>
               Trang {page} / {pages}
             </span>
             <button
-              className="btn secondary"
+              className="btn secondary sm"
               disabled={page >= pages}
               onClick={() => setPage(page + 1)}
             >
-              Sau
+              Sau →
             </button>
           </div>
         )}
+      </section>
+
+      {/* 5. Mid-Page Dark Promo Strip */}
+      <section className="promo-strip" aria-label="Đăng bán sản phẩm trên BidNet">
+        <div>
+          <div className="eyebrow" style={{ color: "#93c5fd" }}>
+            Sàn đấu giá công nghệ BidNet
+          </div>
+          <h3>Bạn có sản phẩm muốn đưa lên sàn đấu giá?</h3>
+          <p>
+            Đăng sản phẩm nhanh chóng, theo dõi lượt trả giá theo thời gian thực và chốt đơn tự động khi hết giờ.
+          </p>
+        </div>
+        <a className="btn" href={user ? "#/product/new" : "#/register"}>
+          {user ? "+ Đăng sản phẩm ngay →" : "Đăng ký bán hàng miễn phí →"}
+        </a>
       </section>
     </>
   );

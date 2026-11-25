@@ -2,15 +2,17 @@ import React, { useState, useEffect } from "react";
 import { api, json, query, money, date } from "./api";
 import { OrderDetail } from "./screens";
 import { AdminCategories, Diagnostics } from "./admin";
+import { StatusBadge } from "./Lot.jsx";
 
 const menu = [
   ["/admin", "Tổng quan"],
   ["/admin/users", "Tài khoản"],
   ["/admin/auctions", "Phiên đấu giá"],
   ["/admin/categories", "Danh mục"],
-  ["/admin/orders", "Tra cứu đơn"],
+  ["/admin/orders", "Đơn hàng"],
   ["/admin/diagnostics", "Kiểm tra API"],
 ];
+
 const statusNames = {
   Scheduled: "Sắp diễn ra",
   Active: "Đang diễn ra",
@@ -43,26 +45,37 @@ function useResult(path) {
 function Result({ result, children }) {
   if (result.error)
     return (
-      <p role="alert" className="notice error">
-        {result.error} <button onClick={result.reload}>Thử lại</button>
+      <div role="alert" className="notice error meta-row">
+        <span>{result.error}</span>
+        <button className="btn secondary sm" onClick={result.reload}>
+          Thử lại
+        </button>
+      </div>
+    );
+  if (result.data === undefined)
+    return (
+      <p role="status" className="loading">
+        Đang tải dữ liệu…
       </p>
     );
-  if (result.data === undefined) return <p role="status">Đang tải dữ liệu…</p>;
   return children(result.data);
 }
 
 function Overview() {
   const users = useResult("/api/admin/users?pageSize=1");
   const auctions = useResult("/api/products?pageSize=1");
-  const categories = useResult("/api/Categories");
+  const categories = useResult("/api/categories");
+  const orders = useResult("/api/orders?pageSize=1");
   return (
     <>
+      <div className="eyebrow">Bảng điều khiển</div>
       <h1>Tổng quan quản trị</h1>
       <div className="admin-metrics">
         {[
           [users, "Tài khoản", "/admin/users"],
           [auctions, "Phiên đấu giá", "/admin/auctions"],
           [categories, "Danh mục", "/admin/categories"],
+          [orders, "Đơn hàng", "/admin/orders"],
         ].map(([result, label, path]) => (
           <section className="panel" key={path}>
             <h2>{label}</h2>
@@ -82,14 +95,22 @@ function Pager({ page, total, size, onPage }) {
   return (
     pages > 1 && (
       <nav className="pagination" aria-label="Phân trang">
-        <button disabled={page <= 1} onClick={() => onPage(page - 1)}>
-          Trước
+        <button
+          className="btn secondary sm"
+          disabled={page <= 1}
+          onClick={() => onPage(page - 1)}
+        >
+          ← Trước
         </button>
         <span>
           Trang {page} / {pages}
         </span>
-        <button disabled={page >= pages} onClick={() => onPage(page + 1)}>
-          Sau
+        <button
+          className="btn secondary sm"
+          disabled={page >= pages}
+          onClick={() => onPage(page + 1)}
+        >
+          Sau →
         </button>
       </nav>
     )
@@ -100,9 +121,13 @@ function Accounts({ user, notify }) {
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({ sortBy: "username" });
   const [pending, setPending] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [editError, setEditError] = useState("");
+
   const result = useResult(
     "/api/admin/users?" + query({ ...filters, page, pageSize: 15 }),
   );
+
   async function toggle(account) {
     if (
       !window.confirm(
@@ -119,15 +144,43 @@ function Accounts({ user, notify }) {
         isActive: !account.isActive,
       });
       result.reload();
-      notify("Đã cập nhật tài khoản " + account.username + ".");
+      notify("Đã cập nhật trạng thái tài khoản " + account.username + ".");
     } catch (e) {
       notify(e.message);
     } finally {
       setPending(false);
     }
   }
+
+  async function saveEdit(e) {
+    e.preventDefault();
+    if (!editing) return;
+    setPending(true);
+    setEditError("");
+    const v = Object.fromEntries(new FormData(e.currentTarget).entries());
+    try {
+      const payload = {
+        username: v.username?.trim() || null,
+        email: v.email?.trim() || null,
+        fullName: v.fullName ?? null,
+        phoneNumber: v.phoneNumber ?? null,
+        role: v.role || null,
+        password: v.password?.trim() ? v.password : null,
+      };
+      await json("PUT", `/api/admin/users/${editing.id}`, payload);
+      setEditing(null);
+      result.reload();
+      notify(`Đã cập nhật tài khoản ${v.username || editing.username}.`);
+    } catch (ex) {
+      setEditError(ex.message);
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <>
+      <div className="eyebrow">Quản trị</div>
       <h1>Tài khoản người dùng</h1>
       <form
         className="admin-filters"
@@ -139,19 +192,19 @@ function Accounts({ user, notify }) {
       >
         <label>
           Tìm kiếm
-          <input name="searchTerm" placeholder="Tên đăng nhập hoặc email" />
+          <input name="searchTerm" placeholder="Username, email hoặc họ tên" />
         </label>
         <label>
           Vai trò
           <select name="role">
             <option value="">Tất cả</option>
-            <option>User</option>
-            <option>Admin</option>
+            <option value="User">User</option>
+            <option value="Admin">Admin</option>
           </select>
         </label>
         <label>
           Sắp theo
-          <select name="sortBy">
+          <select name="sortBy" defaultValue="username">
             <option value="username">Tên đăng nhập</option>
             <option value="email">Email</option>
             <option value="createdat">Ngày tạo</option>
@@ -164,13 +217,106 @@ function Accounts({ user, notify }) {
             <option value="true">Giảm dần</option>
           </select>
         </label>
-        <button className="btn">Áp dụng</button>
+        <button className="btn dark">Áp dụng</button>
       </form>
+
+      {editing && (
+        <div className="panel" style={{ borderTop: "4px solid var(--purple)" }}>
+          <div className="meta-row" style={{ marginBottom: 14 }}>
+            <h2 style={{ margin: 0 }}>
+              Chỉnh sửa tài khoản #{editing.id} ({editing.username})
+            </h2>
+            <button
+              type="button"
+              className="btn secondary sm"
+              onClick={() => {
+                setEditing(null);
+                setEditError("");
+              }}
+            >
+              Đóng
+            </button>
+          </div>
+          <form key={editing.id} onSubmit={saveEdit}>
+            <div className="form-grid">
+              <div className="field">
+                <label htmlFor="edUser">Tên đăng nhập</label>
+                <input
+                  id="edUser"
+                  name="username"
+                  defaultValue={editing.username}
+                  minLength={3}
+                  maxLength={50}
+                  required
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="edEmail">Email</label>
+                <input
+                  id="edEmail"
+                  name="email"
+                  type="email"
+                  defaultValue={editing.email}
+                  maxLength={100}
+                  required
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="edName">Họ tên</label>
+                <input
+                  id="edName"
+                  name="fullName"
+                  defaultValue={editing.fullName || ""}
+                  maxLength={200}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="edPhone">Số điện thoại</label>
+                <input
+                  id="edPhone"
+                  name="phoneNumber"
+                  defaultValue={editing.phoneNumber || ""}
+                  maxLength={20}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="edRole">Vai trò</label>
+                <select
+                  id="edRole"
+                  name="role"
+                  defaultValue={editing.role}
+                  disabled={editing.id === user.id}
+                >
+                  <option value="User">User</option>
+                  <option value="Admin">Admin</option>
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="edPass">Đặt mật khẩu mới (để trống nếu giữ nguyên)</label>
+                <input
+                  id="edPass"
+                  name="password"
+                  type="password"
+                  minLength={8}
+                  placeholder="Tối thiểu 8 ký tự"
+                />
+              </div>
+            </div>
+            {editError && <div className="notice error">{editError}</div>}
+            <div className="actions">
+              <button className="btn dark" disabled={pending}>
+                Lưu thông tin tài khoản
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       <Result result={result}>
         {(data) => (
           <>
             {data.items.length ? (
-              <div className="table-wrap">
+              <div className="admin-table-card table-wrap">
                 <table className="table">
                   <thead>
                     <tr>
@@ -185,25 +331,47 @@ function Accounts({ user, notify }) {
                     {data.items.map((a) => (
                       <tr key={a.id}>
                         <td>
-                          <b>{a.username}</b>
-                          <br />
-                          {a.fullName}
+                          <strong>{a.username}</strong>
+                          {a.fullName && (
+                            <div className="small muted">{a.fullName}</div>
+                          )}
                         </td>
                         <td>{a.email}</td>
-                        <td>{a.role}</td>
-                        <td>{a.isActive ? "Hoạt động" : "Đã khóa"}</td>
                         <td>
-                          {a.id === user.id ? (
-                            "Tài khoản của bạn"
-                          ) : (
+                          <span className={`role-pill-light ${a.role}`}>
+                            {a.role}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`badge ${a.isActive ? "Active" : "Cancelled"}`}>
+                            <span className="badge-dot" aria-hidden="true" />
+                            {a.isActive ? "Hoạt động" : "Đã khóa"}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="actions">
                             <button
-                              className="btn secondary"
+                              className="btn secondary sm"
                               disabled={pending}
-                              onClick={() => toggle(a)}
+                              onClick={() => {
+                                setEditing(a);
+                                setEditError("");
+                              }}
                             >
-                              {a.isActive ? "Khóa" : "Mở khóa"}
+                              Sửa
                             </button>
-                          )}
+                            {a.id === user.id ? (
+                              <span className="small muted">Đang đăng nhập</span>
+                            ) : (
+                              <button
+                                className={`btn sm ${a.isActive ? "danger" : "dark"}`}
+                                disabled={pending}
+                                onClick={() => toggle(a)}
+                              >
+                                {a.isActive ? "Khóa" : "Mở khóa"}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -211,7 +379,7 @@ function Accounts({ user, notify }) {
                 </table>
               </div>
             ) : (
-              <p className="empty">Không tìm thấy tài khoản.</p>
+              <p className="empty">Không tìm thấy tài khoản phù hợp.</p>
             )}
             <Pager
               page={page}
@@ -227,13 +395,13 @@ function Accounts({ user, notify }) {
 }
 
 export function CancelAuction({ item, onDone, notify }) {
-  const [open, setOpen] = useState(false),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   if (!["Scheduled", "Active"].includes(item.status)) return null;
   if (!open)
     return (
-      <button className="btn secondary" onClick={() => setOpen(true)}>
+      <button className="btn danger sm" onClick={() => setOpen(true)}>
         Hủy phiên
       </button>
     );
@@ -263,16 +431,20 @@ export function CancelAuction({ item, onDone, notify }) {
     <form className="cancel-form" onSubmit={submit}>
       <label>
         Lý do hủy phiên #{item.id}
-        <textarea name="reason" required maxLength={500} />
+        <textarea name="reason" required maxLength={500} placeholder="Nhập lý do hủy phiên…" />
       </label>
-      {error && <p role="alert">{error}</p>}
+      {error && (
+        <div className="notice error" role="alert" style={{ margin: 0 }}>
+          {error}
+        </div>
+      )}
       <div className="actions">
-        <button className="btn danger" disabled={busy}>
+        <button className="btn danger sm" disabled={busy}>
           Xác nhận hủy
         </button>
         <button
           type="button"
-          className="btn secondary"
+          className="btn secondary sm"
           disabled={busy}
           onClick={() => {
             setError("");
@@ -287,13 +459,14 @@ export function CancelAuction({ item, onDone, notify }) {
 }
 
 function Auctions({ notify }) {
-  const [page, setPage] = useState(1),
-    [filters, setFilters] = useState({});
+  const [page, setPage] = useState(1);
+  const [filters, setFilters] = useState({});
   const result = useResult(
     "/api/products?" + query({ ...filters, page, pageSize: 12 }),
   );
   return (
     <>
+      <div className="eyebrow">Quản trị</div>
       <h1>Quản lý phiên đấu giá</h1>
       <form
         className="admin-filters"
@@ -305,7 +478,7 @@ function Auctions({ notify }) {
       >
         <label>
           Tên sản phẩm
-          <input name="q" type="search" />
+          <input name="q" type="search" placeholder="Tìm theo tên…" />
         </label>
         <label>
           Trạng thái
@@ -318,17 +491,17 @@ function Auctions({ notify }) {
             ))}
           </select>
         </label>
-        <button className="btn">Tìm phiên</button>
+        <button className="btn dark">Tìm phiên</button>
       </form>
       <Result result={result}>
         {(data) => (
           <>
             {data.items.length ? (
-              <div className="table-wrap">
+              <div className="admin-table-card table-wrap">
                 <table className="table">
                   <thead>
                     <tr>
-                      <th>Phiên / người bán</th>
+                      <th>Phiên / Người bán</th>
                       <th>Giá hiện tại</th>
                       <th>Trạng thái</th>
                       <th>Kết thúc</th>
@@ -342,19 +515,20 @@ function Auctions({ notify }) {
                           <a href={"#/product/" + p.id}>
                             #{p.id} · {p.name}
                           </a>
-                          <br />
-                          {p.sellerName}
+                          <div className="small muted">Người bán: {p.sellerName}</div>
                         </td>
-                        <td>{money(p.currentPrice)}</td>
+                        <td className="mono" style={{ fontWeight: 700, color: "var(--blue)" }}>
+                          {money(p.currentPrice)}
+                        </td>
                         <td>
-                          <span className={"badge " + p.status}>
-                            {statusNames[p.status]}
-                          </span>
+                          <StatusBadge value={p.status} />
                           {p.cancellationReason && (
-                            <p>{p.cancellationReason}</p>
+                            <div className="small muted" style={{ marginTop: 4 }}>
+                              Lý do: {p.cancellationReason}
+                            </div>
                           )}
                         </td>
-                        <td>{date(p.endTime)}</td>
+                        <td className="small muted">{date(p.endTime)}</td>
                         <td>
                           <CancelAuction
                             item={p}
@@ -368,7 +542,7 @@ function Auctions({ notify }) {
                 </table>
               </div>
             ) : (
-              <p className="empty">Không tìm thấy phiên.</p>
+              <p className="empty">Không tìm thấy phiên đấu giá phù hợp.</p>
             )}
             <Pager
               page={page}
@@ -385,9 +559,15 @@ function Auctions({ notify }) {
 
 function OrderLookup(props) {
   const [id, setId] = useState(null);
+  const [page, setPage] = useState(1);
+  const [status, setStatus] = useState("");
+  const list = useResult(
+    "/api/orders?" + query({ status, page, pageSize: 10 }),
+  );
   return (
     <>
-      <h1>Tra cứu đơn hàng</h1>
+      <div className="eyebrow">Quản trị</div>
+      <h1>Quản lý & tra cứu đơn hàng</h1>
       <form
         className="admin-filters"
         onSubmit={(e) => {
@@ -396,12 +576,91 @@ function OrderLookup(props) {
         }}
       >
         <label>
-          Mã đơn hàng
-          <input name="orderId" type="number" min="1" step="1" required />
+          Tra cứu nhanh theo mã đơn
+          <input name="orderId" type="number" min="1" step="1" placeholder="Ví dụ: 3" required />
         </label>
-        <button className="btn">Tra cứu</button>
+        <button className="btn dark">Tra cứu</button>
+        <label>
+          Lọc theo trạng thái
+          <select
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">Tất cả trạng thái</option>
+            <option value="Pending">Chờ địa chỉ</option>
+            <option value="Processing">Đang xử lý</option>
+            <option value="Shipped">Đang giao hàng</option>
+            <option value="Completed">Hoàn tất</option>
+            <option value="Cancelled">Đã hủy</option>
+          </select>
+        </label>
       </form>
-      {id && <OrderDetail key={id} id={id} {...props} />}
+      <Result result={list}>
+        {(data) => (
+          <>
+            {data.items.length ? (
+              <div className="admin-table-card table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Mã</th>
+                      <th>Sản phẩm</th>
+                      <th>Người mua ← Người bán</th>
+                      <th>Giá chốt</th>
+                      <th>Trạng thái</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.items.map((o) => (
+                      <tr key={o.id}>
+                        <td className="mono">#{o.id}</td>
+                        <td><strong>{o.productName}</strong></td>
+                        <td>
+                          {o.buyerName} <span className="muted">←</span> {o.sellerName}
+                        </td>
+                        <td className="mono" style={{ fontWeight: 700, color: "var(--blue)" }}>
+                          {money(o.finalPrice)}
+                        </td>
+                        <td>
+                          <StatusBadge value={o.status} />
+                        </td>
+                        <td>
+                          <button
+                            className="btn secondary sm"
+                            onClick={() => setId(o.id)}
+                          >
+                            Xem / Xử lý
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="empty">Chưa có đơn hàng phù hợp.</p>
+            )}
+            <Pager
+              page={page}
+              total={data.totalCount}
+              size={data.pageSize}
+              onPage={setPage}
+            />
+          </>
+        )}
+      </Result>
+      {id && (
+        <OrderDetail
+          key={id}
+          id={id}
+          {...props}
+          onUpdated={list.reload}
+        />
+      )}
     </>
   );
 }
@@ -437,11 +696,15 @@ export default function AdminWorkspace({ route, ...props }) {
         <Result result={identity}>
           {(account) => {
             if (account.role !== "Admin" || !account.isActive)
-              return <p role="alert">Tài khoản không có quyền quản trị.</p>;
+              return (
+                <p role="alert" className="notice error">
+                  Tài khoản không có quyền quản trị.
+                </p>
+              );
             return View ? (
               <View {...props} user={account} />
             ) : (
-              <p>Không tìm thấy trang quản trị.</p>
+              <p className="empty">Không tìm thấy trang quản trị.</p>
             );
           }}
         </Result>

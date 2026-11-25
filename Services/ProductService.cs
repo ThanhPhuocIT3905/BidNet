@@ -16,7 +16,12 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
         if (!string.IsNullOrWhiteSpace(filter.Q))
             query = query.Where(p => p.Name.Contains(filter.Q.Trim()));
         if (!string.IsNullOrWhiteSpace(filter.Category))
-            query = query.Where(p => p.Category == filter.Category.Trim());
+        {
+            var cat = filter.Category.Trim();
+            query = query.Where(p =>
+                p.Category == cat ||
+                (p.CategoryEntity != null && p.CategoryEntity.Name == cat));
+        }
         if (filter.CategoryId.HasValue)
             query = query.Where(p => p.CategoryId == filter.CategoryId.Value);
         // Chỉ nhận đúng giá trị enum; chuỗi lạ phải báo 400 thay vì trả danh sách rỗng.

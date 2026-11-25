@@ -197,9 +197,12 @@ app.UseStatusCodePages(async context =>
         }
     });
 });
-// Đặt HTTPS trước Swagger: nếu vào trang bằng HTTP, cả trang được chuyển sang
-// HTTPS; tránh trình duyệt chặn fetch JSON vì redirect khác origin.
-app.UseHttpsRedirection();
+// Chỉ ép chuyển hướng HTTPS ngoài môi trường Development để tránh 307 Redirect
+// làm lỗi CORS preflight/SignalR khi Frontend gọi http://localhost:5014 ở local.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();

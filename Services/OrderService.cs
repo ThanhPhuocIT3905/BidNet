@@ -141,6 +141,8 @@ public class OrderService(AppDbContext db, CurrentUser currentUser) : IOrderServ
             case OrderStatus.Completed:
                 if (!isBuyer && !isAdmin)
                     throw new ApiException(403, "forbidden", "Chỉ người mua hoặc Admin mới được xác nhận hoàn tất đơn hàng.");
+                if (!isAdmin && order.Status == OrderStatus.Pending)
+                    throw new ApiException(409, "order_not_ready", "Vui lòng cập nhật địa chỉ và chờ giao hàng trước khi hoàn tất đơn.");
                 order.Status = OrderStatus.Completed;
                 order.CompletedAt = DateTime.UtcNow;
                 db.Notifications.Add(new Notification

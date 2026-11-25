@@ -1,7 +1,9 @@
 export const API_BASE = (
   import.meta.env.VITE_API_BASE_URL || "http://localhost:5014"
 ).replace(/\/$/, "");
+
 const SESSION_KEY = "bidnet.session";
+
 export const getSession = () => {
   try {
     return JSON.parse(sessionStorage.getItem(SESSION_KEY) || "null");
@@ -9,10 +11,15 @@ export const getSession = () => {
     return null;
   }
 };
+
 export const setSession = (value) =>
   value
     ? sessionStorage.setItem(SESSION_KEY, JSON.stringify(value))
     : sessionStorage.removeItem(SESSION_KEY);
+
+export const emitNotificationsChanged = () =>
+  window.dispatchEvent(new Event("bidnet:notifications"));
+
 export const query = (value) => {
   const p = new URLSearchParams();
   Object.entries(value).forEach(([k, v]) => {
@@ -20,6 +27,7 @@ export const query = (value) => {
   });
   return p.toString();
 };
+
 export async function api(path, options = {}) {
   const token = getSession()?.accessToken;
   const headers = {
@@ -64,21 +72,41 @@ export async function api(path, options = {}) {
         `Yêu cầu thất bại (${response.status})`,
     );
     failure.status = response.status;
+    failure.code = data?.code;
     throw failure;
   }
   return data;
 }
+
 export const json = (method, path, body) =>
   api(path, { method, body: JSON.stringify(body) });
+
 export const money = (amount) =>
   `${new Intl.NumberFormat("vi-VN").format(Number(amount || 0))} ₫`;
+
 // SQL Server DateTime values from this API are UTC but often serialize without a Z suffix.
 export const parseApiDate = (value) =>
   value
     ? new Date(/[zZ]$|[+-]\d{2}:\d{2}$/.test(value) ? value : `${value}Z`)
     : null;
+
 export const date = (value) =>
   value ? parseApiDate(value).toLocaleString("vi-VN") : "—";
+
+export function formatCountdown(targetIso, nowMs = Date.now()) {
+  const target = parseApiDate(targetIso);
+  if (!target) return "";
+  const diff = Math.floor((target.getTime() - nowMs) / 1000);
+  if (diff <= 0) return "00:00:00";
+  const days = Math.floor(diff / 86400);
+  const hours = Math.floor((diff % 86400) / 3600);
+  const mins = Math.floor((diff % 3600) / 60);
+  const secs = diff % 60;
+  const pad = (n) => String(n).padStart(2, "0");
+  return days > 0
+    ? `${days} ngày ${pad(hours)}:${pad(mins)}:${pad(secs)}`
+    : `${pad(hours)}:${pad(mins)}:${pad(secs)}`;
+}
 
 export function mediaUrl(value) {
   if (!value) return undefined;

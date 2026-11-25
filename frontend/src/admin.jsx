@@ -2,8 +2,8 @@ import React, { useEffect, useState } from "react";
 import { api, json } from "./api";
 
 function useRemote(fn, deps = []) {
-  const [data, setData] = useState(null),
-    [error, setError] = useState("");
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
   const reload = async () => {
     try {
       setData(await fn());
@@ -17,20 +17,24 @@ function useRemote(fn, deps = []) {
   }, deps);
   return { data, error, reload };
 }
+
 const Notice = ({ error }) =>
-  error && <div className="notice error">{error}</div>;
+  error ? <div className="notice error">{error}</div> : null;
+
 export function AdminCategories({ notify }) {
-  const list = useRemote(() => api("/api/Categories"), []);
-  const [current, setCurrent] = useState(null),
-    [error, setError] = useState("");
+  const list = useRemote(() => api("/api/categories"), []);
+  const [current, setCurrent] = useState(null);
+  const [error, setError] = useState("");
+
   const edit = async (id) => {
     try {
-      setCurrent(await api(`/api/Categories/${id}`));
+      setCurrent(await api(`/api/categories/${id}`));
       setError("");
     } catch (e) {
       setError(e.message);
     }
   };
+
   const save = async (e) => {
     e.preventDefault();
     const form = e.currentTarget;
@@ -38,7 +42,7 @@ export function AdminCategories({ notify }) {
     try {
       await json(
         current ? "PUT" : "POST",
-        current ? `/api/Categories/${current.id}` : "/api/Categories",
+        current ? `/api/categories/${current.id}` : "/api/categories",
         { name: v.name, description: v.description || null },
       );
       setCurrent(null);
@@ -50,6 +54,7 @@ export function AdminCategories({ notify }) {
       setError(x.message);
     }
   };
+
   const remove = async (id) => {
     if (
       !confirm(
@@ -58,7 +63,7 @@ export function AdminCategories({ notify }) {
     )
       return;
     try {
-      await api(`/api/Categories/${id}`, { method: "DELETE" });
+      await api(`/api/categories/${id}`, { method: "DELETE" });
       if (current?.id === id) setCurrent(null);
       setError("");
       list.reload();
@@ -67,6 +72,7 @@ export function AdminCategories({ notify }) {
       setError(e.message);
     }
   };
+
   return (
     <>
       <div className="section-head">
@@ -76,35 +82,43 @@ export function AdminCategories({ notify }) {
         </div>
       </div>
       <div className="split">
-        <div className="panel table-wrap">
+        <div className="admin-table-card table-wrap">
           <Notice error={list.error} />
-          {!list.error && !list.data && <p role="status">Đang tải danh mục…</p>}
-          {list.data?.length === 0 && <p>Chưa có danh mục.</p>}
+          {!list.error && !list.data && (
+            <p className="loading" role="status">
+              Đang tải danh mục…
+            </p>
+          )}
+          {list.data?.length === 0 && (
+            <p className="empty" style={{ border: 0 }}>
+              Chưa có danh mục nào.
+            </p>
+          )}
           <table className="table">
             <thead>
               <tr>
-                <th>Tên</th>
+                <th>Tên danh mục</th>
                 <th>Mô tả</th>
-                <th>Sản phẩm</th>
-                <th></th>
+                <th>Số SP</th>
+                <th>Thao tác</th>
               </tr>
             </thead>
             <tbody>
               {list.data?.map((c) => (
                 <tr key={c.id}>
-                  <td>{c.name}</td>
-                  <td>{c.description || "—"}</td>
-                  <td>{c.productCount}</td>
+                  <td><strong>{c.name}</strong></td>
+                  <td className="muted">{c.description || "—"}</td>
+                  <td className="mono">{c.productCount}</td>
                   <td>
                     <div className="actions">
                       <button
-                        className="btn secondary"
+                        className="btn secondary sm"
                         onClick={() => edit(c.id)}
                       >
                         Sửa
                       </button>
                       <button
-                        className="btn danger"
+                        className="btn danger sm"
                         onClick={() => remove(c.id)}
                       >
                         Xóa
@@ -116,11 +130,11 @@ export function AdminCategories({ notify }) {
             </tbody>
           </table>
         </div>
-        <div className="panel">
-          <h2>{current ? `Sửa danh mục #${current.id}` : "Thêm danh mục"}</h2>
+        <div className="panel" style={{ marginTop: 0 }}>
+          <h2>{current ? `Sửa danh mục #${current.id}` : "Thêm danh mục mới"}</h2>
           <form key={current?.id || "new"} onSubmit={save}>
             <div className="field">
-              <label htmlFor="catName">Tên</label>
+              <label htmlFor="catName">Tên danh mục</label>
               <input
                 id="catName"
                 name="name"
@@ -140,7 +154,7 @@ export function AdminCategories({ notify }) {
             </div>
             <Notice error={error} />
             <div className="actions">
-              <button className="btn dark">Lưu</button>
+              <button className="btn dark">Lưu danh mục</button>
               {current && (
                 <button
                   type="button"
@@ -157,38 +171,83 @@ export function AdminCategories({ notify }) {
     </>
   );
 }
+
 export function Diagnostics() {
-  const [result, setResult] = useState(null),
-    [error, setError] = useState("");
-  const run = async (path) => {
+  const [results, setResults] = useState([]);
+
+  const endpoints = [
+    ["Danh mục", "/api/categories"],
+    ["Phiên đấu giá", "/api/products?pageSize=1"],
+    ["Tài khoản (Admin)", "/api/admin/users?pageSize=1"],
+    ["Đơn hàng (Admin)", "/api/orders?pageSize=1"],
+    ["Thông báo chưa đọc", "/api/notifications/unread-count"],
+  ];
+
+  const run = async (label, path) => {
+    const start = performance.now();
     try {
       await api(path);
-      setResult(`${path}: phản hồi thành công`);
-      setError("");
+      const ms = Math.round(performance.now() - start);
+      setResults((prev) => [
+        { label, path, ok: true, detail: `HTTP 200 OK · ${ms} ms`, time: new Date().toLocaleTimeString("vi-VN") },
+        ...prev.slice(0, 9),
+      ]);
     } catch (e) {
-      setResult(path);
-      setError(
-        [e.status && "HTTP " + e.status, e.message].filter(Boolean).join(" · "),
-      );
+      setResults((prev) => [
+        {
+          label,
+          path,
+          ok: false,
+          detail: [e.status && "HTTP " + e.status, e.message]
+            .filter(Boolean)
+            .join(" · "),
+          time: new Date().toLocaleTimeString("vi-VN"),
+        },
+        ...prev.slice(0, 9),
+      ]);
     }
   };
-  return (
-    <div className="panel form-wrap">
-      <h1>Kiểm tra phản hồi API</h1>
 
-      <div className="actions">
-        {[
-          ["Danh mục", "/api/categories"],
-          ["Phiên đấu giá", "/api/products?pageSize=1"],
-          ["Quyền quản trị", "/api/admin/users?pageSize=1"],
-        ].map(([x, path]) => (
-          <button key={x} className="btn secondary" onClick={() => run(path)}>
-            {x}
+  const runAll = async () => {
+    for (const [label, path] of endpoints) {
+      await run(label, path);
+    }
+  };
+
+  return (
+    <div className="panel" style={{ marginTop: 0 }}>
+      <div className="meta-row" style={{ marginBottom: 14 }}>
+        <div>
+          <div className="eyebrow">Hệ thống</div>
+          <h1 style={{ margin: "4px 0 0" }}>Kiểm tra kết nối API</h1>
+        </div>
+        <button className="btn dark" onClick={runAll}>
+          Chạy kiểm tra tất cả
+        </button>
+      </div>
+      <div className="actions" style={{ marginBottom: 16 }}>
+        {endpoints.map(([label, path]) => (
+          <button
+            key={path}
+            className="btn secondary sm"
+            onClick={() => run(label, path)}
+          >
+            {label}
           </button>
         ))}
       </div>
-      {result && <div className="notice">{result}</div>}
-      <Notice error={error} />
+      {results.map((r, idx) => (
+        <div
+          key={idx}
+          className={`notice ${r.ok ? "success" : "error"} meta-row`}
+        >
+          <span>
+            <strong>{r.label}</strong> (<code className="mono">{r.path}</code>):{" "}
+            {r.detail}
+          </span>
+          <span className="small muted">{r.time}</span>
+        </div>
+      ))}
     </div>
   );
 }

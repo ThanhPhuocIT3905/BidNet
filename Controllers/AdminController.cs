@@ -31,9 +31,20 @@ public class AdminController(
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
             var term = searchTerm.Trim();
-            query = query.Where(u => u.Username.Contains(term) || u.Email.Contains(term));
+            query = query.Where(u =>
+                u.Username.Contains(term) ||
+                u.Email.Contains(term) ||
+                (u.FullName != null && u.FullName.Contains(term)));
         }
-        if (!string.IsNullOrWhiteSpace(role)) query = query.Where(u => u.Role == role);
+        if (!string.IsNullOrWhiteSpace(role))
+        {
+            var normalized = role.Trim();
+            if (!normalized.Equals("User", StringComparison.OrdinalIgnoreCase) &&
+                !normalized.Equals("Admin", StringComparison.OrdinalIgnoreCase))
+                throw new ApiException(400, "invalid_role", "Role lọc chỉ được là User hoặc Admin.");
+            var targetRole = normalized.Equals("Admin", StringComparison.OrdinalIgnoreCase) ? "Admin" : "User";
+            query = query.Where(u => u.Role == targetRole);
+        }
         var count = await query.CountAsync(ct);
         var sorted = sortBy?.ToLowerInvariant() switch
         {

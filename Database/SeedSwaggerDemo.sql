@@ -37,13 +37,13 @@ BEGIN
         DATEADD(DAY, 7, @NowUtc),
         0, -- Active
         @SellerId, NULL,
-        N'https://images.unsplash.com/photo-1695048133142-1a20484d2569',
+        N'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=900&auto=format&fit=crop&q=80',
         N'Đồ điện tử & Công nghệ', 1,
         @NowUtc, @NowUtc, NULL
     );
     DECLARE @ActiveProductId INT = SCOPE_IDENTITY();
     INSERT [dbo].[ProductImages] ([FileName], [ContentType], [Length], [UploadedAt], [ProductId], [CloudinaryPublicId], [CloudinaryUrl])
-    VALUES (N'iphone-16-pro-max.jpg', N'image/jpeg', 0, @NowUtc, @ActiveProductId, N'demo/iphone-16-pro-max', N'https://images.unsplash.com/photo-1695048133142-1a20484d2569');
+    VALUES (N'iphone-16-pro-max.jpg', N'image/jpeg', 0, @NowUtc, @ActiveProductId, N'demo/iphone-16-pro-max', N'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=900&auto=format&fit=crop&q=80');
 END
 
 -- 3. Phiên đang Scheduled (để test PUT /api/products/{id} sửa trước giờ mở hoặc Admin hủy)
@@ -92,4 +92,13 @@ BEGIN
         (@Bidder1Id, N'Chúc mừng bạn đã thắng đấu giá!', N'Bạn đã chiến thắng phiên đấu giá sản phẩm ''Sony A7 IV Full-Frame (Đã chốt đơn demo)'' với mức giá 42,000,000 VNĐ. Vui lòng cập nhật địa chỉ nhận hàng.', 0, DATEADD(HOUR, -1, @NowUtc)),
         (@SellerId, N'Phiên đấu giá thành công', N'Sản phẩm ''Sony A7 IV Full-Frame (Đã chốt đơn demo)'' của bạn đã kết thúc thành công với giá 42,000,000 VNĐ. Đơn hàng mới đã được khởi tạo.', 0, DATEADD(HOUR, -1, @NowUtc));
 END
+
+-- 5. Bổ sung ảnh thật cho các sản phẩm cũ chưa có ImageUrl (#2..#8)
+UPDATE [dbo].[Products] SET [ImageUrl] = N'https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=900&auto=format&fit=crop&q=80' WHERE [Id] = 2 AND ([ImageUrl] IS NULL OR LTRIM(RTRIM([ImageUrl])) = N'');
+UPDATE [dbo].[Products] SET [ImageUrl] = N'https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=900&auto=format&fit=crop&q=80' WHERE [Id] = 3 AND ([ImageUrl] IS NULL OR LTRIM(RTRIM([ImageUrl])) = N'');
+UPDATE [dbo].[Products] SET [ImageUrl] = N'https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=900&auto=format&fit=crop&q=80' WHERE [Id] = 4 AND ([ImageUrl] IS NULL OR LTRIM(RTRIM([ImageUrl])) = N'');
+UPDATE [dbo].[Products] SET [ImageUrl] = N'https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=900&auto=format&fit=crop&q=80' WHERE [Id] = 5 AND ([ImageUrl] IS NULL OR LTRIM(RTRIM([ImageUrl])) = N'');
+UPDATE [dbo].[Products] SET [ImageUrl] = N'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=900&auto=format&fit=crop&q=80' WHERE [Id] = 6 AND ([ImageUrl] IS NULL OR LTRIM(RTRIM([ImageUrl])) = N'');
+UPDATE [dbo].[Products] SET [ImageUrl] = N'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=900&auto=format&fit=crop&q=80' WHERE [Id] = 7 AND ([ImageUrl] IS NULL OR LTRIM(RTRIM([ImageUrl])) = N'');
+UPDATE [dbo].[Products] SET [ImageUrl] = N'https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=900&auto=format&fit=crop&q=80' WHERE [Id] = 8 AND ([ImageUrl] IS NULL OR LTRIM(RTRIM([ImageUrl])) = N'');
 GO
