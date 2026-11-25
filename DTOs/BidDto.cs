@@ -2,28 +2,11 @@ using System.ComponentModel.DataAnnotations;
 
 namespace BidNet.DTOs;
 
-// ================= BID DTOs =================
-
-public class CreateBidDto
-{
-    [Required(ErrorMessage = "ProductId là bắt buộc")]
-    public int ProductId { get; set; }
-
-    [Required(ErrorMessage = "Số tiền đấu giá là bắt buộc")]
-    [Range(1, double.MaxValue, ErrorMessage = "Số tiền đấu giá phải lớn hơn 0")]
-    public decimal Amount { get; set; }
-}
-
-public class UpdateBidDto
-{
-    [Required(ErrorMessage = "Số tiền đấu giá là bắt buộc")]
-    [Range(1, double.MaxValue, ErrorMessage = "Số tiền đấu giá phải lớn hơn 0")]
-    public decimal Amount { get; set; }
-}
-
 public class PlaceBidDto
 {
     // Client chỉ gửi giá; UserId và thời điểm đặt lấy ở server.
+    [Required(ErrorMessage = "Số tiền đấu giá là bắt buộc")]
+    [Range(1, double.MaxValue, ErrorMessage = "Số tiền đấu giá phải lớn hơn 0")]
     public decimal Amount { get; set; }
 }
 

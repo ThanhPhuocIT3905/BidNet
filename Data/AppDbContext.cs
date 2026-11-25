@@ -14,6 +14,10 @@ namespace BidNet.Data
         public DbSet<Product> Products => Set<Product>();
         public DbSet<Bid> Bids => Set<Bid>();
         public DbSet<StoredFile> StoredFiles => Set<StoredFile>();
+        public DbSet<Category> Categories => Set<Category>();
+        public DbSet<Order> Orders => Set<Order>();
+        public DbSet<Notification> Notifications => Set<Notification>();
+        public DbSet<ProductImage> ProductImages => Set<ProductImage>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -64,6 +68,53 @@ namespace BidNet.Data
             modelBuilder.Entity<Bid>()
                 // Tăng tốc lịch sử bid theo từng sản phẩm.
                 .HasIndex(b => new { b.ProductId, b.BidTime });
+
+            modelBuilder.Entity<Product>()
+                .HasOne(p => p.CategoryEntity)
+                .WithMany(c => c.Products)
+                .HasForeignKey(p => p.CategoryId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<ProductImage>()
+                .HasOne(i => i.Product)
+                .WithMany(p => p.Images)
+                .HasForeignKey(i => i.ProductId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<ProductImage>()
+                .Property(i => i.CloudinaryPublicId)
+                .HasDefaultValue(string.Empty);
+
+            modelBuilder.Entity<ProductImage>()
+                .Property(i => i.CloudinaryUrl)
+                .HasDefaultValue(string.Empty);
+
+            modelBuilder.Entity<Order>()
+                .HasOne(o => o.Product)
+                .WithMany(p => p.Orders)
+                .HasForeignKey(o => o.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Order>()
+                .HasOne(o => o.Buyer)
+                .WithMany(u => u.BuyerOrders)
+                .HasForeignKey(o => o.BuyerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Order>()
+                .HasOne(o => o.Seller)
+                .WithMany(u => u.SellerOrders)
+                .HasForeignKey(o => o.SellerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Notification>()
+                .HasOne(n => n.User)
+                .WithMany(u => u.Notifications)
+                .HasForeignKey(n => n.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Notification>()
+                .HasIndex(n => new { n.UserId, n.IsRead, n.CreatedAt });
         }
     }
 }

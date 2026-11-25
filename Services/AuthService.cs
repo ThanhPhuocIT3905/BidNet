@@ -52,14 +52,15 @@ public class AuthService(AppDbContext db, IConfiguration config) : IAuthService
     public async Task<AuthResponseDto> LoginAsync(UserLoginDto request, CancellationToken ct)
     {
         var login = request.UsernameOrEmail.Trim();
+        var normalizedEmail = login.ToLowerInvariant();
         // Không tiết lộ username/email có tồn tại hay không qua thông báo lỗi.
         // FixedTimeEquals tránh so sánh hash dừng sớm theo byte đầu tiên khác.
         var user = await db.Users.FirstOrDefaultAsync(
-            u => u.Username == login || u.Email == login.ToLower(), ct);
+            u => u.Username == login || u.Email == normalizedEmail, ct);
         if (user is null || user.PasswordSalt.Length != 16 ||
             !CryptographicOperations.FixedTimeEquals(
                 user.PasswordHash, PasswordHasher.Hash(request.Password, user.PasswordSalt)))
-            throw new ApiException(401, "invalid_credent        ials", "Thông tin đăng nhập không hợp lệ.");
+            throw new ApiException(401, "invalid_credentials", "Thông tin đăng nhập không hợp lệ.");
         if (!user.IsActive)
             throw new ApiException(403, "account_inactive", "Tài khoản đã bị khóa.");
 

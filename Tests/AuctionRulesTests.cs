@@ -335,5 +335,159 @@ public class AuctionRulesTests
             .Products.SingleAsync();
         Assert.Equal(ProductStatus.Completed, finished.Status);
         Assert.Equal(2, finished.WinnerId);
+        var order = await verifyScope.ServiceProvider.GetRequiredService<AppDbContext>()
+            .Orders.SingleAsync();
+        Assert.Equal(1, order.ProductId);
+        Assert.Equal(2, order.BuyerId);
+        Assert.Equal(1, order.SellerId);
+        Assert.Equal(2000, order.FinalPrice);
+        Assert.Equal(OrderStatus.Pending, order.Status);
+        Assert.Equal(2, await verifyScope.ServiceProvider.GetRequiredService<AppDbContext>()
+            .Notifications.CountAsync());
+    }
+
+    [Fact]
+    public async Task Login_InvalidPassword_ReturnsExactInvalidCredentialsCode()
+    {
+        await using var db = NewDatabase();
+        var auth = new AuthService(db, Settings());
+        await auth.RegisterAsync(
+            new UserRegisterDto { Username = "buyer", Email = "buyer@example.com", Password = "password123" },
+            CancellationToken.None);
+
+        var error = await Assert.ThrowsAsync<ApiException>(() => auth.LoginAsync(
+            new UserLoginDto { UsernameOrEmail = "buyer", Password = "wrong-password" },
+            CancellationToken.None));
+
+        Assert.Equal(401, error.StatusCode);
+        Assert.Equal("invalid_credentials", error.Code);
+    }
+
+    [Fact]
+    public async Task Bid_MapsNamesAndCreatesSellerAndOutbidNotifications()
+    {
+        await using var db = NewDatabase();
+        db.Users.AddRange(
+            new User { Id = 1, Username = "seller", Email = "seller@example.com" },
+            new User { Id = 2, Username = "bidder1", Email = "b1@example.com" },
+            new User { Id = 3, Username = "bidder2", Email = "b2@example.com" });
+        db.Products.Add(new Product
+        {
+            Id = 1, Name = "Laptop Demo", SellerId = 1, StartingPrice = 1000, CurrentPrice = 1000,
+            StartTime = DateTime.UtcNow.AddMinutes(-10), EndTime = DateTime.UtcNow.AddHours(1),
+            Status = ProductStatus.Active
+        });
+        await db.SaveChangesAsync();
+
+        var hub = new Mock<IHubContext<AuctionHub>>();
+        var clients = new Mock<IHubClients>();
+        var client = new Mock<IClientProxy>();
+        client.Setup(c => c.SendCoreAsync(It.IsAny<string>(), It.IsAny<object?[]>(),
+            It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        clients.Setup(c => c.Group(It.IsAny<string>())).Returns(client.Object);
+        hub.SetupGet(h => h.Clients).Returns(clients.Object);
+
+        BidService Service(int uid) => new(db, Current(db, uid), Settings(), hub.Object,
+            NullLogger<BidService>.Instance);
+
+        var bid1 = await Service(2).PlaceAsync(1, 1000, CancellationToken.None);
+        Assert.Equal("Laptop Demo", bid1.ProductName);
+        Assert.Equal("bidder1", bid1.Username);
+
+        var bid2 = await Service(3).PlaceAsync(1, 2000, CancellationToken.None);
+        Assert.Equal("Laptop Demo", bid2.ProductName);
+        Assert.Equal("bidder2", bid2.Username);
+
+        var mine = await Service(2).MineAsync(1, 10, CancellationToken.None);
+        Assert.Single(mine.Items);
+        Assert.Equal("Laptop Demo", mine.Items[0].ProductName);
+        Assert.Equal("bidder1", mine.Items[0].Username);
+
+        var notifications = await db.Notifications.ToListAsync();
+        Assert.Equal(3, notifications.Count); // 2 cho seller + 1 outbid cho bidder1
+        Assert.Contains(notifications, n => n.UserId == 2 && n.Title.Contains("vượt"));
+    }
+
+    [Fact]
+    public async Task CategoryOrderNotification_FullWorkflowWorks()
+    {
+        await using var db = NewDatabase();
+        db.Users.AddRange(
+            new User { Id = 1, Username = "admin", Email = "admin@example.com", Role = "Admin" },
+            new User { Id = 2, Username = "seller", Email = "seller@example.com", Role = "User" },
+            new User { Id = 3, Username = "buyer", Email = "buyer@example.com", Role = "User" });
+        await db.SaveChangesAsync();
+
+        // Category
+        var catService = new CategoryService(db, Current(db, 1));
+        var cat = await catService.CreateAsync(
+            new CreateCategoryDto { Name = "Điện tử", Description = "Thiết bị số" }, CancellationToken.None);
+        Assert.Equal("Điện tử", cat.Name);
+
+        // Product linked to CategoryId
+        var prodService = new ProductService(db, Current(db, 2));
+        var prod = await prodService.CreateAsync(new CreateProductDto
+        {
+            Name = "Tai nghe",
+            StartingPrice = 500000,
+            StartTime = DateTime.UtcNow.AddMinutes(10),
+            EndTime = DateTime.UtcNow.AddHours(2),
+            CategoryId = cat.Id
+        }, CancellationToken.None);
+        Assert.Equal(cat.Id, prod.CategoryId);
+        Assert.Equal("Điện tử", prod.Category);
+
+        // Order workflow: Pending -> Processing (buyer address) -> Shipped (seller) -> Completed (buyer)
+        db.Orders.Add(new Order
+        {
+            Id = 1, ProductId = prod.Id, BuyerId = 3, SellerId = 2,
+            FinalPrice = 600000, Status = OrderStatus.Pending
+        });
+        await db.SaveChangesAsync();
+
+        OrderService OrdersAs(int uid) => new(db, Current(db, uid));
+
+        var afterAddress = await OrdersAs(3).UpdateShippingAddressAsync(
+            1, new UpdateShippingAddressDto { ShippingAddress = "123 Lê Lợi, Đà Nẵng" }, CancellationToken.None);
+        Assert.Equal("Processing", afterAddress.Status);
+
+        var afterShip = await OrdersAs(2).UpdateStatusAsync(
+            1, new UpdateOrderStatusDto { Status = "Shipped" }, CancellationToken.None);
+        Assert.Equal("Shipped", afterShip.Status);
+
+        var afterDone = await OrdersAs(3).UpdateStatusAsync(
+            1, new UpdateOrderStatusDto { Status = "Completed" }, CancellationToken.None);
+        Assert.Equal("Completed", afterDone.Status);
+        Assert.NotNull(afterDone.CompletedAt);
+
+        // Notification read flow
+        var sellerNotif = new NotificationService(db, Current(db, 2));
+        Assert.Equal(2, (await sellerNotif.UnreadCountAsync(CancellationToken.None)).UnreadCount);
+        var marked = await sellerNotif.MarkAllAsReadAsync(CancellationToken.None);
+        Assert.Equal(2, marked);
+        Assert.Equal(0, (await sellerNotif.UnreadCountAsync(CancellationToken.None)).UnreadCount);
+    }
+
+    [Fact]
+    public async Task FileService_RejectsSpoofedImageSignature()
+    {
+        await using var db = NewDatabase();
+        db.Users.Add(new User { Id = 1, Username = "user1", Email = "u1@example.com", IsActive = true });
+        await db.SaveChangesAsync();
+
+        var repo = new BidNet.Repositories.FileRepository(db);
+        var service = new FileService(repo, Current(db, 1));
+
+        var fakeBytes = System.Text.Encoding.UTF8.GetBytes("this is not a png");
+        var formFile = new FormFile(new MemoryStream(fakeBytes), 0, fakeBytes.Length, "File", "fake.png")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "image/png"
+        };
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            service.UploadFileAsync(formFile, CancellationToken.None));
+        Assert.Equal(400, error.StatusCode);
+        Assert.Equal("invalid_file_signature", error.Code);
     }
 }

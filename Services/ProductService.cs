@@ -17,6 +17,8 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
             query = query.Where(p => p.Name.Contains(filter.Q.Trim()));
         if (!string.IsNullOrWhiteSpace(filter.Category))
             query = query.Where(p => p.Category == filter.Category.Trim());
+        if (filter.CategoryId.HasValue)
+            query = query.Where(p => p.CategoryId == filter.CategoryId.Value);
         // Chỉ nhận đúng giá trị enum; chuỗi lạ phải báo 400 thay vì trả danh sách rỗng.
         if (!string.IsNullOrWhiteSpace(filter.Status))
         {
@@ -60,6 +62,7 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
         // Phiên mới ở Scheduled và CurrentPrice ban đầu bằng StartingPrice.
         var user = await currentUser.RequireActiveAsync(ct);
         Validate(request.Name, request.StartingPrice, request.StartTime, request.EndTime, request.ImageUrl);
+        var (categoryId, categoryName) = await ResolveCategoryAsync(request.CategoryId, request.Category, ct);
         var product = new Product
         {
             Name = request.Name.Trim(),
@@ -68,8 +71,9 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
             CurrentPrice = request.StartingPrice,
             StartTime = request.StartTime,
             EndTime = request.EndTime,
-            ImageUrl = request.ImageUrl,
-            Category = request.Category?.Trim(),
+            ImageUrl = string.IsNullOrWhiteSpace(request.ImageUrl) ? null : request.ImageUrl.Trim(),
+            Category = categoryName,
+            CategoryId = categoryId,
             SellerId = user.Id,
             Seller = user,
             Status = ProductStatus.Scheduled
@@ -93,14 +97,16 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
             await db.Bids.AnyAsync(b => b.ProductId == id, ct))
             throw new ApiException(409, "auction_started", "Không thể sửa phiên đã bắt đầu hoặc đã có giá.");
         Validate(request.Name, request.StartingPrice, request.StartTime, request.EndTime, request.ImageUrl);
+        var (categoryId, categoryName) = await ResolveCategoryAsync(request.CategoryId, request.Category, ct);
         product.Name = request.Name.Trim();
         product.Description = request.Description?.Trim();
         product.StartingPrice = request.StartingPrice;
         product.CurrentPrice = request.StartingPrice;
         product.StartTime = request.StartTime;
         product.EndTime = request.EndTime;
-        product.ImageUrl = request.ImageUrl;
-        product.Category = request.Category?.Trim();
+        product.ImageUrl = string.IsNullOrWhiteSpace(request.ImageUrl) ? null : request.ImageUrl.Trim();
+        product.Category = categoryName;
+        product.CategoryId = categoryId;
         product.UpdatedAt = DateTime.UtcNow;
         // RowVersion làm SaveChanges thất bại nếu worker/request khác vừa đổi phiên.
         try { await db.SaveChangesAsync(ct); }
@@ -111,9 +117,22 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
         return ProductMapper.ToResponse(product);
     }
 
-    // Mapper dùng Seller.Username và Winner.Username nên truy vấn phải Include trước.
+    // Mapper dùng Seller.Username, Winner.Username và CategoryEntity nên truy vấn Include trước.
     private static IQueryable<Product> WithUsers(IQueryable<Product> query) =>
-        query.Include(p => p.Seller).Include(p => p.Winner);
+        query.Include(p => p.Seller).Include(p => p.Winner).Include(p => p.CategoryEntity);
+
+    private async Task<(int? CategoryId, string? CategoryName)> ResolveCategoryAsync(
+        int? categoryId, string? categoryName, CancellationToken ct)
+    {
+        var trimmed = string.IsNullOrWhiteSpace(categoryName) ? null : categoryName.Trim();
+        if (!categoryId.HasValue)
+            return (null, trimmed);
+
+        var category = await db.Categories.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == categoryId.Value, ct)
+            ?? throw new ApiException(400, "invalid_category", "Danh mục không tồn tại.");
+        return (category.Id, trimmed ?? category.Name);
+    }
 
     private static async Task<PagedResponseDto<ProductResponseDto>> PageAsync(
         IQueryable<Product> query, int page, int size, CancellationToken ct)
@@ -143,9 +162,15 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
         if (start.Kind != DateTimeKind.Utc || end.Kind != DateTimeKind.Utc ||
             start <= DateTime.UtcNow || end <= start)
             throw new ApiException(400, "invalid_time", "Thời gian phải là UTC, bắt đầu trong tương lai và kết thúc sau khi bắt đầu.");
-        if (!string.IsNullOrWhiteSpace(imageUrl) &&
-            (!Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri) ||
-             (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp)))
-            throw new ApiException(400, "invalid_image_url", "URL ảnh phải dùng HTTP hoặc HTTPS.");
+        if (!string.IsNullOrWhiteSpace(imageUrl))
+        {
+            var trimmedUrl = imageUrl.Trim();
+            var isLocalFilePath = trimmedUrl.StartsWith("/api/files/", StringComparison.OrdinalIgnoreCase);
+            var isHttpUrl = Uri.TryCreate(trimmedUrl, UriKind.Absolute, out var uri) &&
+                            (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp);
+            if (!isLocalFilePath && !isHttpUrl)
+                throw new ApiException(400, "invalid_image_url",
+                    "URL ảnh phải dùng HTTP/HTTPS hoặc đường dẫn /api/files/{id}.");
+        }
     }
 }

@@ -33,7 +33,11 @@ public class BidService(
         if (amount <= 0 || amount != decimal.Truncate(amount) || amount > 9_999_999_999_999_999m)
             throw new ApiException(400, "invalid_bid", "Giá đặt phải là số nguyên VND dương.");
 
-        var hasBid = await db.Bids.AnyAsync(b => b.ProductId == productId, ct);
+        var previousHighestBid = await db.Bids.AsNoTracking()
+            .Where(b => b.ProductId == productId)
+            .OrderByDescending(b => b.Amount).ThenBy(b => b.BidTime).ThenBy(b => b.Id)
+            .FirstOrDefaultAsync(ct);
+        var hasBid = previousHighestBid is not null;
         // Bid đầu tiên có thể bằng giá khởi điểm. Khi đã có bid, giá mới phải
         // cao hơn CurrentPrice ít nhất MinBidIncrement.
         var minimum = hasBid ? product.CurrentPrice + increment : product.StartingPrice;
@@ -44,10 +48,32 @@ public class BidService(
         db.Bids.Add(bid);
         product.CurrentPrice = amount;
         product.UpdatedAt = now;
+
+        // Thông báo cho người bán và người giữ giá cao trước đó (nếu bị vượt giá).
+        db.Notifications.Add(new Notification
+        {
+            UserId = product.SellerId,
+            Title = "Lượt đặt giá mới",
+            Message = $"Sản phẩm '{product.Name}' của bạn vừa có lượt đặt giá mới: {amount:N0} VNĐ.",
+            IsRead = false,
+            CreatedAt = now
+        });
+        if (previousHighestBid is not null && previousHighestBid.UserId != user.Id)
+        {
+            db.Notifications.Add(new Notification
+            {
+                UserId = previousHighestBid.UserId,
+                Title = "Giá đấu bị vượt!",
+                Message = $"Mức giá của bạn cho sản phẩm '{product.Name}' đã bị người khác vượt qua với giá {amount:N0} VNĐ.",
+                IsRead = false,
+                CreatedAt = now
+            });
+        }
+
         try
         {
-            // EF lưu Bid và CurrentPrice trong cùng SaveChanges. RowVersion của
-            // Product phát hiện request khác đã thắng cuộc đua ghi giá trước.
+            // EF lưu Bid, CurrentPrice và Notification trong cùng SaveChanges.
+            // RowVersion của Product phát hiện request khác đã thắng cuộc đua ghi giá trước.
             await db.SaveChangesAsync(ct);
         }
         catch (DbUpdateConcurrencyException)
@@ -56,7 +82,16 @@ public class BidService(
             throw new ApiException(409, "bid_conflict", "Giá đã thay đổi, hãy tải lại và đặt giá mới.");
         }
 
-        var response = ToResponse(bid);
+        var response = new BidResponseDto
+        {
+            Id = bid.Id,
+            ProductId = bid.ProductId,
+            ProductName = product.Name,
+            UserId = bid.UserId,
+            Username = user.Username,
+            Amount = bid.Amount,
+            BidTime = bid.BidTime
+        };
         // Chỉ phát SignalR khi DB đã lưu thành công, tránh báo bid bị từ chối.
         try
         {
@@ -96,31 +131,29 @@ public class BidService(
     {
         // Lịch sử cá nhân có UserId nhưng chỉ lọc theo chính người trong token.
         var user = await currentUser.RequireActiveAsync(ct);
-        return await PageAsync(db.Bids.AsNoTracking().Where(b => b.UserId == user.Id), page, pageSize, ct);
-    }
-
-    private static async Task<PagedResponseDto<BidResponseDto>> PageAsync(
-        IQueryable<Bid> query, int page, int pageSize, CancellationToken ct)
-    {
         var args = PageArgs.Validate(page, pageSize);
+        var query = db.Bids.AsNoTracking().Where(b => b.UserId == user.Id);
         var count = await query.CountAsync(ct);
-        var bids = await query.OrderByDescending(b => b.BidTime).ThenByDescending(b => b.Id)
-            .Skip((args.Page - 1) * args.PageSize).Take(args.PageSize).ToListAsync(ct);
+        var items = await query
+            .OrderByDescending(b => b.BidTime).ThenByDescending(b => b.Id)
+            .Skip((args.Page - 1) * args.PageSize).Take(args.PageSize)
+            .Select(b => new BidResponseDto
+            {
+                Id = b.Id,
+                ProductId = b.ProductId,
+                ProductName = b.Product.Name,
+                UserId = b.UserId,
+                Username = b.User.Username,
+                Amount = b.Amount,
+                BidTime = b.BidTime
+            })
+            .ToListAsync(ct);
         return new PagedResponseDto<BidResponseDto>
         {
-            Items = bids.Select(ToResponse).ToList(),
+            Items = items,
             Page = args.Page,
             PageSize = args.PageSize,
             TotalCount = count
         };
     }
-
-    private static BidResponseDto ToResponse(Bid bid) => new()
-    {
-        Id = bid.Id,
-        ProductId = bid.ProductId,
-        UserId = bid.UserId,
-        Amount = bid.Amount,
-        BidTime = bid.BidTime
-    };
 }

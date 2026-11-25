@@ -6,6 +6,7 @@ public class ProductQueryDto
     // kiểm Page/PageSize trước khi đưa vào Skip/Take của EF.
     public string? Q { get; set; }
     public string? Category { get; set; }
+    public int? CategoryId { get; set; }
     public string? Status { get; set; }
     public decimal? MinPrice { get; set; }
     public decimal? MaxPrice { get; set; }

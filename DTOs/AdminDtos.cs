@@ -11,7 +11,7 @@ public class UserStatusDto
 public class AdminUserUpdateDto
 {
     // Các trường đều tùy chọn để Admin chỉ cần gửi thông tin muốn thay đổi.
-    [MaxLength(50)]
+    [MinLength(3), MaxLength(50)]
     public string? Username { get; set; }
 
     [EmailAddress, MaxLength(100)]

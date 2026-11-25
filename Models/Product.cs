@@ -48,6 +48,10 @@ namespace BidNet.Models
         [MaxLength(100)]
         public string? Category { get; set; }
 
+        [ForeignKey(nameof(CategoryEntity))]
+        public int? CategoryId { get; set; }
+        public virtual Category? CategoryEntity { get; set; }
+
         [MaxLength(500)]
         public string? CancellationReason { get; set; }
 
@@ -60,6 +64,8 @@ namespace BidNet.Models
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
         public virtual ICollection<Bid> Bids { get; set; } = new List<Bid>();
+        public virtual ICollection<ProductImage> Images { get; set; } = new List<ProductImage>();
+        public virtual ICollection<Order> Orders { get; set; } = new List<Order>();
     }
 
     public enum ProductStatus

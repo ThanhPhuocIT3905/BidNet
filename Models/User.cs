@@ -42,5 +42,8 @@ namespace BidNet.Models
         public virtual ICollection<Product> WonProducts { get; set; } = new List<Product>();
 
         public virtual ICollection<Bid> Bids { get; set; } = new List<Bid>();
+        public virtual ICollection<Order> BuyerOrders { get; set; } = new List<Order>();
+        public virtual ICollection<Order> SellerOrders { get; set; } = new List<Order>();
+        public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     }
 }

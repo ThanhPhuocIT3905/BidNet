@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
 using BidNet.Data;
@@ -6,22 +7,54 @@ using BidNet.Middleware;
 using BidNet.Repositories;
 using BidNet.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 
 // Program.cs là điểm khởi động: nạp cấu hình, đăng ký dịch vụ rồi ghép HTTP pipeline.
 var builder = WebApplication.CreateBuilder(args);
-// Controller xử lý request; OpenAPI tạo tài liệu cho Swagger/Scalar.
-builder.Services.AddControllers();
+
+// Controller xử lý request; chuẩn hóa lỗi ModelState (400) có thêm trường "code"
+// đồng nhất với ExceptionMiddleware.
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var problem = new ValidationProblemDetails(context.ModelState)
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "Dữ liệu gửi lên không hợp lệ."
+            };
+            problem.Extensions["code"] = "validation_error";
+            return new BadRequestObjectResult(problem)
+            {
+                ContentTypes = { "application/problem+json" }
+            };
+        };
+    });
+
+// CORS cho phép Frontend (React/Vue/Angular...) và SignalR gọi API từ origin khác.
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+    {
+        if (allowedOrigins.Length > 0)
+            policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials();
+        else
+            policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+    });
+});
+
 builder.Services.AddOpenApi(options =>
 {
     // Khai báo Bearer để Swagger hiện nút Authorize. Chỉ route có [Authorize]
-    // mới được đánh dấu cần token; đăng ký/đăng nhập vẫn gọi được công khai.
+    // và không bị [AllowAnonymous] mới đánh dấu cần token.
     options.AddDocumentTransformer((document, context, _) =>
     {
         document.Components ??= new OpenApiComponents();
@@ -32,11 +65,10 @@ builder.Services.AddOpenApi(options =>
             Scheme = "bearer",
             BearerFormat = "JWT"
         };
-        // Duyệt mô tả endpoint sau khi tài liệu đã tạo. Khi đó tham chiếu
-        // security scheme có document gốc nên không bị xuất thành object rỗng.
         foreach (var description in context.DescriptionGroups.SelectMany(group => group.Items))
         {
-            if (!description.ActionDescriptor.EndpointMetadata.OfType<IAuthorizeData>().Any())
+            var metadata = description.ActionDescriptor.EndpointMetadata;
+            if (!metadata.OfType<IAuthorizeData>().Any() || metadata.OfType<IAllowAnonymous>().Any())
                 continue;
             var route = "/" + System.Text.RegularExpressions.Regex.Replace(
                 description.RelativePath?.Split('?')[0] ?? "",
@@ -60,20 +92,17 @@ builder.Services.AddOpenApi(options =>
 });
 builder.Services.AddHttpContextAccessor();
 
-// Không lưu kết nối SQL của một thành viên trong Git: mỗi máy đặt User Secrets
-// hoặc biến môi trường riêng. DI tạo AppDbContext cho từng request khi cần.
+// Không lưu kết nối SQL trong Git: mỗi máy đặt User Secrets hoặc biến môi trường riêng.
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException(
         "Thiếu ConnectionStrings:DefaultConnection. Hãy cấu hình qua User Secrets hoặc biến môi trường.");
 builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(connectionString));
 
 // Khóa ký JWT là bí mật; thiếu khóa hoặc khóa quá ngắn thì dừng ngay lúc khởi động.
-// Nhờ vậy ứng dụng không chạy với token được ký bằng giá trị mặc định yếu.
 var jwtKey = builder.Configuration["Jwt:Key"];
 if (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetByteCount(jwtKey) < 32)
-    throw new InvalidOperationException("Cần cấu hình Jwt:Key có ít nhất 32 byte.");
-// Token hợp lệ phải đúng chữ ký, issuer, audience và thời hạn.
-// ClockSkew 30 giây cho phép lệch đồng hồ nhỏ giữa các máy trong nhóm.
+    throw new InvalidOperationException("Cần cấu hình Jwt:Key có ít nhất 32 byte qua User Secrets hoặc biến môi trường.");
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -104,8 +133,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
 
-// Chặn thử mật khẩu liên tục theo IP và spam đặt giá theo người dùng/IP.
-// Hết quota trả 429 ngay, không xếp hàng chờ để tránh dồn request.
+// Chặn thử mật khẩu liên tục theo IP, spam đặt giá và spam upload theo UserId/IP.
+static string UserOrIpPartition(HttpContext context) =>
+    context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+    ?? context.Connection.RemoteIpAddress?.ToString()
+    ?? "unknown";
+
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -116,10 +149,16 @@ builder.Services.AddRateLimiter(options =>
             PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0
         }));
     options.AddPolicy("bid", context => RateLimitPartition.GetFixedWindowLimiter(
-        context.User.Identity?.Name ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        UserOrIpPartition(context),
         _ => new FixedWindowRateLimiterOptions
         {
             PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0
+        }));
+    options.AddPolicy("upload", context => RateLimitPartition.GetFixedWindowLimiter(
+        UserOrIpPartition(context),
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 20, Window = TimeSpan.FromMinutes(1), QueueLimit = 0
         }));
 });
 
@@ -128,9 +167,11 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IBidService, BidService>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IProductImageService, ProductImageService>();
 builder.Services.AddScoped<CurrentUser>();
-builder.Services.AddScoped<IUserRepository, UserRepository>();
-builder.Services.AddScoped<IBidRepository, BidRepository>();
 builder.Services.AddScoped<IFileRepository, FileRepository>();
 builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddHostedService<AuctionClosingService>();
@@ -167,6 +208,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "BidNet API v1"));
 }
 app.UseRouting();
+app.UseCors("Frontend");
 // Thứ tự quan trọng: đọc JWT trước để rate limit biết tài khoản nào đang gọi,
 // sau đó Authorization mới kiểm tra [Authorize]/vai trò Admin.
 app.UseAuthentication();

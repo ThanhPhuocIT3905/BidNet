@@ -70,16 +70,46 @@ public class AuctionClosingService(
             product.WinnerId = winningBid?.UserId;
             product.Status = ProductStatus.Completed;
             product.UpdatedAt = now;
+
+            if (winningBid is not null && !await db.Orders.AnyAsync(o => o.ProductId == id, ct))
+            {
+                db.Orders.Add(new Order
+                {
+                    ProductId = product.Id,
+                    BuyerId = winningBid.UserId,
+                    SellerId = product.SellerId,
+                    FinalPrice = winningBid.Amount,
+                    Status = OrderStatus.Pending,
+                    CreatedAt = now
+                });
+                db.Notifications.Add(new Notification
+                {
+                    UserId = winningBid.UserId,
+                    Title = "Chúc mừng bạn đã thắng đấu giá!",
+                    Message = $"Bạn đã chiến thắng phiên đấu giá sản phẩm '{product.Name}' với mức giá {winningBid.Amount:N0} VNĐ. Vui lòng cập nhật địa chỉ nhận hàng.",
+                    IsRead = false,
+                    CreatedAt = now
+                });
+                db.Notifications.Add(new Notification
+                {
+                    UserId = product.SellerId,
+                    Title = "Phiên đấu giá thành công",
+                    Message = $"Sản phẩm '{product.Name}' của bạn đã kết thúc thành công với giá {winningBid.Amount:N0} VNĐ. Đơn hàng mới đã được khởi tạo.",
+                    IsRead = false,
+                    CreatedAt = now
+                });
+            }
+
             try { await db.SaveChangesAsync(ct); }
             catch (DbUpdateConcurrencyException)
             {
-                // Phiên đã được request/worker khác thay đổi; bỏ kết quả tính trên
-                // dữ liệu cũ và để lượt quét sau đọc lại trạng thái mới.
-                db.Entry(product).State = EntityState.Detached;
+                // Phiên đã được request/worker khác thay đổi; bỏ toàn bộ thay đổi chưa lưu
+                // và để lượt quét sau đọc lại trạng thái mới.
+                db.ChangeTracker.Clear();
                 continue;
             }
-            // Tách entity để DbContext không giữ bản đã xử lý sang vòng lặp kế.
-            db.Entry(product).State = EntityState.Detached;
+            // Dọn tracker để DbContext không giữ bản đã xử lý sang vòng lặp kế.
+            db.ChangeTracker.Clear();
             try
             {
                 // Thông báo cho người đang xem sau khi kết quả đã được lưu vào DB.
