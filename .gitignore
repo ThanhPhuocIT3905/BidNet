@@ -8,3 +8,7 @@ publish_self/
 .tmp_report/
 .tmp_*/
 ~$*.docx
+**/node_modules/
+**/dist/
+**/.npm-cache/
+

@@ -1,0 +1,9 @@
+{
+  "name": "bidnet-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "vite --host localhost --port 3000", "build": "vite build", "preview": "vite preview --host localhost --port 3000" },
+  "dependencies": { "@microsoft/signalr": "^10.0.0", "react": "^19.0.0", "react-dom": "^19.0.0" },
+  "devDependencies": { "vite": "^7.0.0" }
+}

@@ -25,8 +25,9 @@ public class AdminController(
     // READ ALL (GET) kèm Phân trang, Tìm kiếm, Lọc và Sắp xếp qua IUserService.GetAllAsync
     [HttpGet("users")]
     public async Task<ActionResult<PagedResult<UserResponseDto>>> Users(
-        [FromQuery] UserQueryParameters queryParams)
+        [FromQuery] UserQueryParameters queryParams, CancellationToken ct)
     {
+        await currentUser.RequireActiveAsync(ct);
         var result = await userService.GetAllAsync(queryParams);
         return Ok(result);
     }
