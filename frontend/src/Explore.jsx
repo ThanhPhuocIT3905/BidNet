@@ -4,6 +4,7 @@ import {
   CountdownBox,
   LotPhoto,
   priceLabel,
+  SkeletonGrid,
   StatusBadge,
 } from "./Lot.jsx";
 import { api, money, query } from "./api";
@@ -60,13 +61,29 @@ function HeroCarousel({ items }) {
     .slice(0, 4);
 
   const [slide, setSlide] = useState(0);
+  const [paused, setPaused] = useState(false);
   const count = slides.length;
-  const item = slides[slide % Math.max(count, 1)];
+  const activeIdx = slide % Math.max(count, 1);
+  const item = slides[activeIdx];
+
+  useEffect(() => {
+    if (count <= 1 || paused) return;
+    const id = setTimeout(() => {
+      setSlide((s) => (s + 1) % count);
+    }, 6500);
+    return () => clearTimeout(id);
+  }, [slide, count, paused]);
+
   if (!item) return null;
 
   return (
-    <section className="hero-banner" aria-label="Banner phiên nổi bật">
-      <div className="hero-copy">
+    <section
+      className={`hero-banner ${paused ? "paused" : ""}`}
+      aria-label="Banner phiên nổi bật"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
+      <div className="hero-copy" key={`copy-${item.id}`}>
         <div className="hero-tag">
           <span>★</span>
           Phiên nổi bật · #{String(item.id).padStart(3, "0")}
@@ -92,7 +109,7 @@ function HeroCarousel({ items }) {
         </div>
       </div>
 
-      <div className="hero-media">
+      <div className="hero-media" key={`media-${item.id}`}>
         <LotPhoto item={item} priority />
       </div>
 
@@ -119,11 +136,14 @@ function HeroCarousel({ items }) {
               <button
                 key={s.id}
                 type="button"
-                className={idx === slide % count ? "active" : ""}
+                className={idx === activeIdx ? "active" : ""}
                 aria-label={`Banner ${idx + 1}`}
                 onClick={() => setSlide(idx)}
               />
             ))}
+          </div>
+          <div className="hero-progress" aria-hidden="true">
+            <div className="hero-progress-bar" key={`prog-${slide}`} />
           </div>
         </>
       )}
@@ -255,8 +275,8 @@ export default function Explore({ route, user }) {
             </button>
           </div>
           <div className="bg-card-grid">
-            {activeQuery.data.items.slice(0, 5).map((item) => (
-              <BidGateCard key={item.id} item={item} />
+            {activeQuery.data.items.slice(0, 5).map((item, idx) => (
+              <BidGateCard key={item.id} item={item} index={idx} />
             ))}
           </div>
         </section>
@@ -406,13 +426,11 @@ export default function Explore({ route, user }) {
             </button>
           </div>
         ) : !data ? (
-          <p className="loading" role="status">
-            Đang tải danh sách phiên đấu giá…
-          </p>
+          <SkeletonGrid count={5} />
         ) : data.items.length ? (
           <div className="bg-card-grid">
-            {data.items.map((item) => (
-              <BidGateCard key={item.id} item={item} />
+            {data.items.map((item, idx) => (
+              <BidGateCard key={item.id} item={item} index={idx} />
             ))}
           </div>
         ) : (

@@ -445,7 +445,11 @@ function App() {
         </div>
       </header>
 
-      <main className="wrap">{page}</main>
+      <main className="wrap">
+        <div key={baseRoute} className="page-stage">
+          {page}
+        </div>
+      </main>
 
       <footer className="site-footer">
         <div className="footer-inner">

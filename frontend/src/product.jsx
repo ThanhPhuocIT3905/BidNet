@@ -59,6 +59,8 @@ export function Product({ id, user, admin, go, notify }) {
   const [bidBusy, setBidBusy] = useState(false);
   const [error, setError] = useState("");
   const [connected, setConnected] = useState(false);
+  const [priceFlash, setPriceFlash] = useState(false);
+  const prevPriceRef = useRef(null);
 
   const product = useRemote(() => api(`/api/products/${id}`), [id]);
   const bids = useRemote(
@@ -75,7 +77,22 @@ export function Product({ id, user, admin, go, notify }) {
     setHistoryPage(1);
     setBidAmount("");
     setError("");
+    setPriceFlash(false);
+    prevPriceRef.current = null;
   }, [id]);
+
+  // Pulse price banner whenever currentPrice increases live (via SignalR or bid)
+  useEffect(() => {
+    const price = product.data?.currentPrice;
+    if (price == null) return;
+    if (prevPriceRef.current !== null && prevPriceRef.current !== price) {
+      setPriceFlash(true);
+      const t = setTimeout(() => setPriceFlash(false), 950);
+      prevPriceRef.current = price;
+      return () => clearTimeout(t);
+    }
+    prevPriceRef.current = price;
+  }, [product.data?.currentPrice]);
 
   // Lưu ref để SignalR và polling luôn gọi bản reload mới nhất mà không ngắt kết nối khi đổi trang lịch sử giá.
   const reloadRef = useRef({ product: null, bids: null });
@@ -265,7 +282,12 @@ export function Product({ id, user, admin, go, notify }) {
             {/* LEFT COLUMN: Gallery + Pill Tabs */}
             <div>
               <div className="detail-image">
-                <LotPhoto item={{ ...item, imageUrl: activeUrl }} priority />
+                <div
+                  key={activeUrl || "empty"}
+                  className="detail-image-stage"
+                >
+                  <LotPhoto item={{ ...item, imageUrl: activeUrl }} priority />
+                </div>
                 {activeUrl && (
                   <a
                     className="detail-image-link"
@@ -353,7 +375,7 @@ export function Product({ id, user, admin, go, notify }) {
               </div>
 
               {activeTab === "info" && (
-                <div className="panel" style={{ marginTop: 0 }}>
+                <div className="panel tab-panel-anim" key="tab-info" style={{ marginTop: 0 }}>
                   <h2>Thông số phiên đấu giá</h2>
                   <table className="spec-table">
                     <tbody>
@@ -423,7 +445,7 @@ export function Product({ id, user, admin, go, notify }) {
               )}
 
               {activeTab === "bids" && (
-                <div className="panel" style={{ marginTop: 0 }}>
+                <div className="panel tab-panel-anim" key="tab-bids" style={{ marginTop: 0 }}>
                   <div className="meta-row" style={{ marginBottom: 14 }}>
                     <h2 style={{ margin: 0 }}>
                       Lịch sử đặt giá ({bids.data?.totalCount || 0} lượt)
@@ -480,7 +502,7 @@ export function Product({ id, user, admin, go, notify }) {
               )}
 
               {activeTab === "manage" && canManage && (
-                <div className="panel" style={{ marginTop: 0 }}>
+                <div className="panel tab-panel-anim" key="tab-manage" style={{ marginTop: 0 }}>
                   <div className="meta-row" style={{ marginBottom: 14 }}>
                     <h2 style={{ margin: 0 }}>Quản lý sản phẩm & Hình ảnh</h2>
                     {isSeller && item.status === "Scheduled" && (
@@ -550,7 +572,7 @@ export function Product({ id, user, admin, go, notify }) {
                   {item.name}
                 </h1>
 
-                <div className="bid-price-banner">
+                <div className={`bid-price-banner ${priceFlash ? "price-flash" : ""}`}>
                   <div className="eyebrow">{priceLabel(item)}</div>
                   <div className="price">{money(item.currentPrice)}</div>
                   <div className="meta-row small muted">
@@ -712,8 +734,8 @@ export function Product({ id, user, admin, go, notify }) {
                 </a>
               </div>
               <div className="bg-card-grid">
-                {relatedItems.map((x) => (
-                  <BidGateCard key={x.id} item={x} />
+                {relatedItems.map((x, idx) => (
+                  <BidGateCard key={x.id} item={x} index={idx} />
                 ))}
               </div>
             </section>

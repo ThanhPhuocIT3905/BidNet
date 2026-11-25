@@ -46,10 +46,11 @@ function getTimeParts(targetIso, nowMs) {
   const target = parseApiDate(targetIso);
   if (!target) return null;
   const diff = Math.floor((target.getTime() - nowMs) / 1000);
-  if (diff <= 0) return { done: true, d: "00", h: "00", m: "00", s: "00" };
+  if (diff <= 0) return { done: true, diff: 0, d: "00", h: "00", m: "00", s: "00" };
   const pad = (n) => String(n).padStart(2, "0");
   return {
     done: false,
+    diff,
     d: pad(Math.floor(diff / 86400)),
     h: pad(Math.floor((diff % 86400) / 3600)),
     m: pad(Math.floor((diff % 3600) / 60)),
@@ -85,10 +86,11 @@ export function CountdownBox({ item, large = false }) {
   }
 
   const target = isLive ? item.endTime : item.startTime;
-  const parts = getTimeParts(target, now) || { d: "00", h: "00", m: "00", s: "00" };
+  const parts = getTimeParts(target, now) || { diff: 0, d: "00", h: "00", m: "00", s: "00" };
+  const isUrgent = isLive && parts.diff > 0 && parts.diff <= 3600;
 
   return (
-    <div className={`bg-countdown-box ${large ? "large" : ""}`}>
+    <div className={`bg-countdown-box ${large ? "large" : ""} ${isUrgent ? "urgent" : ""}`}>
       <div className="bg-countdown-title">
         {isLive ? "Thời gian còn lại" : "Bắt đầu sau"}
       </div>
@@ -105,7 +107,7 @@ export function CountdownBox({ item, large = false }) {
           <strong>{parts.m}</strong>
           <span>Phút</span>
         </div>
-        <div className="bg-countdown-cell">
+        <div className="bg-countdown-cell sec">
           <strong>{parts.s}</strong>
           <span>Giây</span>
         </div>
@@ -115,9 +117,13 @@ export function CountdownBox({ item, large = false }) {
 }
 
 /** BidGate-style Compact Auction Card */
-export function BidGateCard({ item }) {
+export function BidGateCard({ item, index = 0 }) {
   return (
-    <a className="bg-card" href={"#/product/" + item.id}>
+    <a
+      className="bg-card"
+      href={"#/product/" + item.id}
+      style={{ "--i": index }}
+    >
       <div className="bg-card-media">
         <LotPhoto item={item} />
         <div className="bg-card-badge">
@@ -137,6 +143,34 @@ export function BidGateCard({ item }) {
         </div>
       </div>
     </a>
+  );
+}
+
+export function SkeletonGrid({ count = 5 }) {
+  return (
+    <div className="bg-card-grid" aria-label="Đang tải sản phẩm">
+      {Array.from({ length: count }).map((_, idx) => (
+        <div className="bg-skeleton-card" key={idx}>
+          <div className="bg-skeleton-bar bg-skeleton-media" />
+          <div style={{ padding: "10px 10px 0", display: "grid", gap: 8 }}>
+            <div className="bg-skeleton-bar" style={{ height: 48 }} />
+            <div className="bg-skeleton-bar" style={{ height: 15, width: "86%" }} />
+            <div className="bg-skeleton-bar" style={{ height: 14, width: "58%" }} />
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginTop: 4,
+              }}
+            >
+              <div className="bg-skeleton-bar" style={{ height: 18, width: "55%" }} />
+              <div className="bg-skeleton-bar" style={{ height: 26, width: 26 }} />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 

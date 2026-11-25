@@ -97,24 +97,28 @@
 .admin-metrics section {
   margin: 0;
   border-top: 4px solid var(--blue);
-  transition: transform 0.15s, box-shadow 0.15s;
+  animation: card-reveal 0.4s var(--ease-spring) both;
+  transition: transform 0.22s var(--ease-spring), box-shadow 0.22s var(--ease-smooth);
 }
 
 .admin-metrics section:nth-child(2) {
   border-top-color: var(--purple);
+  animation-delay: 50ms;
 }
 
 .admin-metrics section:nth-child(3) {
   border-top-color: var(--black);
+  animation-delay: 100ms;
 }
 
 .admin-metrics section:nth-child(4) {
   border-top-color: var(--blue-deep);
+  animation-delay: 150ms;
 }
 
 .admin-metrics section:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
 }
 
 .admin-metrics h2 {
@@ -256,6 +260,13 @@
 .step-node.current span {
   background: var(--purple);
   color: #ffffff;
+  animation: step-pulse 2s infinite;
+}
+
+@keyframes step-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.55); }
+  70% { box-shadow: 0 0 0 8px rgba(124, 58, 237, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); }
 }
 
 /* ===== PROFILE SUMMARY ===== */
