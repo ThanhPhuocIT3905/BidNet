@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef } from "react";
-import { api, json, money, date, getSession, parseApiDate } from "./api";
+import { api, json, money, date, getSession, parseApiDate, query } from "./api";
 import useRemote from "./useRemote";
 import { OrderHistory } from "./Workflows.jsx";
 import ProfilePage from "./ProfilePage.jsx";
 import { LoadingState, ErrorState, Modal } from "./UI.jsx";
 import { numberToVietnameseWords } from "./product.jsx";
 import useAuctionUpdates from "./useAuctionUpdates.js";
+import { Countdown } from "./widgets.jsx";
 
 function Feedback({ loading, error, reload }) {
   return (
@@ -1300,71 +1301,406 @@ export function Notifications({ notify }) {
   );
 }
 export function Profile(props) { return <ProfilePage {...props} />; }
-export function MyBids({ go }) {
-  const [page, setPage] = useState(1),
-    r = useRemote(
-      () => api(`/api/users/me/bids?page=${page}&pageSize=20`),
-      [page],
-    );
-  const liveError = useAuctionUpdates(
-    (r.data?.items || []).map((bid) => bid.productId),
-    () => r.reload(),
-  );
-  const currentUserId = Number(getSession()?.user?.id);
+const myAuctionStatusLabel = {
+  Scheduled: "Sắp diễn ra",
+  Active: "Đang diễn ra",
+  Completed: "Đã kết thúc",
+  Cancelled: "Đã hủy",
+};
+const participantStatusLabel = {
+  Scheduled: "Đã tham gia",
+  Leading: "Đang dẫn đầu",
+  Outbid: "Bị vượt giá",
+  Won: "Đã thắng",
+  Lost: "Không thắng",
+  Unsold: "Không bán được",
+  Cancelled: "Phiên đã hủy",
+};
+
+function ParticipantBadge({ status }) {
   return (
-    <>
-      <div className="section-head">
-        <h1>Phiên đấu giá của tôi</h1>
+    <span className={`my-auction-status ${status.toLowerCase()}`}>
+      {participantStatusLabel[status] || status}
+    </span>
+  );
+}
+
+export function MyBids({ go }) {
+  const [tab, setTab] = useState("auctions");
+  const [page, setPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [sort, setSort] = useState("recent");
+  const [historyItem, setHistoryItem] = useState(null);
+  const [detailPage, setDetailPage] = useState(1);
+
+  const auctions = useRemote(
+    () => api(`/api/users/me/auctions?${query({
+      page,
+      pageSize: 20,
+      status: statusFilter,
+      q: search.trim(),
+      from: from || undefined,
+      to: to || undefined,
+      sort,
+    })}`),
+    [page, statusFilter, search, from, to, sort],
+  );
+  const bids = useRemote(
+    () => api(`/api/users/me/bids?page=${historyPage}&pageSize=20`),
+    [historyPage],
+  );
+  const detailHistory = useRemote(
+    () => historyItem
+      ? api(`/api/users/me/auctions/${historyItem.productId}/bids?page=${detailPage}&pageSize=50`)
+      : Promise.resolve({ items: [], page: 1, pageSize: 50, totalCount: 0 }),
+    [historyItem?.productId, detailPage],
+  );
+  const liveError = useAuctionUpdates(
+    (auctions.data?.items || [])
+      .filter((item) => item.auctionStatus === "Active")
+      .map((item) => item.productId),
+    () => {
+      auctions.reload();
+      bids.reload();
+      detailHistory.reload();
+    },
+  );
+  const summary = auctions.data?.summary || {};
+  const currentUserId = Number(getSession()?.user?.id);
+
+  const setAuctionFilter = (value) => {
+    setStatusFilter(value);
+    setPage(1);
+  };
+  const resetFilters = () => {
+    setStatusFilter("all");
+    setSearch("");
+    setFrom("");
+    setTo("");
+    setSort("recent");
+    setPage(1);
+  };
+  const openHistory = (item) => {
+    setHistoryItem(item);
+    setDetailPage(1);
+  };
+  const closeHistory = () => setHistoryItem(null);
+
+  const getBidStatus = (bid) => {
+    if (bid.isWinner) return "Đã thắng";
+    if (bid.isLeading) return "Đang dẫn đầu";
+    if (bid.productStatus === "Cancelled") return "Phiên đã hủy";
+    if (bid.productStatus === "Completed") {
+      if (bid.winnerId == null) return "Không bán được";
+      return bid.winnerId === currentUserId ? "Đã thắng" : "Không thắng";
+    }
+    if (bid.productStatus === "Scheduled") return "Sắp diễn ra";
+    return "Lượt trước";
+  };
+
+  return (
+    <section className="my-auctions-page">
+      <header className="my-auctions-heading">
+        <div>
+          <span className="eyebrow">TÀI KHOẢN CỦA TÔI</span>
+          <h1>Đấu giá của tôi</h1>
+          <p>Theo dõi các phiên đã tham gia và toàn bộ lượt đặt giá của bạn.</p>
+        </div>
+      </header>
+
+      <div className="my-auction-metrics" aria-label="Thống kê phiên đấu giá">
+        {[
+          ["all", "Tổng phiên", summary.total],
+          ["Leading", "Đang dẫn đầu", summary.leading],
+          ["Outbid", "Bị vượt giá", summary.outbid],
+          ["Won", "Đã thắng", summary.won],
+          ["Lost", "Không thắng", summary.lost],
+          ["Cancelled", "Đã hủy", summary.cancelled],
+        ].map(([filter, label, value]) => (
+          <button
+            type="button"
+            className={`my-auction-metric ${statusFilter === filter ? "selected" : ""}`}
+            key={filter}
+            onClick={() => { setTab("auctions"); setAuctionFilter(filter); }}
+          >
+            <strong>{value ?? 0}</strong>
+            <span>{label}</span>
+          </button>
+        ))}
       </div>
-      <Feedback {...r} />
-      {liveError && <p className="muted small" role="status">Cập nhật trực tiếp tạm thời không khả dụng.</p>}
-      <div className="panel table-wrap">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Mã</th>
-              <th>Phiên</th>
-              <th>Giá hiện tại</th>
-              <th>Trạng thái</th>
-              <th>Lượt của bạn</th>
-              <th>Thời điểm</th>
-            </tr>
-          </thead>
-          <tbody>
-            {r.data?.items?.map((b) => (
-              <tr key={b.id}>
-                <td>#{b.id}</td>
-                <td>
-                  <button
-                    className="btn secondary"
-                    onClick={() => go(`/product/${b.productId}`)}
-                  >
-                    {b.productName || `Sản phẩm #${b.productId}`}
-                  </button>
-                </td>
-                <td>{money(b.currentPrice ?? b.amount)}</td>
-                <td>
-                  {b.productStatus === "Completed"
-                    ? "Đã kết thúc"
-                    : b.productStatus === "Cancelled"
-                      ? "Đã hủy"
-                      : b.productStatus === "Active" && b.leadingBidderId === currentUserId
-                        ? <span className="badge Active">Đang dẫn đầu</span>
-                        : b.productStatus === "Active"
-                          ? <span className="badge">Đã bị vượt giá</span>
-                          : b.productStatus || "—"}
-                </td>
-                <td>{money(b.amount)}</td>
-                <td>{date(b.bidTime)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!r.loading && !r.error && !r.data?.items?.length && (
-          <div className="empty">Chưa có lượt giá.</div>
-        )}
+
+      <div className="my-auction-tabs" role="tablist" aria-label="Nội dung đấu giá">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "auctions"}
+          className={tab === "auctions" ? "active" : ""}
+          onClick={() => setTab("auctions")}
+        >
+          Phiên đã tham gia
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "bids"}
+          className={tab === "bids" ? "active" : ""}
+          onClick={() => setTab("bids")}
+        >
+          Lịch sử đặt giá
+        </button>
       </div>
-      <Pager data={r.data} page={page} onPage={setPage} />
-    </>
+
+      {tab === "auctions" ? (
+        <>
+          <div className="my-auction-filters">
+            <label className="my-auction-search">
+              <span className="sr-only">Tìm sản phẩm hoặc mã phiên</span>
+              <input
+                type="search"
+                placeholder="Tìm sản phẩm hoặc mã phiên..."
+                value={search}
+                onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+              />
+            </label>
+            <select
+              aria-label="Lọc theo trạng thái tham gia"
+              value={statusFilter}
+              onChange={(event) => setAuctionFilter(event.target.value)}
+            >
+              <option value="all">Tất cả trạng thái</option>
+              <option value="Scheduled">Sắp diễn ra</option>
+              <option value="Leading">Đang dẫn đầu</option>
+              <option value="Outbid">Bị vượt giá</option>
+              <option value="Won">Đã thắng</option>
+              <option value="Lost">Không thắng</option>
+              <option value="Unsold">Không bán được</option>
+              <option value="Cancelled">Đã hủy</option>
+            </select>
+            <label className="my-auction-date">
+              <span className="sr-only">Từ ngày</span>
+              <input type="date" value={from} onChange={(event) => { setFrom(event.target.value); setPage(1); }} />
+            </label>
+            <label className="my-auction-date">
+              <span className="sr-only">Đến ngày</span>
+              <input type="date" value={to} onChange={(event) => { setTo(event.target.value); setPage(1); }} />
+            </label>
+            <select
+              aria-label="Sắp xếp phiên đấu giá"
+              value={sort}
+              onChange={(event) => { setSort(event.target.value); setPage(1); }}
+            >
+              <option value="recent">Tham gia gần nhất</option>
+              <option value="ending_soon">Sắp kết thúc</option>
+              <option value="price_high">Giá cao nhất</option>
+              <option value="price_low">Giá thấp nhất</option>
+            </select>
+            <button type="button" className="btn secondary" onClick={resetFilters}>
+              Đặt lại
+            </button>
+          </div>
+
+          <Feedback {...auctions} />
+          {liveError && (
+            <p className="my-auction-live-error" role="status">
+              Mất kết nối cập nhật trực tiếp. Dữ liệu có thể chưa mới nhất.
+            </p>
+          )}
+          {!auctions.loading && !auctions.error && auctions.data?.items?.length > 0 && (
+            <div className="table-wrap my-auctions-table-wrap">
+              <table className="table my-auctions-table">
+                <thead>
+                  <tr>
+                    <th>Sản phẩm</th>
+                    <th>Mã phiên</th>
+                    <th>Hình thức</th>
+                    <th>Giá</th>
+                    <th>Lượt đặt</th>
+                    <th>Thời gian</th>
+                    <th>Trạng thái phiên</th>
+                    <th>Kết quả của bạn</th>
+                    <th>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auctions.data.items.map((item) => (
+                    <tr key={item.auctionId}>
+                      <td data-label="Sản phẩm">
+                        <div className="my-auction-product">
+                          <img
+                            src={item.productImageUrl || "/images/products/fujifilm-xt30-ii.webp"}
+                            alt=""
+                            onError={(event) => {
+                              event.currentTarget.onerror = null;
+                              event.currentTarget.src = "/images/products/fujifilm-xt30-ii.webp";
+                            }}
+                          />
+                          <button type="button" className="my-auction-product-link" onClick={() => go(`/product/${item.productId}`)}>
+                            {item.productName}
+                          </button>
+                        </div>
+                      </td>
+                      <td data-label="Mã phiên">#{item.auctionId}</td>
+                      <td data-label="Hình thức">Đấu giá thường</td>
+                      <td data-label="Giá">
+                        <div className="my-auction-prices">
+                          <span><small>Giá hiện tại</small><strong>{money(item.currentPrice)}</strong></span>
+                          <span><small>Giá cao nhất của bạn</small><strong>{money(item.myHighestBid)}</strong></span>
+                          {item.winningPrice != null && <span><small>Giá chốt</small><strong>{money(item.winningPrice)}</strong></span>}
+                        </div>
+                      </td>
+                      <td data-label="Lượt đặt">
+                        <strong>{item.myBidCount}</strong> của bạn
+                        <small className="my-auction-total-bids">{item.totalBidCount} lượt toàn phiên</small>
+                      </td>
+                      <td data-label="Thời gian">
+                        <Countdown
+                          compact
+                          item={{ status: item.auctionStatus, startTime: item.startTime, endTime: item.endTime }}
+                        />
+                        <small className="my-auction-last-bid">Tham gia: {date(item.lastBidAt)}</small>
+                      </td>
+                      <td data-label="Trạng thái phiên">
+                        <span className={`badge ${item.auctionStatus}`}>
+                          {myAuctionStatusLabel[item.auctionStatus] || item.auctionStatus}
+                        </span>
+                        {item.cancellationReason && <small className="my-auction-cancel-reason">{item.cancellationReason}</small>}
+                      </td>
+                      <td data-label="Kết quả của bạn"><ParticipantBadge status={item.participantStatus} /></td>
+                      <td data-label="Thao tác">
+                        <div className="my-auction-actions">
+                          <button type="button" className="btn sm secondary" onClick={() => go(`/product/${item.productId}`)}>
+                            Xem phiên
+                          </button>
+                          <button type="button" className="btn sm secondary" onClick={() => openHistory(item)}>
+                            Lịch sử
+                          </button>
+                          {item.isWinner && item.orderId && (
+                            <button type="button" className="btn sm" onClick={() => go(`/order/${item.orderId}`)}>
+                              Xem đơn hàng
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {!auctions.loading && !auctions.error && !auctions.data?.items?.length && (
+            <div className="empty my-auction-empty">
+              <h2>Chưa có phiên đấu giá nào</h2>
+              <p>Phiên bạn tham gia sẽ xuất hiện tại đây.</p>
+              <button type="button" className="btn" onClick={() => go("/auctions")}>Khám phá đấu giá</button>
+            </div>
+          )}
+          <Pager data={auctions.data} page={page} onPage={setPage} />
+        </>
+      ) : (
+        <>
+          <Feedback {...bids} />
+          {liveError && (
+            <p className="my-auction-live-error" role="status">
+              Mất kết nối cập nhật trực tiếp. Dữ liệu có thể chưa mới nhất.
+            </p>
+          )}
+          {!bids.loading && !bids.error && bids.data?.items?.length > 0 && (
+            <div className="table-wrap my-auctions-table-wrap">
+              <table className="table my-auctions-history-table">
+                <thead>
+                  <tr>
+                    <th>Mã lượt</th>
+                    <th>Sản phẩm</th>
+                    <th>Giá đặt</th>
+                    <th>Giá hiện tại</th>
+                    <th>Trạng thái</th>
+                    <th>Thời điểm</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bids.data.items.map((bid) => (
+                    <tr key={bid.id}>
+                      <td data-label="Mã lượt">#{bid.id}</td>
+                      <td data-label="Sản phẩm">
+                        <button type="button" className="my-auction-product-link" onClick={() => go(`/product/${bid.productId}`)}>
+                          {bid.productName || `Sản phẩm #${bid.productId}`}
+                        </button>
+                      </td>
+                      <td data-label="Giá đặt">{money(bid.amount)}</td>
+                      <td data-label="Giá hiện tại">{money(bid.currentPrice)}</td>
+                      <td data-label="Trạng thái">
+                        <span className={`my-auction-history-status ${bid.isLeading ? "leading" : bid.isWinner ? "won" : ""}`}>
+                          {getBidStatus(bid)}
+                        </span>
+                      </td>
+                      <td data-label="Thời điểm">{date(bid.bidTime)}</td>
+                      <td data-label="Thao tác">
+                        <button type="button" className="btn sm secondary" onClick={() => go(`/product/${bid.productId}`)}>
+                          Xem phiên
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {!bids.loading && !bids.error && !bids.data?.items?.length && (
+            <div className="empty my-auction-empty">
+              <h2>Chưa có lượt đặt giá</h2>
+              <p>Lịch sử các lượt đặt giá được ghi nhận tại đây.</p>
+            </div>
+          )}
+          <Pager data={bids.data} page={historyPage} onPage={setHistoryPage} />
+        </>
+      )}
+
+      {historyItem && (
+        <Modal title={`Lịch sử đặt giá · ${historyItem.productName}`} onClose={closeHistory}>
+          <div className="my-auction-history-summary">
+            <img src={historyItem.productImageUrl || "/images/products/fujifilm-xt30-ii.webp"} alt="" />
+            <div>
+              <strong>{historyItem.productName}</strong>
+              <span>Giá hiện tại: {money(historyItem.currentPrice)}</span>
+              <span>{participantStatusLabel[historyItem.participantStatus] || historyItem.participantStatus}</span>
+            </div>
+          </div>
+          <Feedback {...detailHistory} />
+          {!detailHistory.loading && !detailHistory.error && detailHistory.data?.items?.length > 0 && (
+            <div className="table-wrap my-auction-modal-table-wrap">
+              <table className="table">
+                <thead><tr><th>Mã lượt</th><th>Giá đặt</th><th>Trạng thái</th><th>Thời gian</th></tr></thead>
+                <tbody>
+                  {detailHistory.data.items.map((bid) => (
+                    <tr key={bid.id}>
+                      <td>#{bid.id}</td>
+                      <td>{money(bid.amount)}</td>
+                      <td>
+                        <span className={`my-auction-history-status ${bid.isLeading ? "leading" : bid.isWinner ? "won" : ""}`}>
+                          {bid.isWinner ? "Lượt thắng" : bid.isLeading ? "Đang dẫn đầu" : "Lượt trước"}
+                        </span>
+                      </td>
+                      <td>{date(bid.bidTime)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {!detailHistory.loading && !detailHistory.error && !detailHistory.data?.items?.length && (
+            <div className="empty">Không tìm thấy lịch sử đặt giá của phiên này.</div>
+          )}
+          <Pager data={detailHistory.data} page={detailPage} onPage={setDetailPage} />
+          <div className="dialog-actions">
+            <button type="button" className="btn secondary" onClick={closeHistory}>Đóng</button>
+          </div>
+        </Modal>
+      )}
+    </section>
   );
 }

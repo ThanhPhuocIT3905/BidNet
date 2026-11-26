@@ -120,6 +120,67 @@ public class AuctionRulesTests
     }
 
     [Fact]
+    public async Task MyAuctions_GroupsRepeatedBidsByProductAndKeepsSameNamedAuctionsSeparate()
+    {
+        await using var db = NewDatabase();
+        var seller = new User { Id = 1, Username = "seller", Email = "seller@example.com" };
+        var bidder = new User { Id = 2, Username = "bidder", Email = "bidder@example.com" };
+        var rival = new User { Id = 3, Username = "rival", Email = "rival@example.com" };
+        var now = DateTime.UtcNow;
+        var first = new Product
+        {
+            Id = 1, Name = "MacBook Air M3", SellerId = seller.Id, Seller = seller,
+            StartingPrice = 1000, CurrentPrice = 3000, StartTime = now.AddHours(-2),
+            EndTime = now.AddHours(2), Status = ProductStatus.Active
+        };
+        var second = new Product
+        {
+            Id = 2, Name = "MacBook Air M3", SellerId = seller.Id, Seller = seller,
+            StartingPrice = 1000, CurrentPrice = 2000, StartTime = now.AddHours(-2),
+            EndTime = now.AddHours(3), Status = ProductStatus.Active
+        };
+        db.Users.AddRange(seller, bidder, rival);
+        db.Products.AddRange(first, second);
+        db.Bids.AddRange(
+            new Bid { ProductId = first.Id, Product = first, UserId = bidder.Id, User = bidder, Amount = 1000, BidTime = now.AddMinutes(-4) },
+            new Bid { ProductId = first.Id, Product = first, UserId = bidder.Id, User = bidder, Amount = 2000, BidTime = now.AddMinutes(-3) },
+            new Bid { ProductId = first.Id, Product = first, UserId = rival.Id, User = rival, Amount = 3000, BidTime = now.AddMinutes(-2) },
+            new Bid { ProductId = second.Id, Product = second, UserId = bidder.Id, User = bidder, Amount = 1000, BidTime = now.AddMinutes(-1) },
+            new Bid { ProductId = second.Id, Product = second, UserId = bidder.Id, User = bidder, Amount = 2000, BidTime = now });
+        await db.SaveChangesAsync();
+
+        var service = new BidService(
+            db, Current(db, bidder.Id), Settings(),
+            Mock.Of<IHubContext<AuctionHub>>(), NullLogger<BidService>.Instance);
+        var auctions = await service.MyAuctionsAsync(
+            1, 20, null, null, null, null, null, CancellationToken.None);
+        var history = await service.MyAuctionBidsAsync(first.Id, 1, 50, CancellationToken.None);
+
+        Assert.Equal(2, auctions.TotalCount);
+        Assert.Equal(2, auctions.Summary.Total);
+        Assert.Equal(1, auctions.Summary.Leading);
+        Assert.Equal(1, auctions.Summary.Outbid);
+        Assert.Equal(2, auctions.Items.Select(item => item.AuctionId).Distinct().Count());
+        var outbid = Assert.Single(auctions.Items, item => item.ProductId == first.Id);
+        Assert.Equal("Outbid", outbid.ParticipantStatus);
+        Assert.Equal(2, outbid.MyBidCount);
+        Assert.Equal(2000m, outbid.MyHighestBid);
+        var leading = Assert.Single(auctions.Items, item => item.ProductId == second.Id);
+        Assert.Equal("Leading", leading.ParticipantStatus);
+        Assert.Equal(2, leading.MyBidCount);
+        Assert.Equal(2, history.TotalCount);
+        Assert.Equal(2000m, history.Items[0].Amount);
+        Assert.All(history.Items, item => Assert.False(item.IsLeading));
+
+        var rivalService = new BidService(
+            db, Current(db, rival.Id), Settings(),
+            Mock.Of<IHubContext<AuctionHub>>(), NullLogger<BidService>.Instance);
+        var denied = await Assert.ThrowsAsync<ApiException>(() =>
+            rivalService.MyAuctionBidsAsync(second.Id, 1, 50, CancellationToken.None));
+        Assert.Equal(404, denied.StatusCode);
+    }
+
+    [Fact]
     public async Task RegisterAndLogin_UsesHashedPasswordAndRejectsBlockedUser()
     {
         await using var db = NewDatabase();

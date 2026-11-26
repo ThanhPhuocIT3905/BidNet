@@ -118,4 +118,21 @@ public class UserController(IUserService users, IBidService bids, IAuthService a
     public async Task<ActionResult<PagedResponseDto<BidResponseDto>>> MyBids(
         int page = 1, int pageSize = 20, CancellationToken ct = default) =>
         Ok(await bids.MineAsync(page, pageSize, ct));
+
+    [HttpGet("auctions")]
+    public async Task<ActionResult<MyAuctionsResponseDto>> MyAuctions(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? status = null,
+        [FromQuery] string? q = null,
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null,
+        [FromQuery] string? sort = null,
+        CancellationToken ct = default) =>
+        Ok(await bids.MyAuctionsAsync(page, pageSize, status, q, from, to, sort, ct));
+
+    [HttpGet("auctions/{productId:int}/bids")]
+    public async Task<ActionResult<PagedResponseDto<MyAuctionBidHistoryDto>>> MyAuctionBids(
+        int productId, int page = 1, int pageSize = 50, CancellationToken ct = default) =>
+        Ok(await bids.MyAuctionBidsAsync(productId, page, pageSize, ct));
 }

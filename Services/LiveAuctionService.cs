@@ -389,6 +389,10 @@ public class LiveAuctionService(
             throw new ApiException(409, "invalid_status", "Chỉ công bố được sự kiện ở trạng thái nháp.");
         if (entity.Lots.Count == 0)
             throw new ApiException(400, "event_empty", "Hãy thêm ít nhất một lô trước khi công bố.");
+        if (entity.ScheduledStartAt <= DateTime.UtcNow)
+            throw new ApiException(400, "invalid_schedule", "Thời gian bắt đầu phải ở trong tương lai mới có thể công bố.");
+        if (entity.ScheduledEndAt is DateTime end && end <= entity.ScheduledStartAt)
+            throw new ApiException(400, "invalid_schedule", "Thời gian kết thúc phải sau thời gian bắt đầu.");
         entity.Status = LiveEventStatus.Published;
         entity.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
@@ -552,7 +556,9 @@ public class LiveAuctionService(
             {
                 product.Status = ProductStatus.Completed;
                 product.WinnerId = winning.UserId;
-                product.CurrentPrice = winning.Amount;
+                // Product có ràng buộc CurrentPrice >= StartingPrice; lô live được
+                // phép khởi điểm thấp hơn nên giữ mức sàn để không vi phạm constraint.
+                product.CurrentPrice = Math.Max(winning.Amount, product.StartingPrice);
                 product.UpdatedAt = now;
             }
             var order = await db.Orders.FirstOrDefaultAsync(o => o.ProductId == lot.ProductId, ct);

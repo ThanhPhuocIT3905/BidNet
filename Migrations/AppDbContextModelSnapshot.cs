@@ -320,7 +320,8 @@ namespace BidNet.Data.Migrations
                     b.HasIndex("LeadingBidderId");
 
                     b.HasIndex("ProductId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[Status] IN (0, 1, 2, 3)");
 
                     b.HasIndex("SellerId");
 

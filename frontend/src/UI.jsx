@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useId, useRef, useState } from "react";
 
-export function Modal({ title, children, onClose, busy = false }) {
+export function Modal({ title, children, onClose, busy = false, className = "" }) {
   const ref = useRef(null);
   const titleId = useId();
   useEffect(() => {
@@ -16,7 +16,7 @@ export function Modal({ title, children, onClose, busy = false }) {
       if (previous?.isConnected) previous.focus();
     };
   }, []);
-  return <dialog ref={ref} className="dialog" aria-labelledby={titleId}
+  return <dialog ref={ref} className={`dialog ${className}`.trim()} aria-labelledby={titleId}
     onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}>
     <div className="dialog-heading"><h2 id={titleId}>{title}</h2><button className="icon-button" type="button" disabled={busy} aria-label="Đóng hộp thoại" onClick={onClose}>×</button></div>
     <div className="dialog-content">{children}</div>

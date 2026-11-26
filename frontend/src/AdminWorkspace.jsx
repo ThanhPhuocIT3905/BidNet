@@ -4,6 +4,7 @@ import { OrderDetail, Notifications } from "./screens";
 import { AdminCategories, Diagnostics } from "./admin";
 import { AdminOrders, AuditLogs } from "./Workflows.jsx";
 import AdminSupportCenter from "./AdminSupportCenter.jsx";
+import { AdminLiveEvents, AdminLiveEventDetail, AdminLiveConsole } from "./Live.jsx";
 import { Modal, PageHeader, EmptyState, LoadingState, ErrorState, useConfirm } from "./UI.jsx";
 import Avatar from "./Avatar.jsx";
 import useAuctionUpdates from "./useAuctionUpdates.js";
@@ -12,6 +13,7 @@ const menu = [
   ["/admin", "Tổng quan"],
   ["/admin/users", "Tài khoản"],
   ["/admin/auctions", "Phiên đấu giá"],
+  ["/admin/live", "Đấu giá trực tiếp"],
   ["/admin/categories", "Danh mục"],
   ["/admin/orders", "Đơn hàng"],
   ["/admin/support", "Yêu cầu hỗ trợ"],
@@ -406,12 +408,19 @@ export default function AdminWorkspace({ route, ...props }) {
   const path = route.split("?")[0];
   const orderMatch = path.match(/^\/admin\/orders\/(\d+)$/);
   const orderId = orderMatch ? Number(orderMatch[1]) : null;
-  const selectedPath = path === "/admin/products" ? "/admin/auctions" : orderId ? "/admin/orders" : path;
+  const liveMatch = path.match(/^\/admin\/live\/(\d+)(\/control)?$/);
+  const liveId = liveMatch ? Number(liveMatch[1]) : null;
+  const liveControl = Boolean(liveMatch?.[2]);
+  const selectedPath = path === "/admin/products" ? "/admin/auctions"
+    : orderId ? "/admin/orders"
+    : path.startsWith("/admin/live") ? "/admin/live"
+    : path;
   const identity = useResult("/api/users/me");
   const views = {
     "/admin": Overview,
     "/admin/users": Accounts,
     "/admin/auctions": Auctions,
+    "/admin/live": AdminLiveEvents,
     /* Alias cũ: /admin/products từng trả về trang trống. */
     "/admin/products": Auctions,
     "/admin/categories": AdminCategories,
@@ -443,6 +452,9 @@ export default function AdminWorkspace({ route, ...props }) {
         <Result result={identity}>{account => {
           if (account.role !== "Admin" || !account.isActive) return <p role="alert">Tài khoản không có quyền quản trị.</p>;
           if (orderId) return <><div className="actions admin-detail-actions"><a className="btn secondary" href="#/admin/orders">← Danh sách đơn</a></div><OrderDetail key={route} id={orderId} {...props} user={account} /></>;
+          if (liveId) return liveControl
+            ? <AdminLiveConsole key={route} id={liveId} {...props} user={account} />
+            : <AdminLiveEventDetail key={route} id={liveId} {...props} user={account} />;
           return View ? <View key={selectedPath} {...props} user={account} /> : <EmptyState title="Không tìm thấy trang quản trị" description="Chọn một mục trong điều hướng hoặc quay về tổng quan."><a className="btn" href="#/admin">Về tổng quan</a></EmptyState>;
         }}</Result>
       </section>

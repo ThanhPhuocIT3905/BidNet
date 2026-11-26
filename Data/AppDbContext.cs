@@ -171,7 +171,7 @@ namespace BidNet.Data
             // Lô không bán được có thể được xếp lại vào sự kiện khác, nên chỉ
             // unique trên các lô còn hiệu lực (Pending/Open/Paused/Sold).
             modelBuilder.Entity<LiveLot>().HasIndex(l => l.ProductId).IsUnique()
-                .HasFilter("[Status] NOT IN (4, 5, 6)");
+                .HasFilter("[Status] IN (0, 1, 2, 3)");
             modelBuilder.Entity<LiveLot>().HasIndex(l => new { l.EventId, l.SequenceNumber }).IsUnique();
             modelBuilder.Entity<LiveLot>().HasIndex(l => new { l.Status, l.EventId });
             modelBuilder.Entity<LiveLot>().HasOne(l => l.Product).WithMany()

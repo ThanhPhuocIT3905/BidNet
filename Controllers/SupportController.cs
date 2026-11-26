@@ -15,7 +15,11 @@ namespace BidNet.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/support")]
-public class SupportController(AppDbContext db, CurrentUser currentUser, IHubContext<SupportHub>? hub = null) : ControllerBase
+public class SupportController(
+    AppDbContext db,
+    CurrentUser currentUser,
+    IHubContext<SupportHub>? hub = null,
+    GeminiSupportService? gemini = null) : ControllerBase
 {
     private readonly SupportService support = new(db, currentUser);
 
@@ -67,12 +71,17 @@ public class SupportController(AppDbContext db, CurrentUser currentUser, IHubCon
         return NoContent();
     }
 
-    /// <summary>AI gợi ý câu hỏi và câu trả lời theo ngữ cảnh trang – không cần API key thật.</summary>
+    /// <summary>AI trả lời câu hỏi theo ngữ cảnh trang/sản phẩm/đơn hàng qua Gemini API (fallback nội bộ nếu chưa cấu hình key).</summary>
     [HttpPost("ai/suggest")]
     [EnableRateLimiting("support")]
     [AllowAnonymous]
-    public IActionResult AiSuggest([FromBody] AiSuggestDto dto) =>
-        Ok(SupportAiEngine.Respond(dto));
+    public async Task<IActionResult> AiSuggest([FromBody] AiSuggestDto dto, CancellationToken ct)
+    {
+        if (gemini == null)
+            return Ok(SupportAiEngine.Respond(dto));
+        var result = await gemini.SuggestAsync(dto, ct);
+        return Ok(result);
+    }
 
     /// <summary>Lấy FAQ theo chủ đề (không cần đăng nhập).</summary>
     [HttpGet("faq")]

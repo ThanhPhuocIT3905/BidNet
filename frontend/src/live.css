@@ -1,0 +1,220 @@
+/* BidNet Live – sự kiện, phòng đấu giá và console điều hành */
+.live-page {display:block}
+.live-hero {display:grid;grid-template-columns:minmax(0,1.5fr) minmax(260px,.8fr);gap:32px;padding:36px;margin-bottom:24px;border-radius:14px;background:linear-gradient(120deg,var(--green),var(--green-dark));color:#f2f7f3}
+.live-hero h1 {font-size:clamp(26px,3vw,38px);margin:8px 0 12px;color:#fff}
+.live-hero p {max-width:620px;color:#d7e6dd}
+.live-hero .eyebrow {color:#bfe3cf}
+.live-hero .btn.secondary {background:#ffffff1a;color:#fff;border-color:#ffffff66}
+.live-hero .btn.dark {background:#fff;color:var(--green)}
+.live-hero-note {padding:20px;border:1px solid #ffffff33;border-radius:10px;background:#00000014;align-self:start}
+.live-hero-note strong {display:block;margin-bottom:10px;color:#fff}
+.live-hero-note ul {margin:0;padding-left:18px;color:#d7e6dd;font-size:14px;display:grid;gap:6px}
+.live-search {display:flex;gap:6px;margin-left:auto}
+.live-search input {min-width:180px}
+.live-event-grid {display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px}
+.live-event-card {display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden;box-shadow:0 6px 20px #0f261b0f}
+.live-cover {position:relative;display:flex;align-items:flex-end;justify-content:space-between;min-height:150px;padding:14px;background:linear-gradient(135deg,var(--green-dark),var(--green));background-size:cover;background-position:center}
+.live-cover.has-image {text-shadow:0 1px 4px #0009}
+.live-cover.has-image::after {content:"";position:absolute;inset:0;background:linear-gradient(180deg,#0003,#000a);pointer-events:none}
+.live-cover .live-status,.live-cover .live-code {position:relative;z-index:1}
+.live-status {display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:99px;background:#ffffff26;color:#fff;font-size:11px;font-weight:700;letter-spacing:.02em}
+.live-status.Live {background:#c11f34}
+.live-status.Live::before {content:"";width:6px;height:6px;border-radius:50%;background:#fff;animation:livePulse 1.4s infinite}
+.live-status.Published {background:#b47713}
+.live-status.Completed {background:#404d47}
+.live-status.Draft {background:#6b7772}
+.live-code {font-size:11px;color:#ffffffd9;letter-spacing:.08em}
+@keyframes livePulse {0%,100% {opacity:1}50% {opacity:.3}}
+.live-event-body {display:flex;flex-direction:column;gap:8px;padding:18px}
+.live-event-body h2 {font-size:19px;margin:0}
+.live-event-body h2 a:hover {color:var(--green)}
+.live-event-body p {margin:0}
+.live-facts {display:flex;flex-wrap:wrap;gap:6px 16px;color:var(--quiet);font-size:13px}
+.live-facts b {color:var(--ink)}
+.live-progress {margin:0!important;font-size:12.5px;font-weight:600;color:var(--green)}
+.live-event-body .actions {margin-top:auto;padding-top:8px}
+.live-detail-head {display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,.8fr);gap:24px;align-items:start;margin-bottom:20px}
+.live-detail-head h1 {margin:10px 0}
+.live-detail-head .live-status {background:var(--soft);color:var(--green)}
+.live-register-card {margin:0}
+.live-register-card .btn {width:100%;margin-top:8px}
+.live-lot-table td, .live-lot-table th {vertical-align:middle}
+.badge.Live,.badge.Open {background:var(--success-bg);color:var(--success)}
+.badge.Published,.badge.Pending {background:var(--warning-bg);color:var(--warning)}
+.badge.Sold {background:var(--success-bg);color:var(--success)}
+.badge.Unsold {background:var(--danger-bg);color:var(--danger)}
+.badge.Paused,.badge.Skipped,.badge.Withdrawn,.badge.Draft {background:var(--soft);color:var(--quiet)}
+
+/* ── Phòng đấu giá (cửa sổ riêng) ── */
+body.live-room-mode .top,body.live-room-mode .site-footer {display:none}
+body.live-room-mode {background:#eef1ec}
+body.live-room-mode .wrap {max-width:none;margin:0;padding:0}
+.live-room-page {display:flex;flex-direction:column;min-height:100vh;background:var(--canvas);color:var(--ink)}
+.live-room-top {display:flex;align-items:center;gap:16px;padding:10px 20px;background:#10201b;color:#eaf1ec;flex-wrap:wrap}
+.live-room-top .brand {font-size:22px;color:#fff;display:flex;align-items:center;gap:8px}
+.live-room-top .brand small {font-size:9px;font-weight:700;letter-spacing:.16em;color:#ffd2a1;border:1px solid #ffffff40;border-radius:4px;padding:3px 5px}
+.live-room-title {display:grid;line-height:1.25;min-width:0;flex:1}
+.live-room-title strong {font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.live-room-title span {font-size:11px;color:#a8bcb2}
+.live-room-tools {display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.live-room-tools .btn.secondary {background:#ffffff14;color:#fff;border-color:#ffffff33}
+.live-room-tools .btn.secondary:hover {background:#ffffff26}
+.live-user {font-size:12px;color:#d7e4dc;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.live-connection {display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#bcd1c6;padding:5px 9px;border:1px solid #ffffff26;border-radius:99px}
+.live-connection i {width:7px;height:7px;border-radius:50%;background:#d3a12c}
+.live-connection.online i {background:#43d17f;box-shadow:0 0 0 3px #43d17f2e}
+.live-connection.offline {color:#ffc9c9;border-color:#ff7a7a66}
+.live-connection.offline i {background:#ff5d5d}
+.live-connection.guest i {background:#94a39b}
+.live-banner {display:flex;gap:12px;align-items:center;padding:10px 20px;font-size:13px;background:var(--warning-bg);color:var(--warning);border-bottom:1px solid var(--line)}
+.live-banner.error {background:var(--danger-bg);color:var(--danger)}
+.live-banner.warning b {white-space:nowrap}
+.live-room-grid {display:grid;grid-template-columns:minmax(230px,.8fr) minmax(0,1.75fr) minmax(270px,1fr);gap:0;flex:1;min-height:0;height:calc(100vh - 60px)}
+.live-room-grid > * {min-height:0}
+.live-lots-panel {display:flex;flex-direction:column;gap:8px;padding:14px;border-right:1px solid var(--line);background:var(--surface);overflow:auto}
+.live-panel-head {display:flex;align-items:center;justify-content:space-between;gap:8px}
+.live-panel-head .eyebrow {margin:0}
+.live-panel-head b {font-size:12px;color:var(--quiet)}
+.live-progressbar {width:100%;height:5px;border-radius:99px;background:var(--soft);overflow:hidden}
+.live-progressbar span {display:block;height:100%;background:var(--green)}
+.live-lot-list {display:flex;flex-direction:column;gap:6px;overflow:auto}
+.live-lot-item {display:flex;gap:10px;align-items:center;width:100%;padding:8px;border:1px solid transparent;border-radius:8px;background:transparent;text-align:left;color:var(--ink)}
+.live-lot-item:hover {background:var(--soft)}
+.live-lot-item.selected {border-color:var(--green);background:var(--soft)}
+.live-lot-item.open {box-shadow:inset 3px 0 0 var(--green)}
+.live-lot-thumb {display:grid;place-items:center;width:46px;height:46px;flex-shrink:0;border:1px solid var(--line);border-radius:6px;background:var(--surface);overflow:hidden;font-size:11px;color:var(--quiet)}
+.live-lot-thumb img {width:100%;height:100%;object-fit:contain}
+.live-lot-info {display:grid;min-width:0;line-height:1.35}
+.live-lot-info small {font-size:10.5px;color:var(--quiet)}
+.live-lot-info strong {font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.live-lot-info span {font-size:11px;color:var(--quiet)}
+.live-lot-panel {padding:20px 24px;overflow:auto;background:var(--surface)}
+.live-lot-heading {display:flex;align-items:start;justify-content:space-between;gap:12px}
+.live-lot-heading h1 {font-size:clamp(20px,2vw,28px);margin:4px 0 14px}
+.live-lot-image {height:min(420px,42vh);display:grid;place-items:center;padding:16px;border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden;margin-bottom:14px}
+.live-lot-image .magnifier {height:100%}
+.live-lot-image .lot-fallback {width:100%;height:100%;display:grid;place-items:center;align-content:center;gap:6px;color:var(--quiet)}
+.live-lot-meta {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:14px}
+.live-lot-meta>div {padding:10px 12px;background:var(--surface)}
+.live-lot-meta span {display:block;font-size:11px;color:var(--quiet)}
+.live-lot-meta b {font-size:13.5px;overflow-wrap:anywhere}
+.live-lot-desc {color:var(--quiet);font-size:14px;white-space:pre-wrap}
+.live-my-status {padding:10px 12px;border-radius:8px;font-weight:700;font-size:13px}
+.live-my-status.Leading {background:var(--success-bg);color:var(--success)}
+.live-my-status.Outbid {background:var(--warning-bg);color:var(--warning)}
+.live-my-status.Won {background:var(--success-bg);color:var(--success)}
+.live-feed-panel {display:flex;flex-direction:column;gap:10px;padding:14px;border-left:1px solid var(--line);background:var(--surface);overflow:hidden}
+.live-feed {display:flex;flex-direction:column;gap:10px;overflow:auto;padding-right:4px}
+.live-feed-item {display:flex;gap:9px;align-items:flex-start}
+.live-feed-icon {display:grid;place-items:center;width:24px;height:24px;flex-shrink:0;border-radius:50%;background:var(--soft);color:var(--green);font-size:12px;font-weight:700}
+.live-feed-item.bid .live-feed-icon {background:var(--success-bg);color:var(--success)}
+.live-feed-item.warning .live-feed-icon {background:var(--warning-bg);color:var(--warning)}
+.live-feed-item.sold .live-feed-icon {background:var(--success-bg);color:var(--success)}
+.live-feed-item.unsold .live-feed-icon {background:var(--danger-bg);color:var(--danger)}
+.live-feed-item.announcement .live-feed-icon {background:var(--warning-bg);color:var(--warning)}
+.live-feed-item p {margin:0;font-size:12.5px}
+.live-feed-item b {font-size:13px}
+.live-feed-item time {display:block;font-size:10.5px;color:var(--quiet)}
+.live-bidbar {display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:12px 20px;border-top:1px solid var(--line);background:var(--surface);box-shadow:0 -8px 24px #0f261b12}
+.live-bid-facts {display:flex;gap:20px;flex-wrap:wrap}
+.live-bid-facts div {display:grid}
+.live-bid-facts span {font-size:11px;color:var(--quiet)}
+.live-bid-facts b {font-size:17px;color:var(--green)}
+.live-bid-form {display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-left:auto}
+.live-bid-form label {display:grid;gap:4px;font-size:11px;color:var(--quiet)}
+.live-bid-form input {width:180px;padding:8px 10px}
+.live-bid-form .actions {gap:6px}
+.live-bid-hint {margin:0;font-size:12.5px;color:var(--quiet);max-width:360px}
+.live-register-cta {display:flex;align-items:center;gap:12px;margin-left:auto}
+.live-register-cta p {margin:0;font-size:12.5px;color:var(--quiet)}
+.live-console-lot {display:grid;gap:4px;padding:12px;border:1px solid var(--line);border-radius:8px;margin-bottom:12px}
+.live-console-actions {display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.live-console-next {display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.live-console-next small {display:block;color:var(--quiet)}
+.live-console-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:20px}
+
+/* ── Wizard tạo sự kiện trong không gian quản trị ── */
+.live-wizard-dialog {width:min(1040px,calc(100% - 32px))}
+.live-wizard-dialog .dialog-content {padding:0;max-height:calc(100dvh - 100px);overflow:auto}
+.live-wizard {display:flex;flex-direction:column;min-height:min(680px,calc(100dvh - 120px))}
+.live-wizard-progress {display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:0;padding:16px 24px;border-bottom:1px solid var(--line);list-style:none;background:var(--surface)}
+.live-wizard-progress li {display:flex;align-items:center;gap:7px;min-width:0;color:var(--quiet)}
+.live-wizard-progress li>span {display:grid;place-items:center;width:25px;height:25px;flex-shrink:0;border:1px solid var(--line);border-radius:50%;font-size:11px;font-weight:700}
+.live-wizard-progress li small {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.live-wizard-progress li.active {color:var(--green);font-weight:700}
+.live-wizard-progress li.active>span,.live-wizard-progress li.complete>span {border-color:var(--green);background:var(--green);color:#fff}
+.live-wizard-body {flex:1;padding:24px;overflow:auto}
+.live-wizard-step {max-width:820px;margin:0 auto}
+.live-wizard-step h3 {margin:0 0 6px;font-size:21px}
+.live-wizard-step>p {margin:0 0 20px}
+.live-wizard-step h4 {margin:18px 0 10px}
+.live-wizard-note {margin:16px 0;padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:var(--canvas);font-size:13px;color:var(--quiet)}
+.live-wizard-note p {margin:5px 0 0}
+.live-banner-preview {position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin-top:12px}
+.live-banner-preview img {width:100%;max-height:210px;object-fit:cover;border:1px solid var(--line);border-radius:8px}
+.live-product-picker {display:grid;gap:10px;padding:14px;border:1px solid var(--line);border-radius:9px}
+.live-product-options {display:grid;gap:8px;max-height:230px;overflow:auto}
+.live-product-option {display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--line);border-radius:7px}
+.live-product-option>img,.live-product-placeholder {display:grid;place-items:center;width:48px;height:48px;flex-shrink:0;border-radius:6px;object-fit:cover;background:var(--soft);color:var(--quiet);font-size:11px}
+.live-product-option>div {display:grid;min-width:0;flex:1}
+.live-product-option b {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.live-product-option small {color:var(--quiet);font-size:11px}
+.live-selected-lots {margin-top:20px}
+.live-selected-lot {margin:10px 0;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--canvas)}
+.live-selected-lot-head {display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;font-size:13px}
+.live-selected-lot-head>div {display:flex;gap:10px}
+.live-selected-lot .form-grid {grid-template-columns:repeat(3,minmax(0,1fr))}
+.live-selected-lot .field {margin:0}
+.live-selected-lot .field label {font-size:11px}
+.danger-text {color:var(--danger)!important}
+.live-assignee {display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--line);border-radius:9px;background:var(--canvas)}
+.live-assignee-avatar {display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:var(--green);color:#fff;font-weight:700}
+.live-assignee>div {display:grid;flex:1}
+.live-assignee small {color:var(--quiet);font-size:11px}
+.live-assignee b {font-size:14px}
+.live-review-card {padding:16px;border:1px solid var(--line);border-radius:9px;background:var(--canvas)}
+.live-review-card h4 {margin:8px 0}
+.live-review-card>p {margin:6px 0 14px;color:var(--quiet);white-space:pre-wrap}
+.live-review-banner {width:100%;max-height:180px;margin-bottom:12px;border-radius:6px;object-fit:cover}
+.live-review-lots {display:grid;gap:8px;padding-left:22px}
+.live-review-lots li {padding:8px 10px;border-bottom:1px solid var(--line)}
+.live-review-lots li span {display:block;color:var(--quiet);font-size:12px}
+.live-wizard-error {margin:0 24px 12px}
+.live-wizard-footer {position:sticky;bottom:0;display:flex;justify-content:flex-end;gap:9px;padding:14px 24px;border-top:1px solid var(--line);background:var(--surface)}
+
+@media(max-width:1100px) {
+  .live-room-grid {grid-template-columns:minmax(200px,.8fr) minmax(0,1.6fr);height:auto}
+  .live-feed-panel {grid-column:1/-1;border-left:0;border-top:1px solid var(--line);max-height:320px}
+  .live-bidbar {position:sticky;bottom:0;z-index:5}
+}
+@media(max-width:800px) {
+  .live-wizard {min-height:calc(100dvh - 120px)}
+  .live-wizard-progress {gap:3px;padding:12px}
+  .live-wizard-progress li {justify-content:center}
+  .live-wizard-progress li small {display:none}
+  .live-wizard-body {padding:18px}
+  .live-selected-lot .form-grid {grid-template-columns:1fr}
+  .live-wizard-footer {padding:12px 18px;flex-wrap:wrap}
+  .live-wizard-footer .btn {flex:1}
+  .live-assignee {flex-wrap:wrap}
+  .live-hero,.live-detail-head {grid-template-columns:1fr;padding:22px}
+  .live-room-grid {grid-template-columns:1fr;height:auto}
+  .live-lots-panel {border-right:0;border-bottom:1px solid var(--line);max-height:230px}
+  .live-lot-panel {padding:16px}
+  .live-lot-meta {grid-template-columns:repeat(2,minmax(0,1fr))}
+  .live-bid-form {margin-left:0;width:100%}
+  .live-bid-form input {width:100%}
+  .live-bid-form .actions {width:100%}
+  .live-bid-form .btn {flex:1}
+  .live-room-title {flex-basis:100%;order:3}
+  .live-room-tools {margin-left:auto}
+  .live-search {width:100%;margin-left:0}
+  .live-search input {flex:1}
+  .live-register-cta {margin-left:0;flex-wrap:wrap}
+}
+@media(max-width:480px) {
+  .live-wizard-dialog {width:calc(100% - 16px);max-height:calc(100dvh - 16px)}
+  .live-wizard-dialog .dialog-content {max-height:calc(100dvh - 74px)}
+  .live-selected-lot-head {align-items:flex-start}
+  .live-banner-preview {grid-template-columns:1fr}
+}

@@ -2258,14 +2258,17 @@ input::placeholder,textarea::placeholder {color:var(--quiet)}
 .main-nav {
   max-height: 70px;
   overflow: hidden;
-  transition: max-height 0.18s ease, border-color 0.18s ease;
+  visibility: visible;
+  transition: max-height 0.18s ease, border-color 0.18s ease, visibility 0s linear 0.18s;
 }
 .top-inner {
   transition: min-height 0.18s ease, padding 0.18s ease;
 }
 .top.is-scrolled .top-bar {
   max-height: 0;
+  visibility: hidden;
   border-bottom-width: 0;
+  transition-delay: 0s;
 }
 .top.is-compact .top-inner {
   min-height: 60px;
@@ -2273,7 +2276,9 @@ input::placeholder,textarea::placeholder {color:var(--quiet)}
 }
 .top.is-compact .main-nav {
   max-height: 0;
+  visibility: hidden;
   border-top-width: 0;
+  transition-delay: 0s;
 }
 .top.is-compact .cat-btn .cat-label {
   display: none;

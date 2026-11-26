@@ -169,15 +169,211 @@ public class BidService(
                 ProductName = b.Product.Name,
                 ProductStatus = b.Product.Status.ToString(),
                 CurrentPrice = b.Product.CurrentPrice,
+                WinnerId = b.Product.WinnerId,
                 LeadingBidderId = b.Product.Bids
                     .OrderByDescending(current => current.Amount)
                     .ThenBy(current => current.BidTime)
                     .ThenBy(current => current.Id)
                     .Select(current => (int?)current.UserId)
-                    .FirstOrDefault()
+                    .FirstOrDefault(),
+                IsLeading = b.Product.Status == ProductStatus.Active &&
+                    b.Product.Bids.OrderByDescending(current => current.Amount)
+                        .ThenBy(current => current.BidTime).ThenBy(current => current.Id)
+                        .Select(current => (int?)current.Id).FirstOrDefault() == b.Id,
+                IsWinner = b.Product.Status == ProductStatus.Completed &&
+                    b.Product.WinnerId == user.Id &&
+                    b.Product.Bids.OrderByDescending(current => current.Amount)
+                        .ThenBy(current => current.BidTime).ThenBy(current => current.Id)
+                        .Select(current => (int?)current.Id).FirstOrDefault() == b.Id
             })
             .ToListAsync(ct);
         return new PagedResponseDto<BidResponseDto>
+        {
+            Items = items,
+            Page = args.Page,
+            PageSize = args.PageSize,
+            TotalCount = count
+        };
+    }
+
+    public async Task<MyAuctionsResponseDto> MyAuctionsAsync(
+        int page, int pageSize, string? status, string? q, DateTime? from, DateTime? to, string? sort,
+        CancellationToken ct)
+    {
+        var user = await currentUser.RequireActiveAsync(ct);
+        var args = PageArgs.Validate(page, pageSize);
+        var participated = db.Products.AsNoTracking()
+            .Where(p => p.Bids.Any(b => b.UserId == user.Id));
+
+        var summary = await participated.GroupBy(_ => 1)
+            .Select(group => new MyAuctionsSummaryDto
+            {
+                Total = group.Count(),
+                Scheduled = group.Count(p => p.Status == ProductStatus.Scheduled),
+                Leading = group.Count(p => p.Status == ProductStatus.Active &&
+                    p.Bids.OrderByDescending(b => b.Amount).ThenBy(b => b.BidTime).ThenBy(b => b.Id)
+                        .Select(b => (int?)b.UserId).FirstOrDefault() == user.Id),
+                Outbid = group.Count(p => p.Status == ProductStatus.Active &&
+                    p.Bids.OrderByDescending(b => b.Amount).ThenBy(b => b.BidTime).ThenBy(b => b.Id)
+                        .Select(b => (int?)b.UserId).FirstOrDefault() != user.Id),
+                Won = group.Count(p => p.Status == ProductStatus.Completed && p.WinnerId == user.Id),
+                Lost = group.Count(p => p.Status == ProductStatus.Completed &&
+                    p.WinnerId != null && p.WinnerId != user.Id),
+                Unsold = group.Count(p => p.Status == ProductStatus.Completed && p.WinnerId == null),
+                Cancelled = group.Count(p => p.Status == ProductStatus.Cancelled)
+            })
+            .SingleOrDefaultAsync(ct) ?? new MyAuctionsSummaryDto();
+
+        var query = participated;
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var term = q.Trim();
+            var hasProductId = int.TryParse(term, out var productId);
+            query = query.Where(p => p.Name.Contains(term) ||
+                (p.Category != null && p.Category.Contains(term)) ||
+                (hasProductId && p.Id == productId));
+        }
+
+        if (from.HasValue)
+        {
+            var fromDate = from.Value.Date;
+            query = query.Where(p => p.Bids.Where(b => b.UserId == user.Id)
+                .Max(b => (DateTime?)b.BidTime) >= fromDate);
+        }
+        if (to.HasValue)
+        {
+            var until = to.Value.Date.AddDays(1);
+            query = query.Where(p => p.Bids.Where(b => b.UserId == user.Id)
+                .Max(b => (DateTime?)b.BidTime) < until);
+        }
+
+        switch (status?.Trim().ToLowerInvariant())
+        {
+            case "scheduled":
+                query = query.Where(p => p.Status == ProductStatus.Scheduled);
+                break;
+            case "leading":
+                query = query.Where(p => p.Status == ProductStatus.Active &&
+                    p.Bids.OrderByDescending(b => b.Amount).ThenBy(b => b.BidTime).ThenBy(b => b.Id)
+                        .Select(b => (int?)b.UserId).FirstOrDefault() == user.Id);
+                break;
+            case "outbid":
+                query = query.Where(p => p.Status == ProductStatus.Active &&
+                    p.Bids.OrderByDescending(b => b.Amount).ThenBy(b => b.BidTime).ThenBy(b => b.Id)
+                        .Select(b => (int?)b.UserId).FirstOrDefault() != user.Id);
+                break;
+            case "won":
+                query = query.Where(p => p.Status == ProductStatus.Completed && p.WinnerId == user.Id);
+                break;
+            case "lost":
+                query = query.Where(p => p.Status == ProductStatus.Completed &&
+                    p.WinnerId != null && p.WinnerId != user.Id);
+                break;
+            case "unsold":
+                query = query.Where(p => p.Status == ProductStatus.Completed && p.WinnerId == null);
+                break;
+            case "cancelled":
+                query = query.Where(p => p.Status == ProductStatus.Cancelled);
+                break;
+            case null:
+            case "":
+            case "all":
+                break;
+            default:
+                throw new ApiException(400, "invalid_status", "Trạng thái phiên đấu giá không hợp lệ.");
+        }
+
+        var totalCount = await query.CountAsync(ct);
+        IOrderedQueryable<Product> ordered = sort?.Trim().ToLowerInvariant() switch
+        {
+            "ending_soon" => query.OrderBy(p => p.EndTime),
+            "price_high" => query.OrderByDescending(p => p.CurrentPrice),
+            "price_low" => query.OrderBy(p => p.CurrentPrice),
+            _ => query.OrderByDescending(p => p.Bids.Where(b => b.UserId == user.Id)
+                .Max(b => (DateTime?)b.BidTime))
+        };
+        var items = await ordered.ThenByDescending(p => p.Id)
+            .Skip((args.Page - 1) * args.PageSize).Take(args.PageSize)
+            .Select(p => new MyAuctionDto
+            {
+                AuctionId = p.Id,
+                ProductId = p.Id,
+                ProductName = p.Name,
+                ProductImageUrl = p.ImageUrl,
+                AuctionType = "Regular",
+                AuctionStatus = p.Status.ToString(),
+                ParticipantStatus = p.Status == ProductStatus.Cancelled ? "Cancelled"
+                    : p.Status == ProductStatus.Scheduled ? "Scheduled"
+                    : p.Status == ProductStatus.Completed
+                        ? p.WinnerId == user.Id ? "Won" : p.WinnerId == null ? "Unsold" : "Lost"
+                    : p.Bids.OrderByDescending(b => b.Amount).ThenBy(b => b.BidTime).ThenBy(b => b.Id)
+                        .Select(b => (int?)b.UserId).FirstOrDefault() == user.Id ? "Leading" : "Outbid",
+                StartingPrice = p.StartingPrice,
+                CurrentPrice = p.CurrentPrice,
+                MyHighestBid = p.Bids.Where(b => b.UserId == user.Id)
+                    .Max(b => (decimal?)b.Amount) ?? 0,
+                WinningPrice = p.WinnerId == null ? null : p.CurrentPrice,
+                MyBidCount = p.Bids.Count(b => b.UserId == user.Id),
+                TotalBidCount = p.Bids.Count(),
+                IsLeading = p.Status == ProductStatus.Active &&
+                    p.Bids.OrderByDescending(b => b.Amount).ThenBy(b => b.BidTime).ThenBy(b => b.Id)
+                        .Select(b => (int?)b.UserId).FirstOrDefault() == user.Id,
+                IsWinner = p.WinnerId == user.Id,
+                StartTime = p.StartTime,
+                EndTime = p.EndTime,
+                LastBidAt = p.Bids.Where(b => b.UserId == user.Id)
+                    .Max(b => (DateTime?)b.BidTime) ?? p.CreatedAt,
+                OrderId = db.Orders.Where(o => o.ProductId == p.Id && o.BuyerId == user.Id)
+                    .Select(o => (int?)o.Id).FirstOrDefault(),
+                CancellationReason = p.CancellationReason
+            })
+            .ToListAsync(ct);
+
+        return new MyAuctionsResponseDto
+        {
+            Items = items,
+            Page = args.Page,
+            PageSize = args.PageSize,
+            TotalCount = totalCount,
+            Summary = summary
+        };
+    }
+
+    public async Task<PagedResponseDto<MyAuctionBidHistoryDto>> MyAuctionBidsAsync(
+        int productId, int page, int pageSize, CancellationToken ct)
+    {
+        var user = await currentUser.RequireActiveAsync(ct);
+        var args = PageArgs.Validate(page, pageSize);
+        var product = await db.Products.AsNoTracking()
+            .Where(p => p.Id == productId && p.Bids.Any(b => b.UserId == user.Id))
+            .Select(p => new { p.Status, p.WinnerId })
+            .FirstOrDefaultAsync(ct)
+            ?? throw new ApiException(404, "auction_not_found", "Không tìm thấy phiên đấu giá đã tham gia.");
+
+        var query = db.Bids.AsNoTracking()
+            .Where(b => b.ProductId == productId && b.UserId == user.Id);
+        var count = await query.CountAsync(ct);
+        var winningBidId = product.Status == ProductStatus.Completed && product.WinnerId == user.Id
+            ? await query.OrderByDescending(b => b.Amount).ThenBy(b => b.BidTime).ThenBy(b => b.Id)
+                .Select(b => (int?)b.Id).FirstOrDefaultAsync(ct)
+            : null;
+        var leadingBidId = product.Status == ProductStatus.Active
+            ? await db.Bids.AsNoTracking().Where(b => b.ProductId == productId)
+                .OrderByDescending(b => b.Amount).ThenBy(b => b.BidTime).ThenBy(b => b.Id)
+                .Select(b => (int?)b.Id).FirstOrDefaultAsync(ct)
+            : null;
+        var items = await query.OrderByDescending(b => b.BidTime).ThenByDescending(b => b.Id)
+            .Skip((args.Page - 1) * args.PageSize).Take(args.PageSize)
+            .Select(b => new MyAuctionBidHistoryDto
+            {
+                Id = b.Id,
+                Amount = b.Amount,
+                BidTime = b.BidTime,
+                IsLeading = leadingBidId == b.Id,
+                IsWinner = winningBidId == b.Id
+            })
+            .ToListAsync(ct);
+        return new PagedResponseDto<MyAuctionBidHistoryDto>
         {
             Items = items,
             Page = args.Page,

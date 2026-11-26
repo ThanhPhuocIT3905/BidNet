@@ -42,5 +42,13 @@ public class TicketDto
     public List<TicketMessageDto> Messages { get; set; } = [];
 }
 public record TicketMessageDto(int Id, string AuthorName, bool IsAdmin, string Body, DateTime CreatedAt, string SenderType = "User");
-public record AiSuggestDto(string? PageContext, string? ProductStatus, string? Message, string? Lang = "vi");
+public record AiChatTurnDto(string Role, string Text);
+public record AiSuggestDto(
+    string? PageContext,
+    string? ProductStatus,
+    string? Message,
+    string? Lang = "vi",
+    int? ProductId = null,
+    int? OrderId = null,
+    List<AiChatTurnDto>? History = null);
 

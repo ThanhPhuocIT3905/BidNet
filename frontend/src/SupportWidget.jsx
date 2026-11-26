@@ -115,6 +115,8 @@ export default function SupportWidget({ route, user, go, openAuth, notify }) {
     try {
       const res = await json("POST", "/api/support/ai/suggest", {
         pageContext: ctx.pageContext,
+        productId: ctx.productId,
+        orderId: ctx.orderId,
         message: "",
       });
       setAiMessages([
@@ -167,9 +169,16 @@ export default function SupportWidget({ route, user, go, openAuth, notify }) {
     setAiTyping(true);
 
     try {
+      const history = aiMessages.slice(-6).map((m) => ({
+        role: m.sender === "ai" ? "model" : "user",
+        text: m.text,
+      }));
       const res = await json("POST", "/api/support/ai/suggest", {
         pageContext: ctx.pageContext,
+        productId: ctx.productId,
+        orderId: ctx.orderId,
         message: text,
+        history,
       });
       setTimeout(() => {
         setAiMessages((prev) => [

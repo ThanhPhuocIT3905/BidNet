@@ -16,6 +16,9 @@ public static class SupportAiEngine
 
     private static readonly FaqEntry[] KnowledgeBase =
     [
+        new(["chào", "xin chào", "hello", "hi", "hey", "alo"],
+            "Chào bạn! Tôi là **BidNet AI** – trợ lý hỗ trợ của sàn đấu giá BidNet.\n\nTôi có thể giúp bạn giải đáp về:\n• Cách tham gia đấu giá & bước giá\n• Đăng bán & quản lý sản phẩm\n• Đơn hàng, giao nhận & thanh toán demo\n• Tài khoản & bảo mật\n\nBạn đang cần hỗ trợ vấn đề gì hôm nay?",
+            null, ["BidNet hoạt động thế nào?", "Tham gia đấu giá thế nào?", "Gặp nhân viên hỗ trợ"]),
         new(["đấu giá", "cách", "tham gia", "hướng dẫn"],
             "Để tham gia đấu giá trên BidNet:\n1. Đăng nhập tài khoản\n2. Vào trang sản phẩm bạn quan tâm\n3. Nhập giá đặt cao hơn giá hiện tại\n4. Bấm **Đặt giá**\n\nHệ thống sẽ thông báo nếu có người trả giá cao hơn bạn.",
             "#/guides", ["Bước giá là gì?", "Khi nào phiên kết thúc?"]),

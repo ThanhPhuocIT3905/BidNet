@@ -8,4 +8,9 @@ public interface IBidService
     Task<BidResponseDto> PlaceAsync(int productId, decimal amount, CancellationToken ct);
     Task<PagedResponseDto<PublicBidDto>> ForProductAsync(int productId, int page, int pageSize, CancellationToken ct);
     Task<PagedResponseDto<BidResponseDto>> MineAsync(int page, int pageSize, CancellationToken ct);
+    Task<MyAuctionsResponseDto> MyAuctionsAsync(
+        int page, int pageSize, string? status, string? q, DateTime? from, DateTime? to, string? sort,
+        CancellationToken ct);
+    Task<PagedResponseDto<MyAuctionBidHistoryDto>> MyAuctionBidsAsync(
+        int productId, int page, int pageSize, CancellationToken ct);
 }

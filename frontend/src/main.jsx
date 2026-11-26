@@ -29,6 +29,8 @@ import MarketplaceHome from "./MarketplaceHome.jsx";
 import { ConfirmProvider } from "./UI.jsx";
 import Avatar from "./Avatar.jsx";
 import { AuthModal } from "./AuthModal.jsx";
+import { LiveEventsPage, LiveEventPage, LiveRoomPage } from "./Live.jsx";
+import "./live.css";
 import SupportWidget from "./SupportWidget.jsx";
 
 createRoot(document.getElementById("app")).render(<ConfirmProvider><App /></ConfirmProvider>);
@@ -46,6 +48,7 @@ const parseAuthRoute = (hash) => {
 const mainNav = [
   ["/", "Trang chủ"],
   ["/auctions", "Đấu giá"],
+  ["/live-auctions", "Đấu giá trực tiếp"],
   ["/news", "Tin tức"],
   ["/guides", "Hướng dẫn"],
   ["/policies", "Quy định"],
@@ -65,34 +68,42 @@ function App() {
   const [categories, setCategories] = useState([]);
   const [search, setSearch] = useState("");
   const [scrollState, setScrollState] = useState({ scrolled: false, compact: false, backTop: false });
+  const compactRef = useRef(false);
+  const backTopRef = useRef(false);
+  const scrollFrame = useRef(0);
+  const accountMenuRef = useRef(null);
   const { ids: favorites } = useFavorites();
   const [path] = route.split("?");
   const routeRef = useRef(route);
   routeRef.current = route;
+  // Phòng live mở trong cửa sổ riêng nên ẩn header/footer của website chính.
+  const immersive = path.startsWith("/live-room/");
   useEffect(() => {
-    let lastY = window.scrollY;
-    let ticking = false;
+    document.body.classList.toggle("live-room-mode", immersive);
+    return () => document.body.classList.remove("live-room-mode");
+  }, [immersive]);
+  useEffect(() => {
     const onScroll = () => {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => {
+      if (scrollFrame.current) return;
+      scrollFrame.current = requestAnimationFrame(() => {
+        scrollFrame.current = 0;
         const y = window.scrollY;
-        const scrolled = y > 100;
-        const backTop = y > 360;
-        setScrollState((prev) => {
-          let compact = prev.compact;
-          if (!scrolled) compact = false;
-          else if (y - lastY > 8) compact = true;
-          else if (lastY - y > 8) compact = false;
-          lastY = y;
-          if (prev.scrolled === scrolled && prev.compact === compact && prev.backTop === backTop) return prev;
-          return { scrolled, compact, backTop };
-        });
-        ticking = false;
+        const compact = compactRef.current ? y > 72 : y > 120;
+        const backTop = backTopRef.current ? y > 340 : y > 400;
+        compactRef.current = compact;
+        backTopRef.current = backTop;
+        setScrollState((prev) => prev.scrolled === compact &&
+          prev.compact === compact && prev.backTop === backTop
+          ? prev
+          : { scrolled: compact, compact, backTop });
       });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    onScroll();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (scrollFrame.current) cancelAnimationFrame(scrollFrame.current);
+    };
   }, []);
   useEffect(() => {
     const onHash = () => {
@@ -111,6 +122,25 @@ function App() {
     };
     addEventListener("hashchange", onHash);
     return () => removeEventListener("hashchange", onHash);
+  }, []);
+  useEffect(() => {
+    const closeOnOutsidePointer = (event) => {
+      const menu = accountMenuRef.current;
+      if (menu?.open && !menu.contains(event.target)) menu.open = false;
+    };
+    const closeOnEscape = (event) => {
+      const menu = accountMenuRef.current;
+      if (event.key === "Escape" && menu?.open) {
+        menu.open = false;
+        menu.querySelector("summary")?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
   }, []);
   useEffect(() => {
     // Mở thẳng /login hoặc /register vẫn giữ URL sạch sau khi modal bật.
@@ -179,6 +209,12 @@ function App() {
     page = <Explore key={route} route={route} {...common} />;
   else if (/^\/product\/\d+$/.test(path))
     page = <Product key={route} id={Number(path.split("/")[2])} {...common} />;
+  else if (path === "/live-auctions")
+    page = <LiveEventsPage key={route} {...common} />;
+  else if (/^\/live-auctions\/\d+$/.test(path))
+    page = <LiveEventPage key={route} id={Number(path.split("/")[2])} {...common} />;
+  else if (/^\/live-room\/\d+$/.test(path))
+    page = <LiveRoomPage key={route} id={Number(path.split("/")[2])} {...common} />;
   else if (path === "/news" || /^\/news\/[^/]+$/.test(path))
     page = <NewsPage key={route} slug={path.startsWith("/news/") ? path.split("/")[2] : null} />;
   else if (path === "/guides" || /^\/guides\/[^/]+$/.test(path))
@@ -312,12 +348,19 @@ function App() {
               <em>{favorites.length}</em>
             </a>
             {user ? (
-              <details className="account-menu">
+              <details className="account-menu" ref={accountMenuRef}>
                 <summary>
                   <Avatar user={user} />
                   <span>{user.fullName || user.username}</span>
                 </summary>
-                <div className="account-panel">
+                <div
+                  className="account-panel"
+                  onClick={(event) => {
+                    if (event.target.closest?.("a, button") && accountMenuRef.current) {
+                      accountMenuRef.current.open = false;
+                    }
+                  }}
+                >
                   {!admin && <><a href="#/my-products">Sản phẩm của tôi</a>
                   <a href="#/my-bids">Đấu giá của tôi</a>
                   <a href="#/orders">Đơn hàng</a></>}

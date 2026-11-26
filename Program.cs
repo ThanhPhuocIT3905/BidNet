@@ -37,6 +37,7 @@ try
     builder.Services.AddControllers().AddJsonOptions(options =>
         options.JsonSerializerOptions.Converters.Add(new BidNet.DTOs.UtcDateTimeConverter()));
     builder.Services.AddHttpClient();
+    builder.Services.AddScoped<BidNet.Services.GeminiSupportService>();
     builder.Services.AddOpenApi(options =>
     {
         // Khai báo Bearer để Swagger hiện nút Authorize. Chỉ route có [Authorize]
