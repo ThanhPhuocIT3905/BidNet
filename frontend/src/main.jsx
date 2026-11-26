@@ -283,7 +283,7 @@ function App() {
   else if (admin && (path === "/product/new" || path === "/my-products" || path === "/my-live-requests" || path === "/my-bids" || /^\/product\/\d+\/edit$/.test(path)))
     page = <section className="empty"><h1>Chức năng dành cho thành viên</h1><p>Admin quản lý hệ thống, không tham gia đăng bán hoặc đặt giá.</p><a className="btn" href="#/admin">Về quản trị</a></section>;
   else if (path === "/my-products") page = <MyProducts {...common} />;
-  else if (path === "/my-live-requests") page = <SellerLiveRequests {...common} />;
+  else if (path === "/my-live-requests") page = <SellerLiveRequests {...common} route={route} />;
   else if (path === "/product/new" || /^\/product\/\d+\/edit$/.test(path))
     page = (
       <ProductForm

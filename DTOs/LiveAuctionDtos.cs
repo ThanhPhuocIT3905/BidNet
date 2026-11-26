@@ -105,6 +105,10 @@ public class LiveAuctionEligibleProductDto
     public string? ImageUrl { get; set; }
     public string? Category { get; set; }
     public decimal StartingPrice { get; set; }
+    public decimal CurrentPrice { get; set; }
+    public decimal SuggestedBidIncrement { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public string SellerName { get; set; } = string.Empty;
     public DateTime StartTime { get; set; }
 }
 

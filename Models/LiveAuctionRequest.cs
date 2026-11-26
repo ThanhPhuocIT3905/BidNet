@@ -63,7 +63,7 @@ public class LiveAuctionRequest
     [Timestamp]
     public byte[] RowVersion { get; set; } = [];
 
-    public virtual LiveLot? Lot { get; set; }
+    public virtual ICollection<LiveLot> Lots { get; set; } = new List<LiveLot>();
 }
 
 public enum LiveAuctionRequestSource

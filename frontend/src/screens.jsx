@@ -35,6 +35,7 @@ const values = (e) =>
 const Badge = ({ value }) => (
   <span className={`badge ${value}`}>
     {{
+      Draft: "Bản nháp",
       Scheduled: "Sắp diễn ra",
       Active: "Đang diễn ra",
       Completed: "Đã kết thúc",
@@ -93,6 +94,7 @@ export function MyProducts({ go, notify }) {
   );
 
   const total = allItems.length;
+  const draftCount = allItems.filter((x) => x.status === "Draft").length;
   const scheduledCount = allItems.filter((x) => x.status === "Scheduled").length;
   const activeCount = allItems.filter((x) => x.status === "Active").length;
   const completedCount = allItems.filter((x) => x.status === "Completed").length;
@@ -160,7 +162,7 @@ export function MyProducts({ go, notify }) {
   };
 
   const renderPriceInfo = (item) => {
-    if (item.status === "Scheduled") {
+    if (item.status === "Scheduled" || item.status === "Draft") {
       return (
         <div className="seller-price-info">
           <small>Giá khởi điểm</small>
@@ -237,6 +239,7 @@ export function MyProducts({ go, notify }) {
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
           >
             <option value="All">Tất cả trạng thái ({total})</option>
+            <option value="Draft">Bản nháp ({draftCount})</option>
             <option value="Scheduled">Sắp diễn ra ({scheduledCount})</option>
             <option value="Active">Đang đấu giá ({activeCount})</option>
             <option value="Completed">Đã kết thúc ({completedCount})</option>
@@ -316,18 +319,26 @@ export function MyProducts({ go, notify }) {
                   </td>
                   <td>
                     <small className="seller-date-label">
-                      {x.auctionType === "Live" ? "Ngày mong muốn" : x.status === "Scheduled" ? "Mở phiên" : "Kết thúc"}
+                      {x.status === "Draft" ? "Dự kiến mở" : x.auctionType === "Live" ? "Ngày mong muốn" : x.status === "Scheduled" ? "Mở phiên" : "Kết thúc"}
                     </small>
-                    <span>{date(x.status === "Scheduled" ? x.startTime : x.endTime)}</span>
+                    <span>{date(x.status === "Scheduled" || x.status === "Draft" ? x.startTime : x.endTime)}</span>
                   </td>
                   <td>
                     <div className="seller-row-actions">
                       <button className="btn sm secondary" onClick={() => go(`/product/${x.id}`)}>
                         Chi tiết
                       </button>
-                      {x.status === "Scheduled" && x.auctionType !== "Live" && (
+                      {(x.status === "Scheduled" || x.status === "Draft") && x.auctionType !== "Live" && (
                         <button className="btn sm secondary" onClick={() => go(`/product/${x.id}/edit`)}>
                           Sửa
+                        </button>
+                      )}
+                      {x.auctionType !== "Live" && !x.bidCount &&
+                        (x.status === "Draft" ||
+                          (x.status === "Scheduled" && new Date(x.startTime) > new Date()) ||
+                          x.status === "Cancelled") && (
+                        <button className="btn sm dark" onClick={() => go(`/my-live-requests?productId=${x.id}`)}>
+                          Yêu cầu Live
                         </button>
                       )}
                       {x.auctionType !== "Live" && (x.status === "Scheduled" || (x.status === "Active" && !x.bidCount)) && (
@@ -338,7 +349,7 @@ export function MyProducts({ go, notify }) {
                           Hủy
                         </button>
                       )}
-                      {x.status === "Scheduled" && !x.bidCount && x.auctionType !== "Live" && (
+                      {(x.status === "Scheduled" || x.status === "Draft") && !x.bidCount && x.auctionType !== "Live" && (
                         <button className="btn sm ghost" onClick={() => setDeletingItem(x)}>
                           Xóa
                         </button>
@@ -598,7 +609,7 @@ export function ProductForm({ id, go, notify, user }) {
     }
   };
 
-  const submit = async (e) => {
+  const submit = async (e, publish = true) => {
     e?.preventDefault();
     setBusy(true);
     setError("");
@@ -620,13 +631,17 @@ export function ProductForm({ id, go, notify, user }) {
         endTime: end.toISOString(),
         categoryId: categoryId ? Number(categoryId) : null,
         imageUrl: imageUrl.trim() || null,
+        publish,
       };
       const saved = await json(
         id ? "PUT" : "POST",
         id ? `/api/products/${id}` : "/api/products",
         body,
       );
-      notify ? notify(id ? "Đã lưu thay đổi sản phẩm." : "Đăng sản phẩm thành công!") : alert("Đã lưu sản phẩm.");
+      const notice = publish
+        ? id ? "Đã lưu và công bố phiên đấu giá." : "Đã đăng sản phẩm lên sàn."
+        : id ? "Đã lưu sản phẩm ở trạng thái bản nháp." : "Đã lưu sản phẩm ở trạng thái bản nháp.";
+      notify ? notify(notice) : alert(notice);
       go(`/product/${saved.id}`);
     } catch (x) {
       setError(x.message || "Không thể lưu sản phẩm.");
@@ -641,7 +656,7 @@ export function ProductForm({ id, go, notify, user }) {
   if (
     id &&
     (x.sellerId !== user.id ||
-      x.status !== "Scheduled" ||
+      !["Scheduled", "Draft"].includes(x.status) ||
       parseApiDate(x.startTime) <= new Date())
   )
     return <p className="empty">Bạn không thể sửa phiên này vì đã bắt đầu hoặc không thuộc quyền sở hữu.</p>;
@@ -995,8 +1010,13 @@ export function ProductForm({ id, go, notify, user }) {
               <button type="button" className="btn secondary" disabled={busy} onClick={() => setStep(3)}>
                 ← Quay lại bước 3
               </button>
+              {(!id || x.status === "Draft") && (
+                <button type="button" className="btn secondary" disabled={busy} onClick={(e) => submit(e, false)}>
+                  {busy ? "Đang xử lý…" : "Lưu bản nháp"}
+                </button>
+              )}
               <button type="button" className="btn dark" disabled={busy} onClick={submit}>
-                {busy ? "Đang xử lý…" : (id ? "Lưu thay đổi sản phẩm" : "🚀 Xác nhận & Đăng sản phẩm")}
+                {busy ? "Đang xử lý…" : id ? x.status === "Draft" ? "Đăng đấu giá" : "Lưu thay đổi sản phẩm" : "🚀 Xác nhận & Đăng sản phẩm"}
               </button>
             </div>
           </div>

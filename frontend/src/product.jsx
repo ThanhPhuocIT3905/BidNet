@@ -96,6 +96,7 @@ const bidErrorMessage = (failure) => {
 const Badge = ({ value }) => (
   <span className={`badge ${value}`}>
     {{
+      Draft: "Bản nháp",
       Scheduled: "Sắp diễn ra",
       Active: "Đang diễn ra",
       Completed: "Đã kết thúc",

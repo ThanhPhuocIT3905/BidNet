@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BidNet.Services;
 
-public class LiveAuctionRequestService(AppDbContext db, CurrentUser currentUser)
+public class LiveAuctionRequestService(AppDbContext db, CurrentUser currentUser, IConfiguration config)
 {
     private static readonly LiveAuctionRequestStatus[] ActiveStatuses =
     [
@@ -22,27 +22,49 @@ public class LiveAuctionRequestService(AppDbContext db, CurrentUser currentUser)
     {
         var seller = await currentUser.RequireMemberAsync(ct);
         var now = DateTime.UtcNow;
-        return await db.Products.AsNoTracking()
+        var suggestedIncrement = config.GetValue<decimal>("Auction:MinBidIncrement");
+        if (suggestedIncrement < 1 || suggestedIncrement != decimal.Truncate(suggestedIncrement))
+            throw new InvalidOperationException("Auction:MinBidIncrement phải là số nguyên VND dương.");
+        var products = await db.Products.AsNoTracking()
             .Where(p => p.SellerId == seller.Id && p.AuctionType == ProductAuctionType.Timed &&
-                p.Status == ProductStatus.Scheduled &&
-                p.StartTime > now && !p.Bids.Any() &&
+                (p.Status == ProductStatus.Draft ||
+                 p.Status == ProductStatus.Cancelled ||
+                 p.Status == ProductStatus.Scheduled && p.StartTime > now) &&
+                !p.Bids.Any() &&
                 !db.Orders.Any(o => o.ProductId == p.Id) &&
                 !db.LiveLots.Any(l => l.ProductId == p.Id &&
                     l.Status != LiveLotStatus.Unsold && l.Status != LiveLotStatus.Skipped &&
                     l.Status != LiveLotStatus.Withdrawn) &&
                 !db.LiveAuctionRequests.Any(r => r.ProductId == p.Id && ActiveStatuses.Contains(r.Status)))
             .OrderByDescending(p => p.CreatedAt)
-            .Select(p => new LiveAuctionEligibleProductDto
+            .Select(p => new
             {
                 Id = p.Id,
                 Name = p.Name,
-                ImageUrl = p.ImageUrl,
+                ImageUrl = db.ProductImages.Where(i => i.ProductId == p.Id)
+                    .OrderBy(i => i.Id).Select(i => i.CloudinaryUrl).FirstOrDefault() ?? p.ImageUrl,
                 Category = p.Category,
                 StartingPrice = p.StartingPrice,
+                CurrentPrice = p.CurrentPrice,
+                SuggestedBidIncrement = suggestedIncrement,
+                Status = p.Status,
                 StartTime = p.StartTime
             })
             .Take(100)
             .ToListAsync(ct);
+        return products.Select(p => new LiveAuctionEligibleProductDto
+        {
+            Id = p.Id,
+            Name = p.Name,
+            ImageUrl = p.ImageUrl,
+            Category = p.Category,
+            StartingPrice = p.StartingPrice,
+            CurrentPrice = p.CurrentPrice,
+            SuggestedBidIncrement = p.SuggestedBidIncrement,
+            Status = p.Status.ToString(),
+            SellerName = seller.FullName ?? seller.Username,
+            StartTime = p.StartTime
+        }).ToList();
     }
 
     public async Task<LiveAuctionRequestDto> CreateAsync(CreateLiveAuctionRequestDto input, CancellationToken ct)
@@ -58,7 +80,9 @@ public class LiveAuctionRequestService(AppDbContext db, CurrentUser currentUser)
             ?? throw new ApiException(404, "product_not_found", "Không tìm thấy sản phẩm thuộc tài khoản của bạn.");
         var now = DateTime.UtcNow;
         if (product.AuctionType != ProductAuctionType.Timed ||
-            product.Status != ProductStatus.Scheduled || product.StartTime <= now ||
+            !(product.Status == ProductStatus.Draft ||
+              product.Status == ProductStatus.Cancelled ||
+              product.Status == ProductStatus.Scheduled && product.StartTime > now) ||
             await db.Bids.AnyAsync(b => b.ProductId == product.Id, ct) ||
             await db.Orders.AnyAsync(o => o.ProductId == product.Id, ct) ||
             await db.LiveLots.AnyAsync(l => l.ProductId == product.Id &&
@@ -327,7 +351,9 @@ public class LiveAuctionRequestService(AppDbContext db, CurrentUser currentUser)
             .Where(r => r.Status == LiveAuctionRequestStatus.Approved &&
                 r.SellerConfirmedAt != null && r.AcceptedTermsVersion == r.TermsVersion &&
                 r.Product.AuctionType == ProductAuctionType.Live &&
-                r.Product.Status == ProductStatus.Scheduled &&
+                (r.Product.Status == ProductStatus.Scheduled ||
+                 r.Product.Status == ProductStatus.Draft ||
+                 r.Product.Status == ProductStatus.Cancelled) &&
                 !r.Product.Bids.Any() && !db.Orders.Any(o => o.ProductId == r.ProductId) &&
                 !db.LiveLots.Any(l => l.ProductId == r.ProductId &&
                     l.Status != LiveLotStatus.Unsold && l.Status != LiveLotStatus.Skipped &&

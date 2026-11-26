@@ -709,17 +709,37 @@ const liveRequestStatusText = {
   Live: "Đang đấu giá",
   Completed: "Đã kết thúc",
 };
+const sellerProductStatusText = {
+  Draft: "Bản nháp",
+  Scheduled: "Chưa bắt đầu",
+  Cancelled: "Đã hủy phiên cũ",
+};
 
 function RequestStatus({ status }) {
   return <span className={`badge live-request-status ${status}`}>{liveRequestStatusText[status] || status}</span>;
 }
 
-export function SellerLiveRequests({ notify, go }) {
-  const requests = useRemote(() => api("/api/me/live-requests"), []);
-  const eligible = useRemote(() => api("/api/me/live-requests/eligible-products"), []);
+async function loadSellerLiveRequestResource(path) {
+  try {
+    return await api(path);
+  } catch (error) {
+    if (error.status === 404) {
+      throw new Error(
+        `Backend tại ${API_BASE} đang chạy phiên bản chưa có API yêu cầu Live Auction. Hãy cập nhật và khởi động lại backend; nếu vừa cập nhật schema, áp dụng các migration Live Auction trước.`,
+      );
+    }
+    throw error;
+  }
+}
+
+export function SellerLiveRequests({ notify, route }) {
+  const requests = useRemote(() => loadSellerLiveRequestResource("/api/me/live-requests"), []);
+  const eligible = useRemote(() => loadSellerLiveRequestResource("/api/me/live-requests/eligible-products"), []);
   const events = useRemote(() => api("/api/live/events?status=Published"), []);
+  const autoOpenedRoute = useRef("");
   const [dialog, setDialog] = useState(null);
   const [productId, setProductId] = useState("");
+  const [productSearch, setProductSearch] = useState("");
   const [startingPrice, setStartingPrice] = useState("");
   const [reservePrice, setReservePrice] = useState("");
   const [bidIncrement, setBidIncrement] = useState("1000");
@@ -729,10 +749,39 @@ export function SellerLiveRequests({ notify, go }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const selectedProduct = eligible.data?.find((product) => String(product.id) === productId);
+  const canConfigureRequest = dialog?.mode !== "create" ||
+    Boolean(selectedProduct && !eligible.loading && !eligible.error);
+  const filteredEligibleProducts = (eligible.data || []).filter((product) =>
+    `${product.id} ${product.name} ${product.category || ""}`.toLowerCase().includes(productSearch.trim().toLowerCase()));
+  const requestedProductId = new URLSearchParams(route?.split("?")[1] || "").get("productId");
+
+  useEffect(() => {
+    if (!requestedProductId || !eligible.data || autoOpenedRoute.current === route) return;
+    autoOpenedRoute.current = route;
+    setDialog({ mode: "create" });
+    setProductSearch("");
+    setReservePrice("");
+    setBidIncrement("1000");
+    setPreferredEventId("");
+    setSellerNote("");
+    setConsent(false);
+    const product = eligible.data.find((item) => String(item.id) === requestedProductId);
+    if (product) {
+      setProductId(String(product.id));
+      setStartingPrice(String(product.startingPrice));
+      setBidIncrement(String(product.suggestedBidIncrement));
+      setError("");
+    } else {
+      setProductId("");
+      setStartingPrice("");
+      setError(`Sản phẩm #${requestedProductId} hiện không đủ điều kiện. Hãy chọn một sản phẩm khác trong danh sách.`);
+    }
+  }, [eligible.data, requestedProductId, route]);
 
   const openNew = () => {
     setDialog({ mode: "create" });
     setProductId("");
+    setProductSearch("");
     setStartingPrice("");
     setReservePrice("");
     setBidIncrement("1000");
@@ -755,6 +804,11 @@ export function SellerLiveRequests({ notify, go }) {
   const submit = async (e) => {
     e.preventDefault();
     if (busy) return;
+    if (dialog.mode === "create" &&
+        (!selectedProduct || eligible.loading || eligible.error || selectedProduct.id !== Number(productId))) {
+      setError("Hãy tải và chọn một sản phẩm đủ điều kiện trước khi tiếp tục.");
+      return;
+    }
     setBusy(true);
     setError("");
     const body = {
@@ -815,10 +869,10 @@ export function SellerLiveRequests({ notify, go }) {
 
   return (
     <div className="live-request-page">
-      <PageHeader eyebrow="Dành cho người bán" title="Yêu cầu đấu giá trực tiếp" description="Gửi sản phẩm để BidNet xét duyệt. Sản phẩm chỉ được xếp lô sau khi Admin duyệt và bạn xác nhận đúng điều kiện đã thống nhất.">
+      <PageHeader eyebrow="Dành cho người bán" title="Yêu cầu đấu giá trực tiếp" description="Gửi sản phẩm để Auctora xét duyệt. Sản phẩm chỉ được xếp lô sau khi Admin duyệt và bạn xác nhận đúng điều kiện đã thống nhất.">
         <button className="btn dark" onClick={openNew}>+ Gửi yêu cầu</button>
       </PageHeader>
-      {requests.error && <ErrorState message={requests.error} onRetry={requests.reload} />}
+      {requests.error && !dialog && <ErrorState message={requests.error} onRetry={requests.reload} />}
       {requests.loading && <LoadingState />}
       {!requests.loading && requests.data && (
         <section className="panel table-wrap">
@@ -843,41 +897,94 @@ export function SellerLiveRequests({ notify, go }) {
                 </tr>
               ))}</tbody>
             </table>
-          ) : <EmptyState title="Bạn chưa gửi yêu cầu nào" description="Chọn một sản phẩm sắp diễn ra, chưa có lượt đặt giá để đề xuất tham gia sự kiện Live Auction." />}
+          ) : <EmptyState title="Bạn chưa gửi yêu cầu nào" description="Chọn bản nháp, sản phẩm sắp đấu giá chưa có lượt đặt hoặc phiên cũ đã hủy hợp lệ để đề xuất tham gia Live Auction." />}
         </section>
       )}
       {dialog && (
-        <Modal title={dialog.mode === "create" ? "Yêu cầu đấu giá trực tiếp" : `Bổ sung ${dialog.request.requestCode}`} onClose={() => setDialog(null)} busy={busy}>
+        <Modal className="live-request-dialog" title={dialog.mode === "create" ? "Yêu cầu đấu giá trực tiếp" : `Bổ sung ${dialog.request.requestCode}`} onClose={() => setDialog(null)} busy={busy}>
           <form onSubmit={submit} className="live-request-form">
+            {requests.error && !eligible.error && <ErrorState message={requests.error} onRetry={requests.reload} />}
             {dialog.mode === "create" ? (
               <>
                 {eligible.error && <ErrorState message={eligible.error} onRetry={eligible.reload} />}
                 {eligible.loading && <p className="muted" role="status">Đang kiểm tra sản phẩm đủ điều kiện…</p>}
                 {!eligible.loading && !eligible.error && eligible.data?.length === 0 && (
-                  <EmptyState title="Chưa có sản phẩm đủ điều kiện" description="Sản phẩm phải thuộc tài khoản của bạn, chưa bắt đầu, chưa có lượt đặt giá hoặc giao dịch.">
-                    <a className="btn secondary" href="#/my-products">Quản lý sản phẩm</a>
+                  <EmptyState title="Bạn chưa có sản phẩm đủ điều kiện" description="Có thể chọn bản nháp, sản phẩm sắp đấu giá chưa có lượt đặt hoặc phiên cũ đã hủy hợp lệ. Sản phẩm đang đấu giá, đã bán hoặc đã gửi yêu cầu Live sẽ không thể chọn.">
+                    <a className="btn dark" href="#/product/new">+ Đăng sản phẩm mới</a>
                   </EmptyState>
                 )}
-                {eligible.data?.length > 0 && <div className="field">
-                  <label htmlFor="liveRequestProduct">Sản phẩm muốn đề xuất</label>
-                  <select id="liveRequestProduct" required value={productId} onChange={(e) => {
-                    const selected = eligible.data.find((item) => String(item.id) === e.target.value);
-                    setProductId(e.target.value);
-                    setStartingPrice(selected ? String(selected.startingPrice) : "");
-                  }}>
-                    <option value="">Chọn sản phẩm của bạn</option>
-                    {eligible.data.map((product) => <option key={product.id} value={product.id}>#{product.id} · {product.name} · {money(product.startingPrice)}</option>)}
-                  </select>
-                </div>}
+                {eligible.data?.length > 0 && <>
+                  <div className="field">
+                    <label htmlFor="liveRequestProductSearch">Chọn đúng sản phẩm muốn đưa vào đấu giá trực tiếp</label>
+                    <input
+                      id="liveRequestProductSearch"
+                      type="search"
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      placeholder="Tìm theo tên, mã hoặc danh mục…"
+                    />
+                    <small className="muted">{filteredEligibleProducts.length} sản phẩm đủ điều kiện</small>
+                  </div>
+                  {filteredEligibleProducts.length ? (
+                    <div className="live-request-product-list" role="group" aria-label="Sản phẩm đủ điều kiện">
+                      {filteredEligibleProducts.map((product) => {
+                        const selected = String(product.id) === productId;
+                        return (
+                          <button
+                            key={product.id}
+                            type="button"
+                            className={`live-request-product-choice${selected ? " selected" : ""}`}
+                            aria-pressed={selected}
+                            disabled={eligible.loading || Boolean(eligible.error)}
+                            onClick={() => {
+                              setProductId(String(product.id));
+                              setStartingPrice(String(product.startingPrice));
+                              setBidIncrement(String(product.suggestedBidIncrement));
+                              setError("");
+                            }}
+                          >
+                            {product.imageUrl
+                              ? <img src={product.imageUrl} alt="" />
+                              : <span className="live-request-product-placeholder" aria-hidden="true">Ảnh</span>}
+                            <span className="live-request-product-copy">
+                              <strong>{product.name}</strong>
+                              <small>Sản phẩm #{product.id} · {product.category || "Chưa phân loại"}</small>
+                              <span>Giá hiện tại: <b>{money(product.currentPrice)}</b> · Giá khởi điểm {money(product.startingPrice)}</span>
+                              <small>Chủ sở hữu: {product.sellerName} · Trạng thái: {sellerProductStatusText[product.status] || product.status}</small>
+                              <small>Bước giá gợi ý: {money(product.suggestedBidIncrement)}</small>
+                              <small>{product.status === "Cancelled" ? "Ngày mở phiên cũ" : "Dự kiến mở"}: {date(product.startTime)}</small>
+                            </span>
+                            <span className="live-request-product-check" aria-hidden="true">{selected ? "✓" : ""}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="muted" role="status">Không tìm thấy sản phẩm khớp với “{productSearch}”.</p>
+                  )}
+                </>}
                 {selectedProduct && <div className="live-request-product-summary">
                   {selectedProduct.imageUrl && <img src={selectedProduct.imageUrl} alt="" />}
-                  <div><strong>{selectedProduct.name}</strong><small>{selectedProduct.category || "Chưa phân loại"} · Sản phẩm #{selectedProduct.id}</small><small>Giá phiên thường hiện tại: {money(selectedProduct.startingPrice)}</small></div>
+                  <div><span className="eyebrow">ĐÃ CHỌN · SẢN PHẨM #{selectedProduct.id}</span><strong>{selectedProduct.name}</strong><small>{selectedProduct.category || "Chưa phân loại"} · Chủ sở hữu: {selectedProduct.sellerName}</small><small>Giá hiện tại {money(selectedProduct.currentPrice)} · Giá khởi điểm {money(selectedProduct.startingPrice)} · {sellerProductStatusText[selectedProduct.status] || selectedProduct.status}</small></div>
                 </div>}
               </>
             ) : <div className="live-request-product-summary">
               {dialog.request.productImageUrl && <img src={dialog.request.productImageUrl} alt="" />}
               <div><strong>{dialog.request.productName}</strong><small>{dialog.request.requestCode} · #{dialog.request.productId}</small></div>
             </div>}
+            {!canConfigureRequest ? (
+              <>
+                {error && <div className="notice error" role="alert">{error}</div>}
+                {!eligible.loading && !eligible.error && eligible.data?.length > 0 && (
+                  <p className="live-request-selection-prompt">Chọn một sản phẩm ở trên để tiếp tục. Chưa chọn sản phẩm thì chưa thể nhập giá hoặc gửi yêu cầu.</p>
+                )}
+                <div className="dialog-actions live-request-dialog-footer">
+                  <button type="button" className="btn secondary" disabled={busy} onClick={() => setDialog(null)}>Hủy</button>
+                  <button type="button" className="btn dark" disabled>Chọn sản phẩm trước</button>
+                </div>
+              </>
+            ) : (
+              <>
             <div className="form-grid">
               <div className="field"><label htmlFor="requestStartingPrice">Giá khởi điểm đề xuất</label><MoneyInput id="requestStartingPrice" value={startingPrice} onChange={setStartingPrice} required /></div>
               <div className="field"><label htmlFor="requestBidIncrement">Bước giá đề xuất</label><MoneyInput id="requestBidIncrement" value={bidIncrement} onChange={setBidIncrement} required /></div>
@@ -885,7 +992,7 @@ export function SellerLiveRequests({ notify, go }) {
               {dialog.mode === "create" && <div className="field">
                 <label htmlFor="preferredLiveEvent">Sự kiện mong muốn</label>
                 <select id="preferredLiveEvent" value={preferredEventId} onChange={(e) => setPreferredEventId(e.target.value)}>
-                  <option value="">Để BidNet sắp xếp</option>
+                  <option value="">Để Auctora sắp xếp</option>
                   {(events.data || []).map((event) => <option key={event.id} value={event.id}>{event.title} · {date(event.scheduledStartAt)}</option>)}
                 </select>
               </div>}
@@ -899,8 +1006,10 @@ export function SellerLiveRequests({ notify, go }) {
             {error && <div className="notice error" role="alert">{error}</div>}
             <div className="dialog-actions">
               <button type="button" className="btn secondary" disabled={busy} onClick={() => setDialog(null)}>Hủy</button>
-              <button className="btn dark" disabled={busy || (dialog.mode === "create" && (!consent || !productId || eligible.loading))}>{busy ? "Đang gửi…" : dialog.mode === "create" ? "Gửi yêu cầu" : "Gửi bổ sung"}</button>
+              <button className="btn dark" disabled={busy || (dialog.mode === "create" && (!consent || !productId || eligible.loading || eligible.error))}>{busy ? "Đang gửi…" : dialog.mode === "create" ? "Gửi yêu cầu" : "Gửi bổ sung"}</button>
             </div>
+              </>
+            )}
           </form>
         </Modal>
       )}

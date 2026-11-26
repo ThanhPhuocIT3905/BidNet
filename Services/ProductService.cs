@@ -15,7 +15,8 @@ public class ProductService(AppDbContext db, CurrentUser currentUser, IConfigura
         // Sản phẩm đã được xếp vào lô đấu giá trực tiếp không xuất hiện như
         // phiên đấu giá theo thời gian để tránh bán trùng.
         var query = db.Products.AsNoTracking()
-            .Where(p => p.AuctionType == ProductAuctionType.Timed &&
+            .Where(p => p.Status != ProductStatus.Draft &&
+                p.AuctionType == ProductAuctionType.Timed &&
                 !db.LiveLots.Any(l => l.ProductId == p.Id &&
                 l.Status != LiveLotStatus.Unsold && l.Status != LiveLotStatus.Skipped &&
                 l.Status != LiveLotStatus.Withdrawn));
@@ -71,7 +72,7 @@ public class ProductService(AppDbContext db, CurrentUser currentUser, IConfigura
         var product = await WithUsers(db.Products.AsNoTracking())
             .FirstOrDefaultAsync(p => p.Id == id, ct)
             ?? throw new ApiException(404, "product_not_found", "Không tìm thấy sản phẩm.");
-        if (product.AuctionType == ProductAuctionType.Live)
+        if (product.AuctionType == ProductAuctionType.Live || product.Status == ProductStatus.Draft)
         {
             var viewer = await currentUser.OptionalAsync(ct);
             if (viewer?.Id != product.SellerId && viewer?.Role != "Admin")
@@ -121,7 +122,7 @@ public class ProductService(AppDbContext db, CurrentUser currentUser, IConfigura
             CategoryId = category?.Id ?? request.CategoryId,
             SellerId = user.Id,
             Seller = user,
-            Status = ProductStatus.Scheduled
+            Status = request.Publish ? ProductStatus.Scheduled : ProductStatus.Draft
         };
         db.Products.Add(product);
         await db.SaveChangesAsync(ct);
@@ -140,7 +141,8 @@ public class ProductService(AppDbContext db, CurrentUser currentUser, IConfigura
             throw new ApiException(403, "not_owner", "Bạn không phải người bán sản phẩm này.");
         VersionGuard.Check(request.Version, product.RowVersion);
         if (product.AuctionType != ProductAuctionType.Timed ||
-            product.Status != ProductStatus.Scheduled || product.StartTime <= DateTime.UtcNow ||
+            product.Status is not (ProductStatus.Scheduled or ProductStatus.Draft) ||
+            product.StartTime <= DateTime.UtcNow ||
             await db.Bids.AnyAsync(b => b.ProductId == id, ct))
             throw new ApiException(409, "auction_started", "Không thể sửa phiên đã bắt đầu hoặc đã có giá.");
         Validate(request.Name, request.StartingPrice, request.StartTime, request.EndTime,
@@ -155,6 +157,7 @@ public class ProductService(AppDbContext db, CurrentUser currentUser, IConfigura
         product.ImageUrl = request.ImageUrl;
         product.Category = category?.Name ?? request.Category?.Trim();
         product.CategoryId = category?.Id ?? request.CategoryId;
+        product.Status = request.Publish ? ProductStatus.Scheduled : ProductStatus.Draft;
         product.UpdatedAt = DateTime.UtcNow;
         // RowVersion làm SaveChanges thất bại nếu worker/request khác vừa đổi phiên.
         try { await db.SaveChangesAsync(ct); }

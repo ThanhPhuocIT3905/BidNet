@@ -4,6 +4,7 @@ import { LotPhoto, priceLabel } from "./Lot.jsx";
 
 export const statusNames = {
   "": "Tất cả",
+  Draft: "Bản nháp",
   Active: "Đang diễn ra",
   Scheduled: "Sắp diễn ra",
   Completed: "Đã kết thúc",

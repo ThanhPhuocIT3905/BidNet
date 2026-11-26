@@ -452,7 +452,8 @@ public class LiveAuctionService(
             liveRequest.AcceptedTermsVersion != liveRequest.TermsVersion)
             throw new ApiException(409, "request_not_approved", "Yêu cầu chưa được duyệt hoặc người bán chưa xác nhận điều kiện.");
         if (product.SellerId != liveRequest.SellerId || product.AuctionType != ProductAuctionType.Live ||
-            product.Seller.Role != "User" || product.Status != ProductStatus.Scheduled ||
+            product.Seller.Role != "User" ||
+            product.Status is not (ProductStatus.Scheduled or ProductStatus.Draft or ProductStatus.Cancelled) ||
             await db.Bids.AnyAsync(b => b.ProductId == product.Id, ct) ||
             await db.Orders.AnyAsync(o => o.ProductId == product.Id, ct))
             throw new ApiException(409, "product_unavailable", "Sản phẩm không còn đủ điều kiện đấu giá trực tiếp.");

@@ -26,6 +26,8 @@ namespace BidNet.DTOs
         [Required(ErrorMessage = "Thời gian kết thúc là bắt buộc")]
         public DateTime EndTime { get; set; }
 
+        public bool Publish { get; set; } = true;
+
         [MaxLength(2048)]
         public string? ImageUrl { get; set; }
 
@@ -54,6 +56,8 @@ namespace BidNet.DTOs
 
         // ID danh mục từ bảng Categories (tùy chọn)
         public int? CategoryId { get; set; }
+
+        public bool Publish { get; set; } = true;
 
         public decimal StartingPrice { get; set; }
         public DateTime StartTime { get; set; }

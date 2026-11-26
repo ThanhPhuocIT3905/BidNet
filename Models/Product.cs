@@ -82,7 +82,8 @@ namespace BidNet.Models
         Active = 0,
         Completed = 1,
         Cancelled = 2,
-        Scheduled = 3
+        Scheduled = 3,
+        Draft = 4
     }
 
     public enum ProductAuctionType
