@@ -57,3 +57,63 @@ export function LoadingState({ label = "Đang tải dữ liệu…" }) {
 export function ErrorState({ message, onRetry }) {
   return <div className="notice error" role="alert"><strong>Không thể hoàn tất yêu cầu</strong><p>{message}</p>{onRetry && <button className="btn secondary" onClick={onRetry}>Thử lại</button>}</div>;
 }
+
+function moneyToWords(num) {
+  if (!Number.isFinite(num) || num <= 0) return "";
+  if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 2 })} tỷ đồng`;
+  if (num >= 1_000_000) return `${(num / 1_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 2 })} triệu đồng`;
+  if (num >= 1_000) return `${(num / 1_000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} nghìn đồng`;
+  return `${num.toLocaleString("vi-VN")} đồng`;
+}
+
+export function MoneyInput({
+  id,
+  name,
+  value,
+  defaultValue = "",
+  onChange,
+  placeholder = "0",
+  disabled = false,
+  required = false,
+  ariaLabel,
+  showHint = true,
+  className = "",
+}) {
+  const isControlled = value !== undefined;
+  const [inner, setInner] = useState(() => String(defaultValue ?? "").replace(/\D/g, ""));
+  const raw = (isControlled ? String(value ?? "") : inner).replace(/\D/g, "");
+  const numeric = raw ? Number(raw) : 0;
+  const formatted = raw ? numeric.toLocaleString("vi-VN") : "";
+
+  const handleChange = (e) => {
+    const digits = e.target.value.replace(/\D/g, "");
+    if (!isControlled) setInner(digits);
+    onChange?.(digits);
+  };
+
+  return (
+    <div className={`bn-money-field ${className}`}>
+      <div className="bn-money-box">
+        <input
+          id={id}
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          placeholder={placeholder}
+          value={formatted}
+          onChange={handleChange}
+          disabled={disabled}
+          required={required}
+          aria-label={ariaLabel}
+        />
+        <span className="bn-money-unit" aria-hidden="true">VNĐ</span>
+      </div>
+      {name && <input type="hidden" name={name} value={raw} />}
+      {showHint && numeric > 0 && (
+        <small className="bn-money-hint">
+          {numeric.toLocaleString("vi-VN")} ₫ ({moneyToWords(numeric)})
+        </small>
+      )}
+    </div>
+  );
+}

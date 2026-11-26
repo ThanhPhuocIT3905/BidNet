@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { api, query } from "./api";
 import { AuctionCard, useApi, useFavorites, statusNames } from "./widgets.jsx";
+import { MoneyInput } from "./UI.jsx";
 
 const defaults = { q: "", category: "", minPrice: "", maxPrice: "" };
 const statusOptions = [
@@ -147,24 +148,20 @@ export default function Explore({ route }) {
             <fieldset className="filter-group">
               <legend>Khoảng giá hiện tại</legend>
               <div className="price-range">
-                <input
-                  type="number"
-                  name="minPrice"
-                  min="0"
-                  placeholder="Từ"
+                <MoneyInput
                   value={draft.minPrice}
-                  onChange={change}
-                  aria-label="Giá từ"
+                  onChange={(val) => setDraft((c) => ({ ...c, minPrice: val }))}
+                  placeholder="Từ"
+                  ariaLabel="Giá từ"
+                  showHint={false}
                 />
                 <span>—</span>
-                <input
-                  type="number"
-                  name="maxPrice"
-                  min="0"
-                  placeholder="Đến"
+                <MoneyInput
                   value={draft.maxPrice}
-                  onChange={change}
-                  aria-label="Giá đến"
+                  onChange={(val) => setDraft((c) => ({ ...c, maxPrice: val }))}
+                  placeholder="Đến"
+                  ariaLabel="Giá đến"
+                  showHint={false}
                 />
               </div>
             </fieldset>

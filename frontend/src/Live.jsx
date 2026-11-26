@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import * as signalR from "@microsoft/signalr";
 import { api, json, query, money, date, parseApiDate, getSession, API_BASE } from "./api";
 import useRemote from "./useRemote";
-import { Modal, PageHeader, EmptyState, LoadingState, ErrorState, useConfirm } from "./UI.jsx";
+import { Modal, PageHeader, EmptyState, LoadingState, ErrorState, MoneyInput, useConfirm } from "./UI.jsx";
 import { Magnifier, Lightbox } from "./ImageZoom.jsx";
 
 export const eventStatusText = {
@@ -1002,9 +1002,9 @@ export function AdminLiveEvents({ notify, user }) {
                           </div>
                         </div>
                         <div className="form-grid">
-                          <div className="field"><label htmlFor={`lot-start-${lot.productId}`}>Giá khởi điểm (VNĐ)</label><input id={`lot-start-${lot.productId}`} type="number" min="1000" step="1" value={lot.startingPrice} onChange={(e) => updateLot(lot.productId, "startingPrice", e.target.value)} /></div>
-                          <div className="field"><label htmlFor={`lot-increment-${lot.productId}`}>Bước giá (VNĐ)</label><input id={`lot-increment-${lot.productId}`} type="number" min="1" step="1" value={lot.bidIncrement} onChange={(e) => updateLot(lot.productId, "bidIncrement", e.target.value)} /></div>
-                          <div className="field"><label htmlFor={`lot-reserve-${lot.productId}`}>Giá dự trữ (tùy chọn)</label><input id={`lot-reserve-${lot.productId}`} type="number" min={lot.startingPrice || 1000} step="1" value={lot.reservePrice} onChange={(e) => updateLot(lot.productId, "reservePrice", e.target.value)} /></div>
+                          <div className="field"><label htmlFor={`lot-start-${lot.productId}`}>Giá khởi điểm (VNĐ)</label><MoneyInput id={`lot-start-${lot.productId}`} value={lot.startingPrice} onChange={(val) => updateLot(lot.productId, "startingPrice", val)} placeholder="100.000" required /></div>
+                          <div className="field"><label htmlFor={`lot-increment-${lot.productId}`}>Bước giá (VNĐ)</label><MoneyInput id={`lot-increment-${lot.productId}`} value={lot.bidIncrement} onChange={(val) => updateLot(lot.productId, "bidIncrement", val)} placeholder="10.000" required /></div>
+                          <div className="field"><label htmlFor={`lot-reserve-${lot.productId}`}>Giá dự trữ (tùy chọn)</label><MoneyInput id={`lot-reserve-${lot.productId}`} value={lot.reservePrice} onChange={(val) => updateLot(lot.productId, "reservePrice", val)} placeholder="Không bắt buộc" /></div>
                         </div>
                       </article>
                     ))}
@@ -1087,6 +1087,7 @@ export function AdminLiveEventDetail({ id, notify }) {
   const event = useRemote(() => api(`/api/admin/live/events/${id}`), [id]);
   const registrations = useRemote(() => api(`/api/admin/live/events/${id}/registrations`), [id]);
   const [addOpen, setAddOpen] = useState(false);
+  const [addStartPrice, setAddStartPrice] = useState("");
   const [search, setSearch] = useState("");
   const [products, setProducts] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -1094,7 +1095,7 @@ export function AdminLiveEventDetail({ id, notify }) {
   const confirm = useConfirm();
 
   useEffect(() => {
-    if (!addOpen) return;
+    if (!addOpen) { setAddStartPrice(""); return; }
     let alive = true;
     api(`/api/admin/live/products${search ? `?q=${encodeURIComponent(search)}` : ""}`)
       .then((data) => alive && setProducts(data), (e) => alive && setError(e.message));
@@ -1197,16 +1198,24 @@ export function AdminLiveEventDetail({ id, notify }) {
           <form onSubmit={addLot}>
             <div className="field">
               <label htmlFor="lotProduct">Sản phẩm</label>
-              <select id="lotProduct" name="productId" required>
+              <select
+                id="lotProduct"
+                name="productId"
+                required
+                onChange={(e) => {
+                  const chosen = products.find((p) => String(p.id) === e.target.value);
+                  if (chosen) setAddStartPrice(String(chosen.startingPrice || ""));
+                }}
+              >
                 <option value="">Chọn sản phẩm</option>
                 {products.map((p) => <option key={p.id} value={p.id}>#{p.id} · {p.name} · {p.sellerName} · {money(p.startingPrice)}</option>)}
               </select>
             </div>
             <div className="form-grid">
-              <div className="field"><label htmlFor="lotStart">Giá khởi điểm (VNĐ)</label><input id="lotStart" name="startingPrice" type="number" min="1000" step="1000" required /></div>
-              <div className="field"><label htmlFor="lotStep">Bước giá (VNĐ)</label><input id="lotStep" name="bidIncrement" type="number" min="1" step="1000" defaultValue="1000" required /></div>
+              <div className="field"><label htmlFor="lotStart">Giá khởi điểm (VNĐ)</label><MoneyInput id="lotStart" name="startingPrice" value={addStartPrice} onChange={setAddStartPrice} placeholder="100.000" required /></div>
+              <div className="field"><label htmlFor="lotStep">Bước giá (VNĐ)</label><MoneyInput id="lotStep" name="bidIncrement" defaultValue="1000" placeholder="1.000" required /></div>
             </div>
-            <div className="field"><label htmlFor="lotReserve">Giá dự trữ (tùy chọn)</label><input id="lotReserve" name="reservePrice" type="number" min="1000" step="1000" /></div>
+            <div className="field"><label htmlFor="lotReserve">Giá dự trữ (tùy chọn)</label><MoneyInput id="lotReserve" name="reservePrice" placeholder="Không bắt buộc" /></div>
             {error && <div className="notice error" role="alert">{error}</div>}
             <div className="dialog-actions">
               <button type="button" className="btn secondary" onClick={() => setAddOpen(false)}>Hủy</button>
