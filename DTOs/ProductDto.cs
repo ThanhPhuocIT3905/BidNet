@@ -77,6 +77,7 @@ namespace BidNet.DTOs
         public string? ImageUrl { get; set; }
         public string? Category { get; set; }
         public int? CategoryId { get; set; }
+        public int BidCount { get; set; }
 
         public int SellerId { get; set; }
         public string SellerName { get; set; } = string.Empty;

@@ -21,6 +21,7 @@ public static class ProductMapper
         ImageUrl = p.ImageUrl,
         Category = p.Category,
         CategoryId = p.CategoryId,
+        BidCount = p.Bids?.Count ?? 0,
         SellerId = p.SellerId,
         SellerName = p.Seller.Username,
         SellerAvatarUrl = p.Seller.AvatarUrl,

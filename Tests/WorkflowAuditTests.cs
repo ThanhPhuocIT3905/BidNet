@@ -172,6 +172,60 @@ public class WorkflowAuditTests
     }
 
     [Theory]
+    [InlineData("BANK_TRANSFER_DEMO")]
+    [InlineData("MOMO_DEMO")]
+    public async Task BuyerCanCompleteDemoPaymentOnce(string method)
+    {
+        await using var db = await Database();
+        var workflow = new OrderWorkflow(db, Current(db, 3));
+
+        var paid = await workflow.PayDemoAsync(1, new DemoPaymentDto { PaymentMethod = method }, default);
+        Assert.Equal("Paid", paid.Status);
+        Assert.Equal("PAID", paid.PaymentStatus);
+        Assert.Equal(method, paid.PaymentMethod);
+        Assert.StartsWith("DEMO-", paid.PaymentTransactionId);
+        Assert.NotNull(paid.PaidAt);
+        Assert.Equal(OrderStatus.Paid, (await db.Orders.SingleAsync()).Status);
+        Assert.Single(db.OrderEvents.Where(e => e.Action == "DemoPaymentCompleted"));
+        Assert.Single(db.Notifications);
+
+        var retry = await workflow.PayDemoAsync(1, new DemoPaymentDto { PaymentMethod = method }, default);
+        Assert.Equal(paid.PaymentTransactionId, retry.PaymentTransactionId);
+        Assert.Equal(1, await db.OrderEvents.CountAsync(e => e.Action == "DemoPaymentCompleted"));
+        Assert.Single(db.Notifications);
+    }
+
+    [Fact]
+    public async Task DemoPayment_IsBuyerOnlyAndCannotBeBypassedBySellerStatusUpdate()
+    {
+        await using var db = await Database();
+        var seller = new OrderWorkflow(db, Current(db, 2));
+        await Assert.ThrowsAsync<ForbiddenException>(() => seller.PayDemoAsync(1,
+            new DemoPaymentDto { PaymentMethod = "BANK_TRANSFER_DEMO" }, default));
+
+        var controller = new OrdersController(db, Current(db, 2));
+        var failure = await Assert.ThrowsAsync<ApiException>(() => controller.UpdateStatus(1,
+            new UpdateOrderStatusDto { Status = OrderStatus.Paid }, default));
+        Assert.Equal(409, failure.StatusCode);
+        Assert.Equal(OrderStatus.Pending, (await db.Orders.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task DemoPayment_RejectsUnknownMethodAndClosedOrder()
+    {
+        await using var db = await Database();
+        var workflow = new OrderWorkflow(db, Current(db, 3));
+        await Assert.ThrowsAsync<BadRequestException>(() => workflow.PayDemoAsync(1,
+            new DemoPaymentDto { PaymentMethod = "REAL_BANK_TRANSFER" }, default));
+
+        (await db.Orders.SingleAsync()).Status = OrderStatus.Cancelled;
+        await db.SaveChangesAsync();
+        var error = await Assert.ThrowsAsync<ApiException>(() => workflow.PayDemoAsync(1,
+            new DemoPaymentDto { PaymentMethod = "MOMO_DEMO" }, default));
+        Assert.Equal(409, error.StatusCode);
+    }
+
+    [Theory]
     [InlineData(OrderStatus.Pending, OrderStatus.Delivered)]
     [InlineData(OrderStatus.Paid, OrderStatus.Pending)]
     [InlineData(OrderStatus.Paid, OrderStatus.Cancelled)]

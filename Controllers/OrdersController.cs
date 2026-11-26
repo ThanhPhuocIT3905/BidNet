@@ -30,6 +30,10 @@ public class OrdersController(AppDbContext db, CurrentUser currentUser) : Contro
     [HttpPatch("{id:int}/shipping-address")]
     public async Task<ActionResult<OrderResponseDto>> UpdateShippingAddress(int id, UpdateShippingAddressDto dto, CancellationToken ct) => Ok(await orders.AddressAsync(id, dto, ct));
 
+    [HttpPost("{id:int}/payment")]
+    public async Task<ActionResult<OrderResponseDto>> PayDemo(int id, DemoPaymentDto dto, CancellationToken ct) =>
+        Ok(await orders.PayDemoAsync(id, dto, ct));
+
     [HttpPatch("{id:int}/status")]
     public async Task<ActionResult<OrderResponseDto>> UpdateStatus(int id, UpdateOrderStatusDto dto, CancellationToken ct) => Ok(await orders.StatusAsync(id, dto, ct));
 }

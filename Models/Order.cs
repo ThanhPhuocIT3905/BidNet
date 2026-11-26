@@ -38,6 +38,9 @@ public class Order
     [MaxLength(200)] public string? ProductNameSnapshot { get; set; }
     [MaxLength(500)] public string? CancellationReason { get; set; }
     public DateTime? PaidAt { get; set; }
+    public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Unpaid;
+    [MaxLength(40)] public string? PaymentMethod { get; set; }
+    [MaxLength(40)] public string? PaymentTransactionId { get; set; }
     public ICollection<OrderEvent> Events { get; set; } = new List<OrderEvent>();
 
     // Trạng thái đơn hàng: Chờ xử lý -> Đã thanh toán -> Đã giao hàng -> Đã hủy
@@ -56,4 +59,10 @@ public enum OrderStatus
     Paid = 1,       // Người mua đã thanh toán
     Delivered = 2,  // Đã giao hàng thành công
     Cancelled = 3   // Đơn hàng bị hủy
+}
+
+public enum PaymentStatus
+{
+    Unpaid = 0,
+    Paid = 1
 }

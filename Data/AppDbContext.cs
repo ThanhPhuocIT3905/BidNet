@@ -50,6 +50,8 @@ namespace BidNet.Data
                 t.HasCheckConstraint("CK_Orders_Status", "[Status] IN (0,1,2,3)");
                 t.HasCheckConstraint("CK_Orders_Price", "[FinalPrice] > 0 AND [FinalPrice] = FLOOR([FinalPrice])");
                 t.HasCheckConstraint("CK_Orders_Parties", "[BuyerId] <> [SellerId]");
+                t.HasCheckConstraint("CK_Orders_PaymentStatus", "[PaymentStatus] IN (0,1)");
+                t.HasCheckConstraint("CK_Orders_PaymentMethod", "[PaymentMethod] IS NULL OR [PaymentMethod] IN ('BANK_TRANSFER_DEMO','MOMO_DEMO')");
             });
             modelBuilder.Entity<Product>().ToTable(t => {
                 t.HasCheckConstraint("CK_Products_Status", "[Status] IN (0,1,2,3)");
@@ -129,6 +131,11 @@ namespace BidNet.Data
             modelBuilder.Entity<Order>()
                 .HasIndex(o => o.ProductId)
                 .IsUnique();
+
+            modelBuilder.Entity<Order>()
+                .HasIndex(o => o.PaymentTransactionId)
+                .IsUnique()
+                .HasFilter("[PaymentTransactionId] IS NOT NULL");
 
             modelBuilder.Entity<Order>()
                 .HasOne(o => o.Product)

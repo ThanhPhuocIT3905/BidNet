@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api, json, query, date, money } from "./api";
 import { PageHeader, LoadingState, ErrorState, EmptyState } from "./UI.jsx";
 
-const labels = { Open: "Mới tiếp nhận", InProgress: "Đang xử lý", Resolved: "Đã giải quyết", Pending: "Chờ thanh toán", Paid: "Đã nhận tiền", Delivered: "Đã giao", Cancelled: "Đã hủy" };
+const labels = { Open: "Mới tiếp nhận", InProgress: "Đang xử lý", Resolved: "Đã giải quyết", Pending: "Chờ thanh toán", Paid: "Đã thanh toán", Delivered: "Đã giao", Cancelled: "Đã hủy" };
 function useData(path) {
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState({});
@@ -64,6 +64,6 @@ export function AuditLogs() {
 export function OrderHistory({ id, version }) {
   const [page, setPage] = useState(1);
   const r = useData(`/api/Orders/${id}/history?${query({ page, version })}`);
-  const actions = { Created: "Tạo đơn", MigrationBaseline: "Mốc bổ sung lịch sử", ShippingUpdated: "Cập nhật nhận hàng", StatusChanged: "Chuyển trạng thái" };
+  const actions = { Created: "Tạo đơn", MigrationBaseline: "Mốc bổ sung lịch sử", ShippingUpdated: "Cập nhật nhận hàng", DemoPaymentCompleted: "Thanh toán demo", StatusChanged: "Chuyển trạng thái" };
   return <section className="panel"><h2>Lịch sử đơn hàng</h2><Result result={r}>{d => <>{d.items.map(x => <article className="notification" key={x.id}><strong>{actions[x.action] || x.action} · {labels[x.toStatus]}</strong><p>{x.actorName} · {date(x.createdAt)}</p><p>{x.note}</p></article>)}{!d.items.length && <p>Chưa có lịch sử.</p>}<Pager page={page} total={d.totalCount} setPage={setPage} /></>}</Result></section>;
 }

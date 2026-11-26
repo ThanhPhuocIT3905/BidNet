@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
 
+const PLACEHOLDER = /^\/images\/(tech|watch|art|vehicle|sport|home)\.svg$/;
+
+// Ảnh minh họa theo danh mục không phải ảnh thật của sản phẩm.
+export const isPlaceholderImage = (url) => !url || PLACEHOLDER.test(url);
+
 export function LotPhoto({ item, priority = false }) {
   const [failed, setFailed] = useState(null);
-  const placeholder = /^\/images\/(tech|watch|art|vehicle|sport|home)\.svg$/.test(item.imageUrl || "");
-  if (item.imageUrl && !placeholder && failed !== item.imageUrl) {
+  if (item.imageUrl && !isPlaceholderImage(item.imageUrl) && failed !== item.imageUrl) {
     return <img src={item.imageUrl} alt={item.name} loading={priority ? 'eager' : 'lazy'}
       onError={() => setFailed(item.imageUrl)} />;
   }

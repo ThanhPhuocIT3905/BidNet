@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api, getSession, setSession } from "./api";
 import {
@@ -28,10 +28,20 @@ import ThemeToggle from "./ThemeToggle.jsx";
 import MarketplaceHome from "./MarketplaceHome.jsx";
 import { ConfirmProvider } from "./UI.jsx";
 import Avatar from "./Avatar.jsx";
+import { AuthModal } from "./AuthModal.jsx";
 
 createRoot(document.getElementById("app")).render(<ConfirmProvider><App /></ConfirmProvider>);
 
-const asObject = (form) => Object.fromEntries(new FormData(form).entries());
+// /login và /register chỉ mở modal, URL được đưa về trang đang xem.
+const parseAuthRoute = (hash) => {
+  const [routePath, queryString] = (hash.slice(1) || "/").split("?");
+  if (routePath !== "/login" && routePath !== "/register") return null;
+  const returnTo = new URLSearchParams(queryString || "").get("returnTo");
+  return {
+    tab: routePath === "/register" ? "register" : "login",
+    base: returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : null,
+  };
+};
 const mainNav = [
   ["/", "Trang chủ"],
   ["/auctions", "Đấu giá"],
@@ -43,7 +53,11 @@ const mainNav = [
 ];
 
 function App() {
-  const [route, setRoute] = useState(location.hash.slice(1) || "/");
+  const [boot] = useState(() => parseAuthRoute(location.hash));
+  const [route, setRoute] = useState(
+    boot?.base || (boot ? "/" : location.hash.slice(1) || "/"),
+  );
+  const [authTab, setAuthTab] = useState(boot?.tab || null);
   const [session, setLogin] = useState(getSession);
   const [toast, setToast] = useState("");
   const [catOpen, setCatOpen] = useState(false);
@@ -51,14 +65,29 @@ function App() {
   const [search, setSearch] = useState("");
   const { ids: favorites } = useFavorites();
   const [path] = route.split("?");
+  const routeRef = useRef(route);
+  routeRef.current = route;
   useEffect(() => {
     const onHash = () => {
+      const auth = parseAuthRoute(location.hash);
+      if (auth) {
+        setAuthTab(auth.tab);
+        const target = auth.base || routeRef.current;
+        history.replaceState(null, "", `#${target}`);
+        setRoute(target);
+        setCatOpen(false);
+        return;
+      }
       setRoute(location.hash.slice(1) || "/");
       setCatOpen(false);
       scrollTo(0, 0);
     };
     addEventListener("hashchange", onHash);
     return () => removeEventListener("hashchange", onHash);
+  }, []);
+  useEffect(() => {
+    // Mở thẳng /login hoặc /register vẫn giữ URL sạch sau khi modal bật.
+    if (boot) history.replaceState(null, "", `#${boot.base || "/"}`);
   }, []);
   useEffect(() => {
     api("/api/Categories").then(setCategories, () => setCategories([]));
@@ -78,6 +107,17 @@ function App() {
     return () => removeEventListener("bidnet:expired", expired);
   }, []);
   const go = (next) => {
+    // Không điều hướng sang trang đăng nhập: mở modal ngay trên trang hiện tại.
+    const auth = parseAuthRoute(`#${next}`);
+    if (auth) {
+      setAuthTab(auth.tab);
+      if (auth.base) {
+        history.replaceState(null, "", `#${auth.base}`);
+        setRoute(auth.base);
+      }
+      setCatOpen(false);
+      return;
+    }
     location.hash = next;
     setRoute(next);
     setCatOpen(false);
@@ -87,8 +127,8 @@ function App() {
   const login = (data) => {
     setSession(data);
     setLogin(data);
-    const returnTo = new URLSearchParams(route.split("?")[1] || "").get("returnTo");
-    go(data.user.role === "Admin" ? "/admin" : returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/");
+    setAuthTab(null);
+    if (data.user.role === "Admin") go("/admin");
     notify(`Xin chào ${data.user.fullName || data.user.username}`);
   };
   const logout = () => {
@@ -101,7 +141,7 @@ function App() {
   const admin = user?.role === "Admin";
   const adminArea = admin && (path === "/admin" || path.startsWith("/admin/"));
   const accountArea = user && ["/my-products", "/my-bids", "/orders", "/notifications", "/profile"].includes(path);
-  const common = { go, notify, user, admin };
+  const common = { go, notify, user, admin, openAuth: setAuthTab };
   const submitSearch = (event) => {
     event.preventDefault();
     go(`/auctions?q=${encodeURIComponent(search.trim())}`);
@@ -112,8 +152,6 @@ function App() {
     page = <Explore key={route} route={route} {...common} />;
   else if (/^\/product\/\d+$/.test(path))
     page = <Product key={route} id={Number(path.split("/")[2])} {...common} />;
-  else if (path === "/login" || path === "/register")
-    page = <Auth key={route} mode={path.slice(1)} login={login} {...common} />;
   else if (path === "/news" || /^\/news\/[^/]+$/.test(path))
     page = <NewsPage key={route} slug={path.startsWith("/news/") ? path.split("/")[2] : null} />;
   else if (path === "/guides" || /^\/guides\/[^/]+$/.test(path))
@@ -125,7 +163,7 @@ function App() {
   /* Yêu thích lưu bằng localStorage nên không cần đăng nhập; đặt trước
      cổng đăng nhập để link ♡ trên header luôn mở được. */
   else if (path === "/favorites") page = <FavoritesPage {...common} />;
-  else if (!user && (/^\/(my-products|my-bids|orders|notifications|profile|admin)(\/|$)/.test(path) || path === "/product/new" || /^\/(product\/\d+\/edit|order\/\d+)$/.test(path))) page = <Gate go={go} returnTo={route} />;
+  else if (!user && (/^\/(my-products|my-bids|orders|notifications|profile|admin)(\/|$)/.test(path) || path === "/product/new" || /^\/(product\/\d+\/edit|order\/\d+)$/.test(path))) page = <Gate openAuth={setAuthTab} />;
   else if (admin && (path === "/product/new" || path === "/my-products" || path === "/my-bids" || /^\/product\/\d+\/edit$/.test(path)))
     page = <section className="empty"><h1>Chức năng dành cho thành viên</h1><p>Admin quản lý hệ thống, không tham gia đăng bán hoặc đặt giá.</p><a className="btn" href="#/admin">Về quản trị</a></section>;
   else if (path === "/my-products") page = <MyProducts {...common} />;
@@ -137,7 +175,7 @@ function App() {
         {...common}
       />
     );
-   else if (path === "/support" || /^\/support\/\d+$/.test(path)) page = !user ? <Gate go={go} returnTo={route} /> : path === "/support" ? <SupportWorkspace {...common} /> : <TicketDetail key={route} id={Number(path.split("/")[2])} {...common} />;
+   else if (path === "/support" || /^\/support\/\d+$/.test(path)) page = !user ? <Gate openAuth={setAuthTab} /> : path === "/support" ? <SupportWorkspace {...common} /> : <TicketDetail key={route} id={Number(path.split("/")[2])} {...common} />;
    else if (path === "/orders") page = <Orders {...common} />;
   else if (/^\/order\/\d+$/.test(path))
     page = <OrderDetail key={route} id={Number(path.split("/")[2])} {...common} />;
@@ -263,12 +301,20 @@ function App() {
               </details>
             ) : (
               <>
-                <a className="btn ghost login-link" href="#/login">
+                <button
+                  type="button"
+                  className="btn ghost login-link"
+                  onClick={() => setAuthTab("login")}
+                >
                   Đăng nhập
-                </a>
-                <a className="btn dark" href="#/register">
+                </button>
+                <button
+                  type="button"
+                  className="btn dark"
+                  onClick={() => setAuthTab("register")}
+                >
                   Đăng ký
-                </a>
+                </button>
               </>
             )}
           </div>
@@ -343,6 +389,14 @@ function App() {
         </div>
       </footer>}
 
+      {authTab && (
+        <AuthModal
+          tab={authTab}
+          onTab={setAuthTab}
+          onClose={() => setAuthTab(null)}
+          onLogin={login}
+        />
+      )}
       {toast && (
         <div id="toast" role="status" aria-live="polite">
           {toast}
@@ -352,151 +406,14 @@ function App() {
   );
 }
 
-function Gate({ go, returnTo }) {
+function Gate({ openAuth }) {
   return (
     <div className="panel form-wrap">
       <h1>Vui lòng đăng nhập</h1>
       <p className="muted">Tính năng này cần tài khoản BidNet.</p>
-      <button className="btn" onClick={() => go(`/login?returnTo=${encodeURIComponent(returnTo)}`)}>
+      <button className="btn" onClick={() => openAuth("login")}>
         Đăng nhập
       </button>
-    </div>
-  );
-}
-
-function Auth({ mode, login, go }) {
-  const [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
-  const register = mode === "register";
-  const submit = async (e) => {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    const v = asObject(e.currentTarget);
-    try {
-      if (register) {
-        await api("/api/auth/register", {
-          method: "POST",
-          body: JSON.stringify({
-            username: v.username,
-            email: v.email,
-            password: v.password,
-            fullName: v.fullName || null,
-            phoneNumber: v.phoneNumber || null,
-          }),
-        });
-        const result = await api("/api/auth/login", {
-          method: "POST",
-          body: JSON.stringify({
-            usernameOrEmail: v.username,
-            password: v.password,
-          }),
-        });
-        login(result);
-      } else
-        login(
-          await api("/api/auth/login", {
-            method: "POST",
-            body: JSON.stringify({
-              usernameOrEmail: v.usernameOrEmail,
-              password: v.password,
-            }),
-          }),
-        );
-    } catch (ex) {
-      setError(ex.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <div className="auth-layout">
-      <div className="auth-aside">
-        <span className="eyebrow">Tài khoản BidNet</span>
-        <h1>{register ? "Bắt đầu theo dõi và đấu giá." : "Chào mừng bạn quay lại."}</h1>
-        <p>
-          {register
-            ? "Tạo tài khoản để đăng bán, đặt giá và nhận thông báo khi có người vượt giá."
-            : "Đăng nhập để xem lịch sử đặt giá, đơn hàng và thông báo cá nhân."}
-        </p>
-        <ul>
-          <li>Giá và bước giá được kiểm tra ở máy chủ</li>
-          <li>Thông báo realtime khi phiên thay đổi</li>
-          <li>Đơn hàng chỉ tạo khi phiên có người thắng</li>
-        </ul>
-      </div>
-      <div className="panel form-wrap">
-        <h2>{register ? "Tạo tài khoản" : "Đăng nhập"}</h2>
-        <form onSubmit={submit}>
-          {register ? (
-            <>
-              <Field
-                label="Tên đăng nhập"
-                name="username"
-                autoComplete="username"
-                maxLength={50}
-                required
-                minLength={3}
-                pattern="[a-zA-Z0-9_.\-]{3,50}"
-                title="3–50 chữ cái, chữ số, dấu chấm, gạch ngang hoặc gạch dưới"
-              />
-              <Field
-                label="Email"
-                name="email"
-                autoComplete="email"
-                maxLength={100}
-                type="email"
-                required
-              />
-              <Field label="Họ và tên" name="fullName" maxLength={200} />
-              <Field
-                label="Số điện thoại"
-                name="phoneNumber"
-                type="tel"
-                maxLength={20}
-              />
-            </>
-          ) : (
-            <Field
-              label="Tên đăng nhập hoặc email"
-              name="usernameOrEmail"
-              required
-            />
-          )}
-          <Field
-            label="Mật khẩu"
-            name="password"
-            type="password"
-            required
-            minLength={register ? 8 : undefined}
-            maxLength={128}
-          />
-          {error && <div className="notice error">{error}</div>}
-          <button className="btn dark" disabled={busy}>
-            {busy ? "Đang xử lý…" : register ? "Đăng ký" : "Đăng nhập"}
-          </button>
-        </form>
-        <p className="muted small">
-          {register ? "Đã có tài khoản?" : "Chưa có tài khoản?"}{" "}
-          <a href={register ? "#/login" : "#/register"}>
-            {register ? "Đăng nhập" : "Đăng ký"}
-          </a>
-        </p>
-      </div>
-    </div>
-  );
-}
-function Field({ label, name, value, type = "text", ...props }) {
-  return (
-    <div className="field">
-      <label htmlFor={name}>{label}</label>
-      <input
-        id={name}
-        name={name}
-        defaultValue={value}
-        type={type}
-        {...props}
-      />
     </div>
   );
 }

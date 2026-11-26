@@ -85,6 +85,45 @@ public class OrderWorkflow(AppDbContext db, CurrentUser currentUser)
         return Map(order);
     }
 
+    public async Task<OrderResponseDto> PayDemoAsync(int id, DemoPaymentDto request, CancellationToken ct)
+    {
+        var user = await currentUser.RequireMemberAsync(ct);
+        var order = await FindAsync(id, user, ct);
+        if (order.BuyerId != user.Id) throw new ForbiddenException("Chỉ người thắng cuộc mới được thanh toán đơn hàng.");
+
+        if (request.PaymentMethod is not ("BANK_TRANSFER_DEMO" or "MOMO_DEMO"))
+            throw new BadRequestException("Phương thức thanh toán demo không hợp lệ.");
+
+        if (order.PaymentStatus == PaymentStatus.Paid)
+        {
+            if (order.PaymentMethod == request.PaymentMethod) return Map(order);
+            throw new ApiException(409, "already_paid", "Đơn hàng đã được thanh toán bằng phương thức khác.");
+        }
+
+        if (order.Status != OrderStatus.Pending)
+            throw new ApiException(409, "order_not_payable", "Đơn hàng này hiện không thể thanh toán.");
+
+        VersionGuard.Check(request.Version, order.RowVersion);
+        var now = DateTime.UtcNow;
+        order.PaymentStatus = PaymentStatus.Paid;
+        order.PaymentMethod = request.PaymentMethod;
+        order.PaymentTransactionId = $"DEMO-{now:yyyyMMdd}-{order.Id:D3}";
+        order.PaidAt = now;
+        order.Status = OrderStatus.Paid;
+        AddEvent(order, user, "DemoPaymentCompleted", OrderStatus.Pending,
+            $"Thanh toán mô phỏng qua {request.PaymentMethod}; không phát sinh giao dịch tiền thật.");
+        db.Notifications.Add(new Notification
+        {
+            UserId = order.SellerId,
+            OrderId = order.Id,
+            Title = $"Đơn hàng #{order.Id} đã được thanh toán",
+            Message = $"Người mua đã hoàn tất thanh toán demo cho '{order.ProductNameSnapshot ?? order.Product.Name}'. Không phát sinh giao dịch tiền thật."
+        });
+
+        await SaveAsync(ct);
+        return Map(order);
+    }
+
     public async Task<OrderResponseDto> StatusAsync(int id, UpdateOrderStatusDto request, CancellationToken ct)
     {
         var user = await currentUser.RequireActiveAsync(ct);
@@ -92,8 +131,10 @@ public class OrderWorkflow(AppDbContext db, CurrentUser currentUser)
         if (order.SellerId != user.Id && user.Role != "Admin") throw new ForbiddenException("Chỉ người bán hoặc Admin mới được cập nhật trạng thái đơn hàng.");
         VersionGuard.Check(request.Version, order.RowVersion);
         if (order.Status == request.Status) return Map(order);
+        if (order.Status == OrderStatus.Pending && request.Status == OrderStatus.Paid)
+            throw new ApiException(409, "payment_required", "Người mua cần thanh toán qua chức năng thanh toán demo.");
         var allowed = order.Status switch {
-            OrderStatus.Pending => request.Status is OrderStatus.Paid or OrderStatus.Cancelled,
+            OrderStatus.Pending => request.Status == OrderStatus.Cancelled,
             OrderStatus.Paid => request.Status == OrderStatus.Delivered,
             _ => false
         };
@@ -104,11 +145,16 @@ public class OrderWorkflow(AppDbContext db, CurrentUser currentUser)
             throw new BadRequestException("Vui lòng ghi lý do hủy đơn hàng.");
         var previous = order.Status;
         order.Status = request.Status;
-        if (order.Status == OrderStatus.Paid) order.PaidAt = DateTime.UtcNow;
+        if (order.Status == OrderStatus.Paid)
+        {
+            order.PaidAt = DateTime.UtcNow;
+            order.PaymentStatus = PaymentStatus.Paid;
+            order.PaymentMethod ??= "SELLER_CONFIRMED";
+        }
         if (order.Status == OrderStatus.Delivered) order.CompletedAt = DateTime.UtcNow;
         if (order.Status == OrderStatus.Cancelled) order.CancellationReason = request.Note!.Trim();
         AddEvent(order, user, "StatusChanged", previous, request.Note?.Trim());
-        var label = request.Status switch { OrderStatus.Paid => "Đã xác nhận nhận tiền", OrderStatus.Delivered => "Đã xác nhận giao hàng", _ => "Đã hủy" };
+        var label = request.Status switch { OrderStatus.Delivered => "Đã xác nhận giao hàng", _ => "Đã hủy" };
         foreach (var receiver in new[] { order.BuyerId, order.SellerId }.Where(uid => uid != user.Id).Distinct())
             db.Notifications.Add(new Notification { UserId = receiver, OrderId = id, Title = $"Cập nhật đơn #{id}", Message = label });
         await SaveAsync(ct);
@@ -140,6 +186,8 @@ public class OrderWorkflow(AppDbContext db, CurrentUser currentUser)
         BuyerId = o.BuyerId, BuyerName = o.Buyer.FullName ?? o.Buyer.Username, SellerId = o.SellerId, SellerName = o.Seller.FullName ?? o.Seller.Username,
         FinalPrice = o.FinalPrice, ShippingAddress = o.ShippingAddress, RecipientName = o.RecipientName, RecipientPhone = o.RecipientPhone,
         Status = o.Status.ToString(), CreatedAt = o.CreatedAt, CompletedAt = o.CompletedAt, PaidAt = o.PaidAt,
+        PaymentStatus = o.PaymentStatus == PaymentStatus.Paid ? "PAID" : "UNPAID",
+        PaymentMethod = o.PaymentMethod, PaymentTransactionId = o.PaymentTransactionId,
         CancellationReason = o.CancellationReason, Version = Convert.ToBase64String(o.RowVersion)
     };
 }

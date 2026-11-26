@@ -140,6 +140,60 @@ public class ProductService(AppDbContext db, CurrentUser currentUser, IConfigura
         return ProductMapper.ToResponse(product);
     }
 
+    public async Task<ProductResponseDto> CancelAsync(int id, string reason, CancellationToken ct)
+    {
+        var user = await currentUser.RequireActiveAsync(ct);
+        var product = await WithUsers(db.Products)
+            .FirstOrDefaultAsync(p => p.Id == id, ct)
+            ?? throw new ApiException(404, "product_not_found", "Không tìm thấy sản phẩm.");
+
+        if (product.SellerId != user.Id && user.Role != "Admin")
+            throw new ApiException(403, "forbidden", "Bạn không có quyền hủy phiên đấu giá này.");
+
+        if (product.Status is ProductStatus.Completed or ProductStatus.Cancelled)
+            throw new ApiException(400, "invalid_status", "Không thể hủy phiên đấu giá đã kết thúc hoặc đã hủy.");
+
+        var hasBids = await db.Bids.AnyAsync(b => b.ProductId == id, ct);
+        if (user.Role != "Admin" && product.Status == ProductStatus.Active && hasBids)
+            throw new ApiException(400, "cannot_cancel_active_bids", "Phiên đang diễn ra và đã có người đặt giá. Vui lòng liên hệ Admin để hỗ trợ hủy phiên.");
+
+        product.Status = ProductStatus.Cancelled;
+        product.CancellationReason = string.IsNullOrWhiteSpace(reason) ? "Người bán hủy phiên đấu giá." : reason.Trim();
+        product.UpdatedAt = DateTime.UtcNow;
+
+        db.Notifications.Add(new Notification
+        {
+            UserId = product.SellerId,
+            ProductId = id,
+            Title = "Phiên đấu giá đã hủy",
+            Message = $"Phiên '{product.Name}' đã được hủy. Lý do: {product.CancellationReason}",
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await db.SaveChangesAsync(ct);
+        return ProductMapper.ToResponse(product);
+    }
+
+    public async Task DeleteAsync(int id, CancellationToken ct)
+    {
+        var user = await currentUser.RequireActiveAsync(ct);
+        var product = await db.Products.Include(p => p.Bids)
+            .FirstOrDefaultAsync(p => p.Id == id, ct)
+            ?? throw new ApiException(404, "product_not_found", "Không tìm thấy sản phẩm.");
+
+        if (product.SellerId != user.Id && user.Role != "Admin")
+            throw new ApiException(403, "forbidden", "Bạn không có quyền xóa sản phẩm này.");
+
+        if (product.Bids.Count > 0)
+            throw new ApiException(400, "cannot_delete_with_bids", "Không thể xóa sản phẩm đã có lịch sử đặt giá.");
+
+        if (product.Status == ProductStatus.Active)
+            throw new ApiException(400, "cannot_delete_active", "Không thể xóa phiên đấu giá đang diễn ra.");
+
+        db.Products.Remove(product);
+        await db.SaveChangesAsync(ct);
+    }
+
     // Mapper dùng Seller.Username và Winner.Username nên truy vấn phải Include trước.
     // Xác định danh mục hợp lệ: ưu tiên CategoryId, sau đó khớp theo tên.
     // Trả null nếu client chỉ gửi chuỗi danh mục tự do (tương thích dữ liệu cũ).
@@ -160,7 +214,7 @@ public class ProductService(AppDbContext db, CurrentUser currentUser, IConfigura
     }
 
     private static IQueryable<Product> WithUsers(IQueryable<Product> query) =>
-        query.Include(p => p.Seller).Include(p => p.Winner);
+        query.Include(p => p.Seller).Include(p => p.Winner).Include(p => p.Bids);
 
     private static async Task<PagedResponseDto<ProductResponseDto>> PageAsync(
         IOrderedQueryable<Product> query, int page, int size, CancellationToken ct)

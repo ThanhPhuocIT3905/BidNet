@@ -124,14 +124,19 @@ try:
         f"BEGIN TRAN; SELECT Id FROM Orders WITH (UPDLOCK,ROWLOCK) WHERE Id={oid}; WAITFOR DELAY '00:00:02'; COMMIT;"], stdout=subprocess.DEVNULL)
     time.sleep(.4)
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-        futures = [pool.submit(s.patch, BASE + f"/api/Orders/{oid}/status", json={"status": state, "note": "QA cancellation"}) for s, state in [(seller, "Paid"), (admin, "Cancelled")]]
+        futures = [
+            pool.submit(winner.post, BASE + f"/api/Orders/{oid}/payment", json={"paymentMethod": "BANK_TRANSFER_DEMO"}),
+            pool.submit(admin.patch, BASE + f"/api/Orders/{oid}/status", json={"status": "Cancelled", "note": "QA cancellation"}),
+        ]
         transitions = [f.result() for f in futures]
     assert lock.wait(timeout=10) == 0
     assert sum(r.status_code == 200 for r in transitions) == 1, [r.status_code for r in transitions]
     assert all(r.status_code in [200, 400, 409] for r in transitions)
     checks.append({"name": "concurrent order transitions: one writer wins", "passed": True})
-    sql(f"UPDATE Orders SET Status=0,CompletedAt=NULL WHERE Id={oid};")
-    check("seller confirms receipt of payment", seller.patch(BASE + f"/api/Orders/{oid}/status", json={"status": "Paid"}), [200])
+    sql(f"UPDATE Orders SET Status=0,CompletedAt=NULL,PaidAt=NULL,PaymentStatus=0,PaymentMethod=NULL,PaymentTransactionId=NULL WHERE Id={oid};")
+    payment = check("buyer completes demo payment", winner.post(BASE + f"/api/Orders/{oid}/payment", json={"paymentMethod": "BANK_TRANSFER_DEMO"}), [200]).json()
+    assert payment["paymentStatus"] == "PAID" and payment["paymentMethod"] == "BANK_TRANSFER_DEMO"
+    assert payment["paymentTransactionId"].startswith("DEMO-")
     check("paid order cannot be cancelled without refund flow", seller.patch(BASE + f"/api/Orders/{oid}/status", json={"status": "Cancelled"}), [400])
     delivered = check("seller confirms delivery", seller.patch(BASE + f"/api/Orders/{oid}/status", json={"status": "Delivered"}), [200]).json()
     retried = check("retry delivery is idempotent", seller.patch(BASE + f"/api/Orders/{oid}/status", json={"status": "Delivered"}), [200]).json()

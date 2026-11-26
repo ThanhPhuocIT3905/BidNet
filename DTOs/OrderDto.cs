@@ -21,10 +21,22 @@ public class OrderResponseDto
     public DateTime CreatedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public DateTime? PaidAt { get; set; }
+    public string PaymentStatus { get; set; } = "UNPAID";
+    public string? PaymentMethod { get; set; }
+    public string? PaymentTransactionId { get; set; }
     public string? RecipientName { get; set; }
     public string? RecipientPhone { get; set; }
     public string? CancellationReason { get; set; }
     public string Version { get; set; } = string.Empty;
+}
+
+public class DemoPaymentDto
+{
+    [Required]
+    [RegularExpression("^(BANK_TRANSFER_DEMO|MOMO_DEMO)$",
+        ErrorMessage = "Phương thức thanh toán demo không hợp lệ.")]
+    public string PaymentMethod { get; set; } = string.Empty;
+    public string? Version { get; set; }
 }
 
 // DTO người thắng cập nhật địa chỉ giao hàng

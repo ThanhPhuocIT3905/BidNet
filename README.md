@@ -37,7 +37,7 @@ dotnet run --project BidNet.csproj --launch-profile https
 
 Mở `https://localhost:7010/swagger` để xem và thử API bằng Swagger UI. Có thể dùng `https://localhost:7010/scalar` hoặc tải `https://localhost:7010/openapi/v1.json`. Các trang tài liệu chỉ bật trong môi trường Development. Nếu chứng chỉ HTTPS phát triển chưa được tin cậy, chạy `dotnet dev-certs https --trust`. Cổng có thể khác nếu thành viên đổi `Properties/launchSettings.json`.
 
-**Không chạy `dotnet ef migrations add InitialCreate` trên máy mới.** Hai migration hiện có được tải từ Git; `database update` sẽ áp dụng những migration còn thiếu. Mỗi máy dùng SQL Server riêng sẽ có database riêng. Muốn cùng xem một bộ dữ liệu, cả nhóm phải kết nối tới cùng một SQL Server/database với quyền phù hợp.
+**Không chạy `dotnet ef migrations add InitialCreate` trên máy mới.** Các migration hiện có được tải từ Git; `database update` sẽ áp dụng những migration còn thiếu. Mỗi máy dùng SQL Server riêng sẽ có database riêng. Muốn cùng xem một bộ dữ liệu, cả nhóm phải kết nối tới cùng một SQL Server/database với quyền phù hợp.
 
 ## Cấu hình và bảo mật
 
@@ -48,6 +48,10 @@ Mở `https://localhost:7010/swagger` để xem và thử API bằng Swagger UI.
 
 Token từ `POST /api/auth/login` được gửi bằng header `Authorization: Bearer <token>` cho API cần đăng nhập.
 Trong Swagger UI, gọi `POST /api/auth/login`, sao chép `accessToken`, bấm **Authorize** và dán token (không cần tự gõ `Bearer`). Sau đó có thể dùng **Try it out** với các API có biểu tượng khóa.
+
+## Thanh toán đấu giá (Demo)
+
+Đơn hàng sau đấu giá bắt đầu ở trạng thái `Pending` / `UNPAID`. Chỉ người mua thắng đấu giá mới có thể gọi `POST /api/Orders/{id}/payment` với `{"paymentMethod":"BANK_TRANSFER_DEMO"}` hoặc `{"paymentMethod":"MOMO_DEMO"}`. API lưu phương thức, mã `DEMO-...`, thời điểm thanh toán, chuyển đơn hàng sang `Paid` và ghi lịch sử; không kết nối ngân hàng/ví và không phát sinh giao dịch tiền thật. Dùng `dotnet ef database update` để áp dụng migration trước khi chạy.
 
 ## Kiểm thử
 

@@ -49,6 +49,20 @@ public class ProductController(IProductService products, IBidService bids) : Con
         Ok(await products.UpdateAsync(id, request, ct));
 
     [Authorize]
+    [HttpPatch("{id:int}/cancel")]
+    public async Task<ActionResult<ProductResponseDto>> Cancel(
+        int id, [FromBody] CancelProductDto request, CancellationToken ct) =>
+        Ok(await products.CancelAsync(id, request.Reason, ct));
+
+    [Authorize]
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(int id, CancellationToken ct)
+    {
+        await products.DeleteAsync(id, ct);
+        return NoContent();
+    }
+
+    [Authorize]
     [HttpPost("{id:int}/bids")]
     [EnableRateLimiting("bid")]
     // Rate limit giảm spam; BidService lấy UserId từ JWT và trả 409 khi đua giá.

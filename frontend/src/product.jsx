@@ -102,7 +102,7 @@ const Badge = ({ value }) => (
     }[value] || value}
   </span>
 );
-export function Product({ id, user, admin, go, notify }) {
+export function Product({ id, user, admin, go, notify, openAuth }) {
   const confirm = useConfirm();
   useTick();
   const bidLock = useRef(false);
@@ -118,6 +118,7 @@ export function Product({ id, user, admin, go, notify }) {
     images = useRemote(() => api(`/api/products/${id}/images`), [id]);
   const [error, setError] = useState(""),
     [placedBid, setPlacedBid] = useState(null),
+    [wonAuction, setWonAuction] = useState(false),
     [bidFailure, setBidFailure] = useState(""),
     [rawAmount, setRawAmount] = useState(""),
     [connected, setConnected] = useState(false);
@@ -161,7 +162,12 @@ export function Product({ id, user, admin, go, notify }) {
       product.reload();
       bids.reload();
     });
-    c.on("AuctionClosed", () => product.reload());
+    c.on("AuctionClosed", (payload) => {
+      product.reload();
+      // Chỉ chúc mừng đúng người thắng khi phiên kết thúc bình thường.
+      if (payload?.status === "Completed" && payload.winnerId != null && payload.winnerId === user.id)
+        setWonAuction(true);
+    });
     c.start()
       .then(() => c.invoke("JoinProduct", id))
       .then(() => live && setConnected(true))
@@ -263,6 +269,45 @@ export function Product({ id, user, admin, go, notify }) {
   };
   return (
     <>
+      {wonAuction && (
+        <Modal title="Chúc mừng bạn!" onClose={() => setWonAuction(false)}>
+          <div className="bid-success won-modal">
+            <span className="bid-success-mark" aria-hidden="true">✓</span>
+            <p className="bid-success-amount">Bạn đã thắng phiên đấu giá</p>
+            <p className="won-product">{item?.name || `Phiên #${id}`}</p>
+            <p className="muted small">Mã phiên: #{id}</p>
+            <dl className="bid-success-meta">
+              <div>
+                <dt>Giá thắng đấu giá</dt>
+                <dd>{money(item?.currentPrice)}</dd>
+              </div>
+              <div>
+                <dt>Trạng thái</dt>
+                <dd>Chờ thanh toán</dd>
+              </div>
+            </dl>
+            <p className="muted small">
+              Đơn hàng đã được tạo tự động. Vui lòng cập nhật địa chỉ nhận
+              hàng để người bán chuẩn bị giao.
+            </p>
+          </div>
+          <div className="dialog-actions">
+            <button className="btn secondary" onClick={() => setWonAuction(false)}>
+              Đóng
+            </button>
+            <button
+              className="btn dark"
+              autoFocus
+              onClick={() => {
+                setWonAuction(false);
+                go("/orders");
+              }}
+            >
+              Xem đơn hàng
+            </button>
+          </div>
+        </Modal>
+      )}
       {bidFailure && (
         <Modal title="Đặt giá không thành công" onClose={() => setBidFailure("")}>
           <div className="bid-success bid-alert">
@@ -584,7 +629,7 @@ export function Product({ id, user, admin, go, notify }) {
                       </button>
                     </form>
                   ) : (
-                    <button className="btn" onClick={() => go(`/login?returnTo=${encodeURIComponent(`/product/${id}`)}`)}>
+                    <button className="btn" onClick={() => openAuth("login")}>
                       Đăng nhập để đặt giá
                     </button>
                   ))}
