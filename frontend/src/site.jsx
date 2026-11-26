@@ -3,6 +3,7 @@ import { api, money, query } from "./api";
 import { AuctionCard, useApi, useFavorites } from "./widgets.jsx";
 import { about, contact, guides, news, policies } from "./content.js";
 import { LotPhoto } from "./Lot.jsx";
+import useAuctionUpdates from "./useAuctionUpdates.js";
 
 const categoryIcon = (name = "") => {
   if (/điện tử|công nghệ|máy tính|laptop/i.test(name)) return "⌘";
@@ -545,6 +546,19 @@ export function FavoritesPage({ go }) {
       alive = false;
     };
   }, [ids.join(",")]);
+  const liveError = useAuctionUpdates(
+    (items || []).map((item) => item.id),
+    (event) => {
+      setItems((current) => current?.map((item) => item.id === event.productId
+        ? {
+            ...item,
+            currentPrice: event.currentPrice,
+            bidCount: event.bidCount,
+            leadingBidderName: event.bidderName,
+          }
+        : item));
+    },
+  );
   return (
     <>
       <div className="page-head">
@@ -561,6 +575,7 @@ export function FavoritesPage({ go }) {
         </a>
       </div>
       {error && <div className="notice error">{error}</div>}
+      {liveError && <p className="muted small" role="status">Cập nhật giá trực tiếp tạm thời không khả dụng.</p>}
       {!items ? (
         <div className="card-grid-skeleton" />
       ) : items.length ? (

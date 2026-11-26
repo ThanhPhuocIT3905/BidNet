@@ -5,6 +5,7 @@ import { OrderHistory } from "./Workflows.jsx";
 import ProfilePage from "./ProfilePage.jsx";
 import { LoadingState, ErrorState, Modal } from "./UI.jsx";
 import { numberToVietnameseWords } from "./product.jsx";
+import useAuctionUpdates from "./useAuctionUpdates.js";
 
 function Feedback({ loading, error, reload }) {
   return (
@@ -73,8 +74,6 @@ export function MyProducts({ go, notify }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [sortBy, setSortBy] = useState("newest");
-  const [layout, setLayout] = useState("grid");
-  const [openMenuId, setOpenMenuId] = useState(null);
   const [cancelingItem, setCancelingItem] = useState(null);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelPreset, setCancelPreset] = useState("Sản phẩm không còn khả dụng");
@@ -87,6 +86,10 @@ export function MyProducts({ go, notify }) {
   );
 
   const allItems = r.data?.items || [];
+  const liveError = useAuctionUpdates(
+    allItems.filter((item) => item.status === "Active").map((item) => item.id),
+    () => r.reload(),
+  );
 
   const total = allItems.length;
   const scheduledCount = allItems.filter((x) => x.status === "Scheduled").length;
@@ -118,12 +121,6 @@ export function MyProducts({ go, notify }) {
   const pageSize = 12;
   const totalPages = Math.ceil(filtered.length / pageSize) || 1;
   const pagedItems = filtered.slice((page - 1) * pageSize, page * pageSize);
-
-  useEffect(() => {
-    const handleClickOutside = () => setOpenMenuId(null);
-    window.addEventListener("click", handleClickOutside);
-    return () => window.removeEventListener("click", handleClickOutside);
-  }, []);
 
   const handleCancelProduct = async () => {
     if (!cancelingItem || busy) return;
@@ -200,78 +197,21 @@ export function MyProducts({ go, notify }) {
     );
   };
 
-  const renderMetaState = (item) => {
-    const bids = item.bidCount || 0;
-    if (item.status === "Scheduled") {
-      return <span className="seller-status-pill scheduled">0 lượt đặt · Chờ mở phiên</span>;
-    }
-    if (item.status === "Active") {
-      return <span className="seller-status-pill active">{bids} lượt đặt · Đang mở phiên</span>;
-    }
-    if (item.status === "Completed") {
-      return <span className="seller-status-pill completed">{bids} lượt đặt · Đã đóng phiên</span>;
-    }
-    return <span className="seller-status-pill cancelled">{bids} lượt đặt · Đã hủy</span>;
-  };
-
   return (
     <div className="seller-dashboard">
       <div className="seller-header">
         <div>
           <h1>Sản phẩm của tôi</h1>
-          <p className="muted">Quản lý sản phẩm và các phiên đấu giá của bạn trên sàn BidNet</p>
+          <p className="muted">Quản lý sản phẩm và phiên đấu giá của bạn.</p>
         </div>
         <button className="btn" onClick={() => go("/product/new")}>
           + Đăng sản phẩm
         </button>
       </div>
 
-      <div className="seller-metrics-grid">
-        <button
-          type="button"
-          className={`seller-metric-box ${statusFilter === "All" ? "selected" : ""}`}
-          onClick={() => { setStatusFilter("All"); setPage(1); }}
-        >
-          <div className="metric-number">{total}</div>
-          <div className="metric-label">Tổng sản phẩm</div>
-        </button>
-        <button
-          type="button"
-          className={`seller-metric-box ${statusFilter === "Scheduled" ? "selected" : ""}`}
-          onClick={() => { setStatusFilter("Scheduled"); setPage(1); }}
-        >
-          <div className="metric-number">{scheduledCount}</div>
-          <div className="metric-label">Sắp diễn ra</div>
-        </button>
-        <button
-          type="button"
-          className={`seller-metric-box ${statusFilter === "Active" ? "selected" : ""}`}
-          onClick={() => { setStatusFilter("Active"); setPage(1); }}
-        >
-          <div className="metric-number active-color">{activeCount}</div>
-          <div className="metric-label">Đang đấu giá</div>
-        </button>
-        <button
-          type="button"
-          className={`seller-metric-box ${statusFilter === "Completed" ? "selected" : ""}`}
-          onClick={() => { setStatusFilter("Completed"); setPage(1); }}
-        >
-          <div className="metric-number completed-color">{completedCount}</div>
-          <div className="metric-label">Đã bán</div>
-        </button>
-        <button
-          type="button"
-          className={`seller-metric-box ${statusFilter === "Cancelled" ? "selected" : ""}`}
-          onClick={() => { setStatusFilter("Cancelled"); setPage(1); }}
-        >
-          <div className="metric-number cancelled-color">{cancelledCount}</div>
-          <div className="metric-label">Đã hủy</div>
-        </button>
-      </div>
-
       <div className="seller-toolbar">
         <div className="seller-search-box">
-          <span className="search-icon" aria-hidden="true">🔍</span>
+          <span className="search-icon" aria-hidden="true">⌕</span>
           <input
             type="text"
             placeholder="Tìm kiếm sản phẩm theo tên, danh mục..."
@@ -284,70 +224,44 @@ export function MyProducts({ go, notify }) {
             </button>
           )}
         </div>
-
-        <div className="seller-filters">
-          <div className="seller-tabs">
-            {[
-              ["All", "Tất cả"],
-              ["Scheduled", "Sắp diễn ra"],
-              ["Active", "Đang đấu giá"],
-              ["Completed", "Đã bán"],
-              ["Cancelled", "Đã hủy"],
-            ].map(([val, label]) => (
-              <button
-                type="button"
-                key={val}
-                className={`seller-tab-btn ${statusFilter === val ? "active" : ""}`}
-                onClick={() => { setStatusFilter(val); setPage(1); }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <div className="seller-right-tools">
-            <select
-              className="seller-sort-select"
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-            >
-              <option value="newest">Mới nhất</option>
-              <option value="oldest">Cũ nhất</option>
-              <option value="price_desc">Giá cao nhất</option>
-              <option value="price_asc">Giá thấp nhất</option>
-              <option value="ending_soon">Sắp kết thúc</option>
-            </select>
-
-            <div className="seller-layout-switch">
-              <button
-                type="button"
-                className={`layout-btn ${layout === "grid" ? "active" : ""}`}
-                title="Dạng lưới"
-                onClick={() => setLayout("grid")}
-              >
-                ⊞
-              </button>
-              <button
-                type="button"
-                className={`layout-btn ${layout === "list" ? "active" : ""}`}
-                title="Dạng danh sách"
-                onClick={() => setLayout("list")}
-              >
-                ☰
-              </button>
-            </div>
-          </div>
+        <div className="seller-toolbar-tools">
+          <select
+            aria-label="Lọc theo trạng thái"
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          >
+            <option value="All">Tất cả trạng thái ({total})</option>
+            <option value="Scheduled">Sắp diễn ra ({scheduledCount})</option>
+            <option value="Active">Đang đấu giá ({activeCount})</option>
+            <option value="Completed">Đã kết thúc ({completedCount})</option>
+            <option value="Cancelled">Đã hủy ({cancelledCount})</option>
+          </select>
+          <select
+            aria-label="Sắp xếp sản phẩm"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+          >
+            <option value="newest">Mới nhất</option>
+            <option value="oldest">Cũ nhất</option>
+            <option value="price_desc">Giá cao nhất</option>
+            <option value="price_asc">Giá thấp nhất</option>
+            <option value="ending_soon">Sắp kết thúc</option>
+          </select>
         </div>
       </div>
 
       <Feedback {...r} />
+      {liveError && <p className="muted small" role="status">Cập nhật giá trực tiếp tạm thời không khả dụng.</p>}
 
       {!r.loading && !r.error && filtered.length === 0 && (
         <div className="empty seller-empty">
-          <div className="empty-symbol">📦</div>
           <h2>Không tìm thấy sản phẩm nào</h2>
           <p className="muted">
-            {search ? "Không có sản phẩm nào khớp với từ khóa tìm kiếm." : "Bạn chưa có sản phẩm nào ở trạng thái này."}
+              {search
+                ? "Không có sản phẩm nào khớp với từ khóa tìm kiếm."
+                : statusFilter !== "All"
+                  ? "Bạn chưa có sản phẩm ở trạng thái này."
+                  : "Bạn chưa đăng sản phẩm nào."}
           </p>
           <button className="btn" onClick={() => go("/product/new")}>
             Đăng sản phẩm mới
@@ -355,120 +269,14 @@ export function MyProducts({ go, notify }) {
         </div>
       )}
 
-      {layout === "grid" ? (
-        <div className="grid seller-card-grid">
-          {pagedItems.map((x) => (
-            <article className="card seller-card-item" key={x.id}>
-              <div className="card-image seller-card-img">
-                <img
-                  src={x.imageUrl || "/images/products/fujifilm-xt30-ii.webp"}
-                  alt={x.name}
-                  onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src = "/images/products/fujifilm-xt30-ii.webp";
-                  }}
-                />
-                <span className="seller-badge-pos">
-                  <Badge value={x.status} />
-                </span>
-              </div>
-              <div className="card-body seller-card-body">
-                <div className="seller-category-tag">{x.category || "Chưa phân loại"} · #{x.id}</div>
-                <h3 className="seller-card-title" title={x.name}>{x.name}</h3>
-                
-                {renderPriceInfo(x)}
-
-                <div className="seller-meta-row">
-                  {renderMetaState(x)}
-                </div>
-
-                <div className="seller-time-meta">
-                  <small>Bắt đầu: {date(x.startTime)}</small>
-                  <small>Kết thúc: {date(x.endTime)}</small>
-                </div>
-
-                <div className="actions seller-actions-row">
-                  <button
-                    className="btn dark"
-                    onClick={() => go(`/product/${x.id}`)}
-                  >
-                    Xem chi tiết
-                  </button>
-                  {x.status === "Scheduled" && (
-                    <button
-                      className="btn secondary"
-                      onClick={() => go(`/product/${x.id}/edit`)}
-                    >
-                      Sửa
-                    </button>
-                  )}
-                  
-                  <div className="action-menu-wrap" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      type="button"
-                      className="btn icon-btn-menu"
-                      title="Thao tác khác"
-                      onClick={() => setOpenMenuId(openMenuId === x.id ? null : x.id)}
-                    >
-                      ⋮
-                    </button>
-                    {openMenuId === x.id && (
-                      <div className="seller-dropdown-menu">
-                        <button type="button" onClick={() => { setOpenMenuId(null); go(`/product/${x.id}`); }}>
-                          👁 Chi tiết phiên
-                        </button>
-                        {x.status === "Scheduled" && (
-                          <button type="button" onClick={() => { setOpenMenuId(null); go(`/product/${x.id}/edit`); }}>
-                            ✏ Chỉnh sửa thông tin
-                          </button>
-                        )}
-                        {(x.status === "Scheduled" || (x.status === "Active" && !x.bidCount)) && (
-                          <button
-                            type="button"
-                            className="danger-action"
-                            onClick={() => { setOpenMenuId(null); setCancelingItem(x); setCancelReason(""); }}
-                          >
-                            🚫 Hủy phiên đấu giá
-                          </button>
-                        )}
-                        {x.status === "Scheduled" && !x.bidCount && (
-                          <button
-                            type="button"
-                            className="danger-action"
-                            onClick={() => { setOpenMenuId(null); setDeletingItem(x); }}
-                          >
-                            🗑 Xóa sản phẩm
-                          </button>
-                        )}
-                        {(x.status === "Completed" || x.status === "Cancelled") && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOpenMenuId(null);
-                              go(`/product/new?clone=${x.id}`);
-                            }}
-                          >
-                            🔄 Đăng lại sản phẩm
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <div className="panel table-wrap seller-table-wrap">
-          <table className="table seller-table">
+      {!r.loading && !r.error && pagedItems.length > 0 && (
+        <div className="table-wrap seller-products-table-wrap">
+          <table className="table seller-products-table">
             <thead>
               <tr>
                 <th>Sản phẩm</th>
-                <th>Danh mục</th>
                 <th>Trạng thái</th>
-                <th>Mức giá</th>
-                <th>Lượt đặt</th>
+                <th>Giá và lượt đặt</th>
                 <th>Thời gian</th>
                 <th>Thao tác</th>
               </tr>
@@ -477,11 +285,10 @@ export function MyProducts({ go, notify }) {
               {pagedItems.map((x) => (
                 <tr key={x.id}>
                   <td>
-                    <div className="seller-table-item">
+                    <div className="seller-product-cell">
                       <img
                         src={x.imageUrl || "/images/products/fujifilm-xt30-ii.webp"}
                         alt={x.name}
-                        className="table-thumb"
                         onError={(e) => {
                           e.currentTarget.onerror = null;
                           e.currentTarget.src = "/images/products/fujifilm-xt30-ii.webp";
@@ -489,23 +296,24 @@ export function MyProducts({ go, notify }) {
                       />
                       <div>
                         <strong>{x.name}</strong>
-                        <small className="muted block">#{x.id}</small>
+                        <small>{x.category || "Chưa phân loại"} · #{x.id}</small>
                       </div>
                     </div>
                   </td>
-                  <td>{x.category || "—"}</td>
                   <td><Badge value={x.status} /></td>
-                  <td>{renderPriceInfo(x)}</td>
                   <td>
-                    <b>{x.bidCount || 0}</b> lượt
+                    {renderPriceInfo(x)}
+                    <small className="seller-bid-count">{x.bidCount || 0} lượt đặt</small>
                   </td>
                   <td>
-                    <small className="block">Bắt đầu: {date(x.startTime)}</small>
-                    <small className="block muted">Kết thúc: {date(x.endTime)}</small>
+                    <small className="seller-date-label">
+                      {x.status === "Scheduled" ? "Mở phiên" : "Kết thúc"}
+                    </small>
+                    <span>{date(x.status === "Scheduled" ? x.startTime : x.endTime)}</span>
                   </td>
                   <td>
                     <div className="seller-row-actions">
-                      <button className="btn sm dark" onClick={() => go(`/product/${x.id}`)}>
+                      <button className="btn sm secondary" onClick={() => go(`/product/${x.id}`)}>
                         Chi tiết
                       </button>
                       {x.status === "Scheduled" && (
@@ -522,11 +330,13 @@ export function MyProducts({ go, notify }) {
                         </button>
                       )}
                       {x.status === "Scheduled" && !x.bidCount && (
-                        <button
-                          className="btn sm ghost"
-                          onClick={() => setDeletingItem(x)}
-                        >
+                        <button className="btn sm ghost" onClick={() => setDeletingItem(x)}>
                           Xóa
+                        </button>
+                      )}
+                      {(x.status === "Completed" || x.status === "Cancelled") && (
+                        <button className="btn sm ghost" onClick={() => go(`/product/new?clone=${x.id}`)}>
+                          Đăng lại
                         </button>
                       )}
                     </div>
@@ -1422,6 +1232,17 @@ export function OrderDetail({ id, user, notify }) {
 export function Notifications({ notify }) {
   const [busy, setBusy] = useState(false);
   const r = useRemote(() => api("/api/Notifications/me"), []);
+  const myBids = useRemote(
+    () => api("/api/users/me/bids?page=1&pageSize=100"),
+    [],
+  );
+  const liveError = useAuctionUpdates(
+    [
+      ...(r.data || []).map((notification) => notification.productId),
+      ...(myBids.data?.items || []).map((bid) => bid.productId),
+    ].filter(Boolean),
+    () => r.reload(),
+  );
   const update = async (path) => {
     if (busy) return;
     setBusy(true);
@@ -1447,6 +1268,7 @@ export function Notifications({ notify }) {
         </button>
       </div>
       <Feedback {...r} />
+      {liveError && <p className="muted small" role="status">Thông báo mới có thể chưa hiện cho đến khi tải lại trang.</p>}
       <div className="panel">
         {r.data?.map((n) => (
           <div
@@ -1484,19 +1306,27 @@ export function MyBids({ go }) {
       () => api(`/api/users/me/bids?page=${page}&pageSize=20`),
       [page],
     );
+  const liveError = useAuctionUpdates(
+    (r.data?.items || []).map((bid) => bid.productId),
+    () => r.reload(),
+  );
+  const currentUserId = Number(getSession()?.user?.id);
   return (
     <>
       <div className="section-head">
-        <h1>Lịch sử đặt giá của tôi</h1>
+        <h1>Phiên đấu giá của tôi</h1>
       </div>
       <Feedback {...r} />
+      {liveError && <p className="muted small" role="status">Cập nhật trực tiếp tạm thời không khả dụng.</p>}
       <div className="panel table-wrap">
         <table className="table">
           <thead>
             <tr>
               <th>Mã</th>
               <th>Phiên</th>
-              <th>Số tiền</th>
+              <th>Giá hiện tại</th>
+              <th>Trạng thái</th>
+              <th>Lượt của bạn</th>
               <th>Thời điểm</th>
             </tr>
           </thead>
@@ -1509,8 +1339,20 @@ export function MyBids({ go }) {
                     className="btn secondary"
                     onClick={() => go(`/product/${b.productId}`)}
                   >
-                    Sản phẩm #{b.productId}
+                    {b.productName || `Sản phẩm #${b.productId}`}
                   </button>
+                </td>
+                <td>{money(b.currentPrice ?? b.amount)}</td>
+                <td>
+                  {b.productStatus === "Completed"
+                    ? "Đã kết thúc"
+                    : b.productStatus === "Cancelled"
+                      ? "Đã hủy"
+                      : b.productStatus === "Active" && b.leadingBidderId === currentUserId
+                        ? <span className="badge Active">Đang dẫn đầu</span>
+                        : b.productStatus === "Active"
+                          ? <span className="badge">Đã bị vượt giá</span>
+                          : b.productStatus || "—"}
                 </td>
                 <td>{money(b.amount)}</td>
                 <td>{date(b.bidTime)}</td>

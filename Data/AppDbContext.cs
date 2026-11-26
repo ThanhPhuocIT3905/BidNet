@@ -21,6 +21,10 @@ namespace BidNet.Data
         public DbSet<SupportMessage> SupportMessages => Set<SupportMessage>();
         public DbSet<OrderEvent> OrderEvents => Set<OrderEvent>();
         public DbSet<AdminAuditLog> AdminAuditLogs => Set<AdminAuditLog>();
+        public DbSet<LiveEvent> LiveEvents => Set<LiveEvent>();
+        public DbSet<LiveLot> LiveLots => Set<LiveLot>();
+        public DbSet<LiveBid> LiveBids => Set<LiveBid>();
+        public DbSet<LiveRegistration> LiveRegistrations => Set<LiveRegistration>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -156,7 +160,44 @@ namespace BidNet.Data
                 .HasForeignKey(o => o.SellerId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ── 3. Cấu hình bảng Notifications ───────────────────────────────────────
+            // ── 3. Cấu hình đấu giá trực tiếp ────────────────────────────────────────
+            modelBuilder.Entity<LiveEvent>().HasIndex(e => e.Code).IsUnique();
+            modelBuilder.Entity<LiveEvent>().HasIndex(e => new { e.Status, e.ScheduledStartAt });
+            modelBuilder.Entity<LiveEvent>().HasOne(e => e.CreatedBy).WithMany()
+                .HasForeignKey(e => e.CreatedById).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<LiveEvent>().HasMany(e => e.Lots).WithOne(l => l.Event)
+                .HasForeignKey(l => l.EventId).OnDelete(DeleteBehavior.Cascade);
+            // Sản phẩm chỉ thuộc một lô; lô chỉ thuộc một sự kiện.
+            // Lô không bán được có thể được xếp lại vào sự kiện khác, nên chỉ
+            // unique trên các lô còn hiệu lực (Pending/Open/Paused/Sold).
+            modelBuilder.Entity<LiveLot>().HasIndex(l => l.ProductId).IsUnique()
+                .HasFilter("[Status] NOT IN (4, 5, 6)");
+            modelBuilder.Entity<LiveLot>().HasIndex(l => new { l.EventId, l.SequenceNumber }).IsUnique();
+            modelBuilder.Entity<LiveLot>().HasIndex(l => new { l.Status, l.EventId });
+            modelBuilder.Entity<LiveLot>().HasOne(l => l.Product).WithMany()
+                .HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<LiveLot>().HasOne(l => l.Seller).WithMany()
+                .HasForeignKey(l => l.SellerId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<LiveLot>().HasOne(l => l.LeadingBidder).WithMany()
+                .HasForeignKey(l => l.LeadingBidderId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<LiveLot>().HasOne(l => l.Winner).WithMany()
+                .HasForeignKey(l => l.WinnerId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<LiveBid>().HasOne(b => b.Lot).WithMany(l => l.Bids)
+                .HasForeignKey(b => b.LotId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<LiveBid>().HasOne(b => b.User).WithMany()
+                .HasForeignKey(b => b.UserId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<LiveBid>().HasIndex(b => new { b.LotId, b.Amount, b.BidTime });
+            modelBuilder.Entity<LiveRegistration>().HasIndex(r => new { r.EventId, r.UserId }).IsUnique();
+            modelBuilder.Entity<LiveRegistration>().HasOne(r => r.Event).WithMany(e => e.Registrations)
+                .HasForeignKey(r => r.EventId).OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<LiveRegistration>().HasOne(r => r.User).WithMany()
+                .HasForeignKey(r => r.UserId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<LiveRegistration>().ToTable(t =>
+                t.HasCheckConstraint("CK_LiveRegistrations_Status", "[Status] IN (0,1,2,3,4)"));
+            modelBuilder.Entity<LiveLot>().ToTable(t =>
+                t.HasCheckConstraint("CK_LiveLots_Status", "[Status] IN (0,1,2,3,4,5,6)"));
+
+            // ── 4. Cấu hình bảng Notifications ───────────────────────────────────────
             // Tăng tốc truy vấn danh sách thông báo theo từng người dùng
             modelBuilder.Entity<Notification>()
                 .HasIndex(n => new { n.UserId, n.IsRead });

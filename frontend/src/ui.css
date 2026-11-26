@@ -156,11 +156,41 @@ input[type=radio],input[type=checkbox] {accent-color:var(--green)}
 .gallery-thumb {display:grid;place-items:center;flex-shrink:0;width:76px;height:76px;padding:6px;border:1px solid var(--line);border-radius:6px;background:#fff}
 .gallery-thumb:hover,.gallery-thumb:focus-visible {border-color:var(--green)}
 .gallery-thumb img {width:100%;height:100%;object-fit:contain}
+
+/* Image magnifier + lightbox */
+.magnifier {position:relative;display:grid;place-items:center;width:100%;height:100%;overflow:hidden;cursor:zoom-in;touch-action:manipulation}
+.magnifier img {width:100%;height:100%;object-fit:contain;transition:transform .18s ease-out;user-select:none;-webkit-user-drag:none}
+.magnifier.is-zoomed img {transition:none;will-change:transform}
+.magnifier:focus-visible {outline:2px solid var(--green);outline-offset:4px}
+.magnifier-hint {position:absolute;right:6px;bottom:6px;padding:6px 10px;border-radius:999px;background:rgba(20,28,24,.74);color:#fff;font-size:11px;line-height:1.2;pointer-events:none;opacity:0;transition:opacity .15s}
+.magnifier:hover .magnifier-hint,.magnifier:focus-visible .magnifier-hint {opacity:1}
+
+dialog.lightbox[open] {position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;overflow:hidden;background:#0a0c0b;color:#fff;display:flex;flex-direction:column}
+.lightbox-bar {display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;padding-top:max(12px,env(safe-area-inset-top));background:rgba(0,0,0,.35)}
+.lightbox-count {font-size:13px;color:#cfd6d1}
+.lightbox-tools {display:flex;align-items:center;gap:6px}
+.lightbox-tools button {width:38px;height:38px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.25);border-radius:8px;background:rgba(255,255,255,.08);color:#fff;font-size:20px;line-height:1;cursor:pointer}
+.lightbox-tools button:hover:not(:disabled) {background:rgba(255,255,255,.18)}
+.lightbox-tools button:disabled {opacity:.35;cursor:not-allowed}
+.lightbox-tools button.lightbox-close {margin-left:8px;font-size:24px}
+.lightbox-zoom {min-width:48px;text-align:center;font-size:12px;color:#cfd6d1}
+.lightbox-stage {position:relative;flex:1;min-height:0;display:grid;place-items:center;overflow:hidden;touch-action:none;overscroll-behavior:contain;user-select:none;-webkit-user-select:none;cursor:zoom-in}
+.lightbox-stage img {max-width:100%;max-height:100%;object-fit:contain;user-select:none;-webkit-user-drag:none;will-change:transform}
+.lightbox-nav {position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border:0;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;font-size:32px;line-height:1;display:grid;place-items:center;cursor:pointer}
+.lightbox-nav:hover {background:rgba(255,255,255,.28)}
+.lightbox-nav.prev {left:16px}
+.lightbox-nav.next {right:16px}
+.lightbox-caption {padding:10px 18px 16px;padding-bottom:max(16px,env(safe-area-inset-bottom));text-align:center;font-size:13px;color:#cfd6d1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:600px){.lightbox-bar{padding:10px 12px}.lightbox-nav{width:38px;height:38px;font-size:26px}.lightbox-nav.prev{left:6px}.lightbox-nav.next{right:6px}.magnifier-hint{display:none}}
 .price {font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--green)}
 .bid-panel .price {font-size:34px;margin:0 0 20px}
 .bid-meta {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;border-block:1px solid var(--line);padding:14px 0;margin-bottom:20px}
 .bid-meta small {display:block;font-size:11px;margin-bottom:4px}
 .bid-meta b {font-size:13px}
+.bid-leader {display:grid;gap:6px;padding:12px;border:1px solid var(--line);border-radius:8px;margin:12px 0}
+.bid-leader small {color:var(--quiet);font-size:12px}
+.bid-leader strong {font-size:15px}
+.bid-leader>span:last-child {font-size:13px}
 .bid-clock {margin:12px 0}
 .bid-clock>small {display:block;margin-bottom:8px}
 .countdown-boxes {display:grid;grid-template-columns:repeat(4,1fr);gap:8px}

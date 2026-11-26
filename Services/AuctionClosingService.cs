@@ -39,7 +39,9 @@ public class AuctionClosingService(
         // Mỗi lượt chỉ lấy tối đa 50 phiên đến giờ mở để không giữ DB quá lâu.
         // Lượt quét sau sẽ xử lý phần còn lại nếu số phiên lớn hơn 50.
         var pendingIds = await db.Products.AsNoTracking()
-            .Where(p => p.Status == ProductStatus.Scheduled && p.StartTime <= now)
+            .Where(p => p.Status == ProductStatus.Scheduled && p.StartTime <= now &&
+                !db.LiveLots.Any(l => l.ProductId == p.Id && l.Status != LiveLotStatus.Unsold &&
+                    l.Status != LiveLotStatus.Skipped && l.Status != LiveLotStatus.Withdrawn))
             .OrderBy(p => p.StartTime).Select(p => p.Id).Take(50).ToListAsync(ct);
         foreach (var id in pendingIds)
         {
@@ -56,7 +58,9 @@ public class AuctionClosingService(
 
         // Chỉ đóng phiên Active đã qua EndTime, không đụng phiên đã hủy.
         var expiredIds = await db.Products.AsNoTracking()
-            .Where(p => p.Status == ProductStatus.Active && p.EndTime <= now)
+            .Where(p => p.Status == ProductStatus.Active && p.EndTime <= now &&
+                !db.LiveLots.Any(l => l.ProductId == p.Id && l.Status != LiveLotStatus.Unsold &&
+                    l.Status != LiveLotStatus.Skipped && l.Status != LiveLotStatus.Withdrawn))
             .OrderBy(p => p.EndTime).Select(p => p.Id).Take(50).ToListAsync(ct);
         foreach (var id in expiredIds)
         {

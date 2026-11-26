@@ -12,7 +12,12 @@ public class ProductService(AppDbContext db, CurrentUser currentUser, IConfigura
     {
         // AsNoTracking phù hợp với màn hình chỉ đọc: EF không cần theo dõi thay đổi.
         var (page, size) = PageArgs.Validate(filter.Page, filter.PageSize);
-        var query = db.Products.AsNoTracking().AsQueryable();
+        // Sản phẩm đã được xếp vào lô đấu giá trực tiếp không xuất hiện như
+        // phiên đấu giá theo thời gian để tránh bán trùng.
+        var query = db.Products.AsNoTracking()
+            .Where(p => !db.LiveLots.Any(l => l.ProductId == p.Id &&
+                l.Status != LiveLotStatus.Unsold && l.Status != LiveLotStatus.Skipped &&
+                l.Status != LiveLotStatus.Withdrawn));
         if (!string.IsNullOrWhiteSpace(filter.Q))
             query = query.Where(p => p.Name.Contains(filter.Q.Trim()));
         if (!string.IsNullOrWhiteSpace(filter.Category))
@@ -70,8 +75,20 @@ public class ProductService(AppDbContext db, CurrentUser currentUser, IConfigura
         if (increment < 1 || increment != decimal.Truncate(increment))
             throw new InvalidOperationException("Auction:MinBidIncrement phải là số nguyên VND dương.");
         response.MinBidIncrement = increment;
-        response.MinimumBid = await db.Bids.AnyAsync(b => b.ProductId == id, ct)
+        var leadingBid = await db.Bids.AsNoTracking()
+            .Where(b => b.ProductId == id)
+            .OrderByDescending(b => b.Amount).ThenBy(b => b.BidTime).ThenBy(b => b.Id)
+            .Select(b => new { b.UserId })
+            .FirstOrDefaultAsync(ct);
+        response.BidCount = await db.Bids.CountAsync(b => b.ProductId == id, ct);
+        response.MinimumBid = response.BidCount > 0
             ? product.CurrentPrice + increment : product.StartingPrice;
+        response.LeadingBidderName = leadingBid is null
+            ? null
+            : await db.Users.AsNoTracking()
+                .Where(user => user.Id == leadingBid.UserId)
+                .Select(user => user.Username)
+                .FirstOrDefaultAsync(ct);
         return response;
     }
 

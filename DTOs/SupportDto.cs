@@ -10,6 +10,8 @@ public class CreateTicketDto
     [Required, MaxLength(700)] public string Message { get; set; } = string.Empty;
     public int? ProductId { get; set; }
     public int? OrderId { get; set; }
+    /// <summary>Trang người dùng đang xem khi mở chat (home, product, order, v.v.)</summary>
+    [MaxLength(50)] public string? PageContext { get; set; }
 }
 public class TicketReplyDto
 {
@@ -31,6 +33,7 @@ public class TicketDto
     public int? ProductId { get; set; }
     public int? OrderId { get; set; }
     public string Status { get; set; } = string.Empty;
+    public string? PageContext { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public string Version { get; set; } = string.Empty;
@@ -38,4 +41,6 @@ public class TicketDto
     public int MessagePages { get; set; }
     public List<TicketMessageDto> Messages { get; set; } = [];
 }
-public record TicketMessageDto(int Id, string AuthorName, bool IsAdmin, string Body, DateTime CreatedAt);
+public record TicketMessageDto(int Id, string AuthorName, bool IsAdmin, string Body, DateTime CreatedAt, string SenderType = "User");
+public record AiSuggestDto(string? PageContext, string? ProductStatus, string? Message, string? Lang = "vi");
+

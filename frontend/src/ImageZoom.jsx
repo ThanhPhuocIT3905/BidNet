@@ -3,6 +3,7 @@ import { LotPhoto } from "./Lot.jsx";
 
 // Ảnh chính: rê chuột để phóng to quanh con trỏ, bấm để mở lightbox.
 export function Magnifier({ item, src, onOpen }) {
+  const imageRef = useRef(null);
   const [origin, setOrigin] = useState(null);
   const [failed, setFailed] = useState(false);
 
@@ -11,6 +12,23 @@ export function Magnifier({ item, src, onOpen }) {
   const track = (event) => {
     const rect = event.currentTarget.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
+    const image = imageRef.current;
+    if (image?.naturalWidth && image.naturalHeight) {
+      const fit = Math.min(rect.width / image.naturalWidth, rect.height / image.naturalHeight);
+      const width = image.naturalWidth * fit;
+      const height = image.naturalHeight * fit;
+      const left = rect.left + (rect.width - width) / 2;
+      const top = rect.top + (rect.height - height) / 2;
+      if (
+        event.clientX < left ||
+        event.clientX > left + width ||
+        event.clientY < top ||
+        event.clientY > top + height
+      ) {
+        setOrigin(null);
+        return;
+      }
+    }
     setOrigin({
       x: ((event.clientX - rect.left) / rect.width) * 100,
       y: ((event.clientY - rect.top) / rect.height) * 100,
@@ -34,6 +52,7 @@ export function Magnifier({ item, src, onOpen }) {
       }}
     >
       <img
+        ref={imageRef}
         src={src}
         alt={item.name}
         draggable="false"
@@ -62,19 +81,25 @@ const MAX_SCALE = 4;
 export function Lightbox({ photos, index, onIndexChange, onClose, alt }) {
   const dialogRef = useRef(null);
   const stageRef = useRef(null);
+  const imageRef = useRef(null);
   const drag = useRef(null);
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const close = () => {
+    if (dialogRef.current?.open) dialogRef.current.close();
+    onClose();
+  };
 
   useEffect(() => {
     const dialog = dialogRef.current;
     const previous = document.activeElement;
     const overflow = document.body.style.overflow;
-    dialog.showModal();
+    if (!dialog.open) dialog.showModal();
     dialog.focus();
     document.body.style.overflow = "hidden";
     return () => {
-      dialog.close();
+      if (dialog.open) dialog.close();
       document.body.style.overflow = overflow;
       if (previous?.isConnected) previous.focus();
     };
@@ -86,11 +111,22 @@ export function Lightbox({ photos, index, onIndexChange, onClose, alt }) {
     setOffset({ x: 0, y: 0 });
   }, [index]);
 
+  const fittedImageSize = () => {
+    const stage = stageRef.current;
+    if (!stage) return { width: 0, height: 0 };
+    const image = imageRef.current;
+    const width = image?.naturalWidth || stage.clientWidth;
+    const height = image?.naturalHeight || stage.clientHeight;
+    const fit = Math.min(stage.clientWidth / width, stage.clientHeight / height);
+    return { width: width * fit, height: height * fit };
+  };
+
   const clampOffset = (next, value = scale) => {
     const stage = stageRef.current;
     if (!stage || value <= 1) return { x: 0, y: 0 };
-    const maxX = (stage.clientWidth * (value - 1)) / 2;
-    const maxY = (stage.clientHeight * (value - 1)) / 2;
+    const imageSize = fittedImageSize();
+    const maxX = Math.max(0, (imageSize.width * value - stage.clientWidth) / 2);
+    const maxY = Math.max(0, (imageSize.height * value - stage.clientHeight) / 2);
     return {
       x: Math.max(-maxX, Math.min(maxX, next.x)),
       y: Math.max(-maxY, Math.min(maxY, next.y)),
@@ -103,12 +139,19 @@ export function Lightbox({ photos, index, onIndexChange, onClose, alt }) {
     setOffset((current) => clampOffset(current, next));
   };
 
+  useEffect(() => {
+    const resize = () => setOffset((current) => clampOffset(current, scale));
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, [scale]);
+
   const show = (step) => {
     if (photos.length < 2) return;
     onIndexChange((index + step + photos.length) % photos.length);
   };
 
   const onPointerDown = (event) => {
+    if (event.target !== imageRef.current) return;
     if (event.button !== 0 && event.pointerType === "mouse") return;
     drag.current = {
       x: event.clientX,
@@ -117,6 +160,7 @@ export function Lightbox({ photos, index, onIndexChange, onClose, alt }) {
       oy: offset.y,
       moved: false,
     };
+    setDragging(true);
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
 
@@ -136,6 +180,7 @@ export function Lightbox({ photos, index, onIndexChange, onClose, alt }) {
   const onPointerUp = () => {
     const current = drag.current;
     drag.current = null;
+    setDragging(false);
     if (!current || current.moved) return;
     // Chạm (hoặc bấm) vào ảnh: bật/tắt zoom — hỗ trợ cả màn hình cảm ứng.
     if (scale > 1) {
@@ -156,7 +201,7 @@ export function Lightbox({ photos, index, onIndexChange, onClose, alt }) {
       tabIndex={-1}
       onCancel={(event) => {
         event.preventDefault();
-        onClose();
+        close();
       }}
       onKeyDown={(event) => {
         if (event.key === "ArrowLeft") show(-1);
@@ -190,7 +235,7 @@ export function Lightbox({ photos, index, onIndexChange, onClose, alt }) {
           <button
             type="button"
             className="lightbox-close"
-            onClick={onClose}
+            onClick={close}
             aria-label="Đóng chế độ xem ảnh"
           >
             ×
@@ -203,16 +248,24 @@ export function Lightbox({ photos, index, onIndexChange, onClose, alt }) {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerCancel={() => (drag.current = null)}
+        onPointerCancel={() => {
+          drag.current = null;
+          setDragging(false);
+        }}
+        onWheel={(event) => {
+          event.preventDefault();
+          applyScale(scale + (event.deltaY < 0 ? 0.25 : -0.25));
+        }}
       >
         {photo && (
           <img
+            ref={imageRef}
             src={photo.url}
             alt={photo.label || alt}
             draggable="false"
             style={{
               transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
-              cursor: scale > 1 ? "grab" : "zoom-in",
+              cursor: dragging ? "grabbing" : scale > 1 ? "grab" : "zoom-in",
             }}
           />
         )}

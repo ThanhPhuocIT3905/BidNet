@@ -26,12 +26,15 @@ public class SupportService(AppDbContext db, CurrentUser currentUser)
         var admins = await db.Users.Where(u => u.Role == "Admin" && u.IsActive).Select(u => u.Id).ToListAsync(ct);
         if (admins.Count == 0)
             throw new ApiException(503, "support_unavailable", "Hiện chưa có quản trị viên tiếp nhận. Vui lòng thử lại sau.");
-        var ticket = new SupportTicket { RequesterId = user.Id, Requester = user,
-            Subject = string.IsNullOrWhiteSpace(request.Subject) ? "Yêu cầu hỗ trợ" : request.Subject.Trim(),
-            ProductId = request.ProductId, OrderId = request.OrderId };
+        var subject = string.IsNullOrWhiteSpace(request.Subject) ? "Yêu cầu hỗ trợ" : request.Subject.Trim();
+        var ticket = new SupportTicket
+        {
+            RequesterId = user.Id, Requester = user, Subject = subject,
+            ProductId = request.ProductId, OrderId = request.OrderId,
+            PageContext = request.PageContext?.Trim()
+        };
         ticket.Messages.Add(new SupportMessage { AuthorId = user.Id, Body = request.Message.Trim() });
         db.SupportTickets.Add(ticket);
-        // Navigation fixes the generated ticket FK in the same SaveChanges transaction.
         foreach (var id in admins)
         {
             var notification = new Notification { UserId = id, Title = $"Yêu cầu hỗ trợ từ {user.Username}",
@@ -77,19 +80,21 @@ public class SupportService(AppDbContext db, CurrentUser currentUser)
         result.MessagePage = args.Page;
         result.MessagePages = Math.Max(1, (int)Math.Ceiling(await query.CountAsync(ct) / 50d));
         result.Messages = await query.OrderByDescending(m => m.Id).Skip((args.Page - 1) * 50).Take(50)
-            .Select(m => new TicketMessageDto(m.Id, m.Author.Username, m.Author.Role == "Admin", m.Body, m.CreatedAt)).ToListAsync(ct);
+            .Select(m => new TicketMessageDto(m.Id, m.Author.Username, m.Author.Role == "Admin", m.Body, m.CreatedAt,
+                m.Author.Role == "Admin" ? "Agent" : "User")).ToListAsync(ct);
         result.Messages.Reverse();
         return result;
     }
 
-    public async Task ReplyAsync(int id, TicketReplyDto request, CancellationToken ct)
+    public async Task<TicketMessageDto> ReplyAsync(int id, TicketReplyDto request, CancellationToken ct)
     {
         var user = await currentUser.RequireActiveAsync(ct);
         var ticket = await FindAsync(id, user, ct);
         VersionGuard.Check(request.Version, ticket.RowVersion);
         if (string.IsNullOrWhiteSpace(request.Message))
             throw new ApiException(400, "empty_message", "Nội dung phản hồi không được trống.");
-        ticket.Messages.Add(new SupportMessage { AuthorId = user.Id, Body = request.Message.Trim() });
+        var msg = new SupportMessage { AuthorId = user.Id, Body = request.Message.Trim() };
+        ticket.Messages.Add(msg);
         ticket.UpdatedAt = DateTime.UtcNow;
         if (user.Role == "Admin" && ticket.Status == TicketStatus.Open) ticket.Status = TicketStatus.InProgress;
         if (user.Role != "Admin" && ticket.Status == TicketStatus.Resolved) ticket.Status = TicketStatus.Open;
@@ -99,6 +104,8 @@ public class SupportService(AppDbContext db, CurrentUser currentUser)
             db.Notifications.Add(new Notification { UserId = receiver, TicketId = id,
                 Title = $"Phản hồi yêu cầu #{id}", Message = $"Có phản hồi mới cho yêu cầu: {ticket.Subject}." });
         await db.SaveChangesAsync(ct);
+        return new TicketMessageDto(msg.Id, user.Username, user.Role == "Admin", msg.Body, msg.CreatedAt,
+            user.Role == "Admin" ? "Agent" : "User");
     }
 
     public async Task SetStatusAsync(int id, TicketStatusDto request, CancellationToken ct)
@@ -126,5 +133,6 @@ public class SupportService(AppDbContext db, CurrentUser currentUser)
 
     private static TicketDto Map(SupportTicket t) => new() { Id = t.Id, Subject = t.Subject,
         RequesterId = t.RequesterId, RequesterName = t.Requester.Username, ProductId = t.ProductId, OrderId = t.OrderId,
-        Status = t.Status.ToString(), CreatedAt = t.CreatedAt, UpdatedAt = t.UpdatedAt, Version = Convert.ToBase64String(t.RowVersion) };
+        Status = t.Status.ToString(), PageContext = t.PageContext, CreatedAt = t.CreatedAt, UpdatedAt = t.UpdatedAt, Version = Convert.ToBase64String(t.RowVersion) };
 }
+

@@ -88,6 +88,7 @@ namespace BidNet.DTOs
         // WinnerId/Name null trước khi có kết quả hoặc phiên không có người thắng.
         public int? WinnerId { get; set; }
         public string? WinnerName { get; set; }
+        public string? LeadingBidderName { get; set; }
 
         public DateTime CreatedAt { get; set; }
         public string? CancellationReason { get; set; }

@@ -22,6 +22,11 @@ public class BidService(
         var now = DateTime.UtcNow;
         if (product.SellerId == user.Id)
             throw new ApiException(403, "seller_cannot_bid", "Người bán không được tự đặt giá.");
+        // Sản phẩm đang nằm trong một lô live chỉ nhận giá trong phòng live.
+        if (await db.LiveLots.AnyAsync(l => l.ProductId == productId &&
+                l.Status != LiveLotStatus.Unsold && l.Status != LiveLotStatus.Skipped &&
+                l.Status != LiveLotStatus.Withdrawn, ct))
+            throw new ApiException(409, "live_lot_product", "Sản phẩm đang đấu giá trực tiếp, vui lòng đặt giá trong phòng đấu giá.");
         if (product.Status != ProductStatus.Active || now < product.StartTime || now >= product.EndTime)
             throw new ApiException(409, "auction_not_active", "Phiên không nhận đặt giá tại thời điểm này.");
 
@@ -94,11 +99,21 @@ public class BidService(
         }
 
         var response = ToResponse(bid);
+        response.BidderName = user.Username;
         // Chỉ phát SignalR khi DB đã lưu thành công, tránh báo bid bị từ chối.
         try
         {
             await hub.Clients.Group(AuctionHub.GroupName(productId))
-                .SendAsync("BidAccepted", new { productId, currentPrice = amount, bidTime = now }, ct);
+                .SendAsync("BidAccepted", new
+                {
+                    productId,
+                    bidId = bid.Id,
+                    currentPrice = amount,
+                    minimumBid = amount + increment,
+                    bidCount = await db.Bids.CountAsync(b => b.ProductId == productId, ct),
+                    bidTime = now,
+                    bidderName = user.Username
+                }, ct);
         }
         catch (Exception ex)
         {
@@ -112,8 +127,7 @@ public class BidService(
     public async Task<PagedResponseDto<PublicBidDto>> ForProductAsync(
         int productId, int page, int pageSize, CancellationToken ct)
     {
-        // Lịch sử công khai không lộ UserId. Sắp xếp mới nhất trước để người
-        // xem thấy biến động gần đây; TotalCount được tính trước khi phân trang.
+        // Sắp xếp mới nhất trước để người xem thấy biến động gần đây.
         if (!await db.Products.AnyAsync(p => p.Id == productId, ct))
             throw new ApiException(404, "product_not_found", "Không tìm thấy sản phẩm.");
         var args = PageArgs.Validate(page, pageSize);
@@ -121,7 +135,13 @@ public class BidService(
         var count = await query.CountAsync(ct);
         var items = await query.OrderByDescending(b => b.BidTime).ThenByDescending(b => b.Id)
             .Skip((args.Page - 1) * args.PageSize).Take(args.PageSize)
-            .Select(b => new PublicBidDto { Id = b.Id, Amount = b.Amount, BidTime = b.BidTime })
+            .Select(b => new PublicBidDto
+            {
+                Id = b.Id,
+                Amount = b.Amount,
+                BidTime = b.BidTime,
+                BidderName = b.User.Username
+            })
             .ToListAsync(ct);
         return new PagedResponseDto<PublicBidDto>
         {
@@ -133,19 +153,33 @@ public class BidService(
     {
         // Lịch sử cá nhân có UserId nhưng chỉ lọc theo chính người trong token.
         var user = await currentUser.RequireActiveAsync(ct);
-        return await PageAsync(db.Bids.AsNoTracking().Where(b => b.UserId == user.Id), page, pageSize, ct);
-    }
-
-    private static async Task<PagedResponseDto<BidResponseDto>> PageAsync(
-        IQueryable<Bid> query, int page, int pageSize, CancellationToken ct)
-    {
         var args = PageArgs.Validate(page, pageSize);
+        var query = db.Bids.AsNoTracking().Where(b => b.UserId == user.Id);
         var count = await query.CountAsync(ct);
-        var bids = await query.OrderByDescending(b => b.BidTime).ThenByDescending(b => b.Id)
-            .Skip((args.Page - 1) * args.PageSize).Take(args.PageSize).ToListAsync(ct);
+        var items = await query.OrderByDescending(b => b.BidTime).ThenByDescending(b => b.Id)
+            .Skip((args.Page - 1) * args.PageSize).Take(args.PageSize)
+            .Select(b => new BidResponseDto
+            {
+                Id = b.Id,
+                ProductId = b.ProductId,
+                UserId = b.UserId,
+                Amount = b.Amount,
+                BidTime = b.BidTime,
+                BidderName = b.User.Username,
+                ProductName = b.Product.Name,
+                ProductStatus = b.Product.Status.ToString(),
+                CurrentPrice = b.Product.CurrentPrice,
+                LeadingBidderId = b.Product.Bids
+                    .OrderByDescending(current => current.Amount)
+                    .ThenBy(current => current.BidTime)
+                    .ThenBy(current => current.Id)
+                    .Select(current => (int?)current.UserId)
+                    .FirstOrDefault()
+            })
+            .ToListAsync(ct);
         return new PagedResponseDto<BidResponseDto>
         {
-            Items = bids.Select(ToResponse).ToList(),
+            Items = items,
             Page = args.Page,
             PageSize = args.PageSize,
             TotalCount = count

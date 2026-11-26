@@ -23,6 +23,15 @@ public class CurrentUser(IHttpContextAccessor accessor, AppDbContext db)
         return user;
     }
 
+    // Trả null khi khách chưa đăng nhập; dùng cho dữ liệu công khai nhưng có
+    // thêm trạng thái cá nhân (ví dụ đã đăng ký sự kiện live hay chưa).
+    public async Task<User?> OptionalAsync(CancellationToken ct)
+    {
+        var idClaim = accessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(idClaim, out var id)) return null;
+        return await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == id && u.IsActive, ct);
+    }
+
     // Dùng cho thao tác cần tài khoản đang hoạt động, kể cả khi JWT chưa hết hạn.
     public async Task<User> RequireActiveAsync(CancellationToken ct)
     {

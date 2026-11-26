@@ -29,6 +29,7 @@ import MarketplaceHome from "./MarketplaceHome.jsx";
 import { ConfirmProvider } from "./UI.jsx";
 import Avatar from "./Avatar.jsx";
 import { AuthModal } from "./AuthModal.jsx";
+import SupportWidget from "./SupportWidget.jsx";
 
 createRoot(document.getElementById("app")).render(<ConfirmProvider><App /></ConfirmProvider>);
 
@@ -401,6 +402,15 @@ function App() {
         <div id="toast" role="status" aria-live="polite">
           {toast}
         </div>
+      )}
+      {!adminArea && (
+        <SupportWidget
+          route={route}
+          user={user}
+          go={go}
+          openAuth={setAuthTab}
+          notify={notify}
+        />
       )}
     </>
   );

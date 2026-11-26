@@ -15,6 +15,8 @@ public class SupportTicket
     public int? OrderId { get; set; }
     public Order? Order { get; set; }
     public TicketStatus Status { get; set; } = TicketStatus.Open;
+    /// <summary>Trang người dùng đang xem khi mở chat: home, product, order, my-products, v.v.</summary>
+    [MaxLength(50)] public string? PageContext { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     [Timestamp] public byte[] RowVersion { get; set; } = [];
@@ -31,3 +33,4 @@ public class SupportMessage
     [MaxLength(2000)] public string Body { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
+

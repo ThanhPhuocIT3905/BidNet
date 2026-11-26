@@ -145,12 +145,6 @@ public class OrderWorkflow(AppDbContext db, CurrentUser currentUser)
             throw new BadRequestException("Vui lòng ghi lý do hủy đơn hàng.");
         var previous = order.Status;
         order.Status = request.Status;
-        if (order.Status == OrderStatus.Paid)
-        {
-            order.PaidAt = DateTime.UtcNow;
-            order.PaymentStatus = PaymentStatus.Paid;
-            order.PaymentMethod ??= "SELLER_CONFIRMED";
-        }
         if (order.Status == OrderStatus.Delivered) order.CompletedAt = DateTime.UtcNow;
         if (order.Status == OrderStatus.Cancelled) order.CancellationReason = request.Note!.Trim();
         AddEvent(order, user, "StatusChanged", previous, request.Note?.Trim());

@@ -49,7 +49,9 @@ public class AuctionRulesTests
     {
         await using var db = NewDatabase();
         var seller = new User { Id = 1, Username = "seller", Email = "seller@example.com" };
+        var bidder = new User { Id = 2, Username = "bidder", Email = "bidder@example.com" };
         db.Users.Add(seller);
+        db.Users.Add(bidder);
         db.Products.Add(new Product
         {
             Id = 1, Name = "Camera", SellerId = 1, Seller = seller,
@@ -68,6 +70,53 @@ public class AuctionRulesTests
         await db.SaveChangesAsync();
         var next = await service.GetAsync(1, CancellationToken.None);
         Assert.Equal(15000m, next.MinimumBid);
+        Assert.Equal(1, next.BidCount);
+        Assert.Equal("bidder", next.LeadingBidderName);
+    }
+
+    [Fact]
+    public async Task BidHistoryAndPersonalBids_IncludePublicNameAndLeadingStatus()
+    {
+        await using var db = NewDatabase();
+        var seller = new User { Id = 1, Username = "seller", Email = "seller@example.com" };
+        var bidder = new User { Id = 2, Username = "bidder", Email = "bidder@example.com" };
+        var product = new Product
+        {
+            Id = 1,
+            Name = "Camera",
+            SellerId = seller.Id,
+            Seller = seller,
+            StartingPrice = 10000,
+            CurrentPrice = 12000,
+            StartTime = DateTime.UtcNow.AddHours(-1),
+            EndTime = DateTime.UtcNow.AddHours(1),
+            Status = ProductStatus.Active
+        };
+        db.Users.AddRange(seller, bidder);
+        db.Products.Add(product);
+        db.Bids.Add(new Bid
+        {
+            ProductId = product.Id,
+            Product = product,
+            UserId = bidder.Id,
+            User = bidder,
+            Amount = 12000,
+            BidTime = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var service = new BidService(
+            db, Current(db, bidder.Id), Settings(),
+            Mock.Of<IHubContext<AuctionHub>>(), NullLogger<BidService>.Instance);
+        var publicBids = await service.ForProductAsync(1, 1, 20, CancellationToken.None);
+        var myBids = await service.MineAsync(1, 20, CancellationToken.None);
+
+        Assert.Equal("bidder", Assert.Single(publicBids.Items).BidderName);
+        var myBid = Assert.Single(myBids.Items);
+        Assert.Equal("Camera", myBid.ProductName);
+        Assert.Equal("Active", myBid.ProductStatus);
+        Assert.Equal(12000m, myBid.CurrentPrice);
+        Assert.Equal(bidder.Id, myBid.LeadingBidderId);
     }
 
     [Fact]

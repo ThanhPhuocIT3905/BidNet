@@ -124,6 +124,255 @@ namespace BidNet.Data.Migrations
                     b.ToTable("Categories");
                 });
 
+            modelBuilder.Entity("BidNet.Models.LiveBid", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("BidTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("LotId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("LotId", "Amount", "BidTime");
+
+                    b.ToTable("LiveBids");
+                });
+
+            modelBuilder.Entity("BidNet.Models.LiveEvent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BannerUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.Property<decimal>("BuyerPremiumRate")
+                        .HasColumnType("decimal(5,4)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedById")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CurrentLotId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("RegistrationOpen")
+                        .HasColumnType("bit");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTime?>("ScheduledEndAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ScheduledStartAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("CreatedById");
+
+                    b.HasIndex("Status", "ScheduledStartAt");
+
+                    b.ToTable("LiveEvents");
+                });
+
+            modelBuilder.Entity("BidNet.Models.LiveLot", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BidCount")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("BidIncrement")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("CallingStage")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("CurrentPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("EventId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("HammerPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.Property<int?>("LeadingBidderId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LotNumber")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("OpenedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("ReservePrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("SellerId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SequenceNumber")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("StartingPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("WinnerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("WithdrawReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LeadingBidderId");
+
+                    b.HasIndex("ProductId")
+                        .IsUnique();
+
+                    b.HasIndex("SellerId");
+
+                    b.HasIndex("WinnerId");
+
+                    b.HasIndex("EventId", "SequenceNumber")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "EventId");
+
+                    b.ToTable("LiveLots", t =>
+                        {
+                            t.HasCheckConstraint("CK_LiveLots_Status", "[Status] IN (0,1,2,3,4,5,6)");
+                        });
+                });
+
+            modelBuilder.Entity("BidNet.Models.LiveRegistration", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EventId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("EventId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("LiveRegistrations", t =>
+                        {
+                            t.HasCheckConstraint("CK_LiveRegistrations_Status", "[Status] IN (0,1,2,3,4)");
+                        });
+                });
+
             modelBuilder.Entity("BidNet.Models.Notification", b =>
                 {
                     b.Property<int>("Id")
@@ -200,6 +449,17 @@ namespace BidNet.Data.Migrations
                     b.Property<DateTime?>("PaidAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("PaymentMethod")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<int>("PaymentStatus")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PaymentTransactionId")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
 
@@ -235,6 +495,10 @@ namespace BidNet.Data.Migrations
 
                     b.HasIndex("BuyerId");
 
+                    b.HasIndex("PaymentTransactionId")
+                        .IsUnique()
+                        .HasFilter("[PaymentTransactionId] IS NOT NULL");
+
                     b.HasIndex("ProductId")
                         .IsUnique();
 
@@ -245,6 +509,10 @@ namespace BidNet.Data.Migrations
                     b.ToTable("Orders", t =>
                         {
                             t.HasCheckConstraint("CK_Orders_Parties", "[BuyerId] <> [SellerId]");
+
+                            t.HasCheckConstraint("CK_Orders_PaymentMethod", "[PaymentMethod] IS NULL OR [PaymentMethod] IN ('BANK_TRANSFER_DEMO','MOMO_DEMO')");
+
+                            t.HasCheckConstraint("CK_Orders_PaymentStatus", "[PaymentStatus] IN (0,1)");
 
                             t.HasCheckConstraint("CK_Orders_Price", "[FinalPrice] > 0 AND [FinalPrice] = FLOOR([FinalPrice])");
 
@@ -466,6 +734,10 @@ namespace BidNet.Data.Migrations
                     b.Property<int?>("OrderId")
                         .HasColumnType("int");
 
+                    b.Property<string>("PageContext")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<int?>("ProductId")
                         .HasColumnType("int");
 
@@ -617,6 +889,96 @@ namespace BidNet.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Product");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BidNet.Models.LiveBid", b =>
+                {
+                    b.HasOne("BidNet.Models.LiveLot", "Lot")
+                        .WithMany("Bids")
+                        .HasForeignKey("LotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BidNet.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Lot");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BidNet.Models.LiveEvent", b =>
+                {
+                    b.HasOne("BidNet.Models.User", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedBy");
+                });
+
+            modelBuilder.Entity("BidNet.Models.LiveLot", b =>
+                {
+                    b.HasOne("BidNet.Models.LiveEvent", "Event")
+                        .WithMany("Lots")
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BidNet.Models.User", "LeadingBidder")
+                        .WithMany()
+                        .HasForeignKey("LeadingBidderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BidNet.Models.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BidNet.Models.User", "Seller")
+                        .WithMany()
+                        .HasForeignKey("SellerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BidNet.Models.User", "Winner")
+                        .WithMany()
+                        .HasForeignKey("WinnerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Event");
+
+                    b.Navigation("LeadingBidder");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Seller");
+
+                    b.Navigation("Winner");
+                });
+
+            modelBuilder.Entity("BidNet.Models.LiveRegistration", b =>
+                {
+                    b.HasOne("BidNet.Models.LiveEvent", "Event")
+                        .WithMany("Registrations")
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BidNet.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Event");
 
                     b.Navigation("User");
                 });
@@ -778,6 +1140,18 @@ namespace BidNet.Data.Migrations
             modelBuilder.Entity("BidNet.Models.Category", b =>
                 {
                     b.Navigation("Products");
+                });
+
+            modelBuilder.Entity("BidNet.Models.LiveEvent", b =>
+                {
+                    b.Navigation("Lots");
+
+                    b.Navigation("Registrations");
+                });
+
+            modelBuilder.Entity("BidNet.Models.LiveLot", b =>
+                {
+                    b.Navigation("Bids");
                 });
 
             modelBuilder.Entity("BidNet.Models.Order", b =>

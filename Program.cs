@@ -114,7 +114,9 @@ try
                 // đấu giá mới đọc access_token trên query; các API REST dùng header.
                 OnMessageReceived = context =>
                 {
-                    if (context.Request.Path.StartsWithSegments("/hubs/auction") &&
+                    if ((context.Request.Path.StartsWithSegments("/hubs/auction") ||
+                         context.Request.Path.StartsWithSegments("/hubs/live") ||
+                         context.Request.Path.StartsWithSegments("/hubs/support")) &&
                         context.Request.Query.TryGetValue("access_token", out var token))
                         context.Token = token;
                     return Task.CompletedTask;
@@ -174,6 +176,7 @@ try
         sp.GetRequiredService<IConfiguration>()));
     builder.Services.AddScoped<IProductService, ProductService>();
     builder.Services.AddScoped<IBidService, BidService>();
+    builder.Services.AddScoped<LiveAuctionService>();
     builder.Services.AddScoped<CurrentUser>();
     builder.Services.AddScoped<IUserRepository, UserRepository>();
     builder.Services.AddScoped<IUserService, UserService>();
@@ -235,6 +238,8 @@ try
     app.UseAuthorization();
     app.MapControllers();
     app.MapHub<AuctionHub>("/hubs/auction");
+    app.MapHub<LiveAuctionHub>("/hubs/live");
+    app.MapHub<SupportHub>("/hubs/support");
     app.Run();
 }
 catch (HostAbortedException) { throw; }

@@ -18,12 +18,17 @@ public class BidResponseDto
     public int UserId { get; set; }
     public decimal Amount { get; set; }
     public DateTime BidTime { get; set; }
+    public string? BidderName { get; set; }
+    public string? ProductName { get; set; }
+    public string? ProductStatus { get; set; }
+    public decimal? CurrentPrice { get; set; }
+    public int? LeadingBidderId { get; set; }
 }
 
 public class PublicBidDto
 {
-    // Lịch sử công khai bỏ UserId để không tiết lộ người đang đấu giá.
     public int Id { get; set; }
     public decimal Amount { get; set; }
     public DateTime BidTime { get; set; }
+    public string BidderName { get; set; } = string.Empty;
 }

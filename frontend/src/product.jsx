@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useRef, useState } from "react";
-import { LotPhoto, priceLabel } from "./Lot.jsx";
+import { LotPhoto, isPlaceholderImage, priceLabel } from "./Lot.jsx";
+import { Lightbox, Magnifier } from "./ImageZoom.jsx";
 import { CancelAuction } from "./AdminWorkspace";
 import useRemote from "./useRemote";
 import { Modal, useConfirm } from "./UI.jsx";
@@ -108,6 +109,8 @@ export function Product({ id, user, admin, go, notify, openAuth }) {
   const bidLock = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [selectedImage, selectImage] = useState(null);
+  const [lightbox, setLightbox] = useState(false);
+  const [latestBid, setLatestBid] = useState(null);
   const [mediaBusy, setMediaBusy] = useState(false);
   const [historyPage, setHistoryPage] = useState(1);
   const product = useRemote(() => api(`/api/products/${id}`), [id]),
@@ -136,7 +139,6 @@ export function Product({ id, user, admin, go, notify, openAuth }) {
     }
   };
   useEffect(() => {
-    if (!user) return;
     let live = true;
     const c = new signalR.HubConnectionBuilder()
       .withUrl(`${API_BASE}/hubs/auction`, {
@@ -158,14 +160,15 @@ export function Product({ id, user, admin, go, notify, openAuth }) {
         if (live) setConnected(false);
       }
     });
-    c.on("BidAccepted", () => {
+    c.on("BidAccepted", (event) => {
+      if (event?.productId === id) setLatestBid(event);
       product.reload();
       bids.reload();
     });
     c.on("AuctionClosed", (payload) => {
       product.reload();
       // Chỉ chúc mừng đúng người thắng khi phiên kết thúc bình thường.
-      if (payload?.status === "Completed" && payload.winnerId != null && payload.winnerId === user.id)
+      if (payload?.status === "Completed" && payload.winnerId != null && payload.winnerId === user?.id)
         setWonAuction(true);
     });
     c.start()
@@ -177,6 +180,7 @@ export function Product({ id, user, admin, go, notify, openAuth }) {
       c.stop();
     };
   }, [id, user?.id, historyPage]);
+  useEffect(() => setLatestBid(null), [id]);
   useEffect(() => {
     const timer = setInterval(() => {
       product.reload();
@@ -184,12 +188,50 @@ export function Product({ id, user, admin, go, notify, openAuth }) {
     }, 15000);
     return () => clearInterval(timer);
   }, [id, historyPage]);
-  const item = product.data;
+  const loadedItem = product.data;
+  const item = loadedItem && latestBid?.productId === id
+    ? {
+        ...loadedItem,
+        currentPrice: Math.max(loadedItem.currentPrice, latestBid.currentPrice),
+        minimumBid: Math.max(loadedItem.minimumBid || 0, latestBid.minimumBid || 0),
+        bidCount: Math.max(loadedItem.bidCount || 0, latestBid.bidCount || 0),
+        leadingBidderName: latestBid.bidderName,
+      }
+    : loadedItem;
   const minBid = item?.minimumBid;
   const increment = item?.minBidIncrement;
   const canBid = item?.status === "Active" &&
     Date.now() >= parseApiDate(item.startTime).getTime() &&
     Date.now() < parseApiDate(item.endTime).getTime();
+  // Gallery dùng chung cho lightbox: ảnh chính + ảnh tải lên, bỏ ảnh minh họa
+  // danh mục và ảnh trùng.
+  const photoList = [];
+  const addPhoto = (url, label) => {
+    if (isPlaceholderImage(url) || photoList.some((photo) => photo.url === url)) return;
+    photoList.push({ url, label });
+  };
+  addPhoto(item?.imageUrl, "Ảnh chính");
+  (images.data || []).forEach((image) => addPhoto(image.url, image.fileName));
+  const photo = selectedImage && photoList.some((entry) => entry.url === selectedImage)
+    ? selectedImage
+    : photoList[0]?.url || "";
+  const photoIndex = Math.max(
+    0,
+    photoList.findIndex((entry) => entry.url === photo),
+  );
+  const historyItems = bids.data?.items || [];
+  const liveHistoryItem = latestBid?.productId === id
+    ? {
+        id: latestBid.bidId || `live-${latestBid.bidTime}`,
+        amount: latestBid.currentPrice,
+        bidTime: latestBid.bidTime,
+        bidderName: latestBid.bidderName,
+      }
+    : null;
+  const displayedHistory = liveHistoryItem &&
+    !historyItems.some((entry) => entry.id === liveHistoryItem.id)
+    ? [liveHistoryItem, ...historyItems]
+    : historyItems;
   const bid = async (e) => {
     e.preventDefault();
     if (bidLock.current || !canBid || admin || minBid == null) return;
@@ -219,6 +261,18 @@ export function Product({ id, user, admin, go, notify, openAuth }) {
     try {
       const result = await json("POST", `/api/products/${id}/bids`, { amount });
       setRawAmount("");
+      setLatestBid({
+        productId: id,
+        bidId: result?.id,
+        currentPrice: result?.amount ?? amount,
+        minimumBid: (result?.amount ?? amount) + (increment || 0),
+        bidCount: Math.max(
+          Number(item?.bidCount || 0) + 1,
+          Number(bids.data?.totalCount || 0) + 1,
+        ),
+        bidTime: result?.bidTime || new Date().toISOString(),
+        bidderName: result?.bidderName || user.fullName || user.username || "Bạn",
+      });
       setPlacedBid({ amount: result?.amount ?? amount });
       product.reload();
       bids.reload();
@@ -269,6 +323,15 @@ export function Product({ id, user, admin, go, notify, openAuth }) {
   };
   return (
     <>
+      {lightbox && photoList.length > 0 && (
+        <Lightbox
+          photos={photoList}
+          index={photoIndex}
+          alt={item?.name || "Sản phẩm"}
+          onIndexChange={(next) => selectImage(photoList[next].url)}
+          onClose={() => setLightbox(false)}
+        />
+      )}
       {wonAuction && (
         <Modal title="Chúc mừng bạn!" onClose={() => setWonAuction(false)}>
           <div className="bid-success won-modal">
@@ -389,17 +452,19 @@ export function Product({ id, user, admin, go, notify, openAuth }) {
           <div className="split product-layout">
             <div>
               <div className="detail-image">
-                <LotPhoto
-                  item={{
-                    ...item,
-                    imageUrl: selectedImage || item.imageUrl || images.data?.[0]?.url,
-                  }}
-                  priority
-                />
+                {photo ? (
+                  <Magnifier
+                    item={item}
+                    src={photo}
+                    onOpen={() => setLightbox(true)}
+                  />
+                ) : (
+                  <LotPhoto item={{ ...item, imageUrl: photo }} priority />
+                )}
               </div>
               {item.imageUrl?.startsWith("/images/products/") && <p className="small muted" style={{ marginTop: 8 }}>Ảnh tham khảo model từ nhà sản xuất hoặc nhà bán lẻ.</p>}
               <div className="thumbnails">
-                {item.imageUrl && <button type="button" className="gallery-thumb" aria-label="Xem ảnh chính" onClick={() => selectImage(item.imageUrl)}><img src={item.imageUrl} alt="Ảnh chính" /></button>}
+                {item.imageUrl && !isPlaceholderImage(item.imageUrl) && <button type="button" className="gallery-thumb" aria-label="Xem ảnh chính" onClick={() => selectImage(item.imageUrl)}><img src={item.imageUrl} alt="Ảnh chính" /></button>}
                 {images.data?.map((image) => (
                   <div key={image.id}>
                     <button type="button" className="gallery-thumb" onClick={() => selectImage(image.url)} aria-label={`Xem ${image.fileName}`}>
@@ -534,7 +599,7 @@ export function Product({ id, user, admin, go, notify, openAuth }) {
                   </span>
                   <span>
                     <small>Lượt đặt</small>
-                    <b>{bids.data?.totalCount ?? "—"}</b>
+                    <b>{item.bidCount ?? bids.data?.totalCount ?? "—"}</b>
                   </span>
                 </div>
                 <div className="bid-clock">
@@ -552,6 +617,18 @@ export function Product({ id, user, admin, go, notify, openAuth }) {
                 </p>
                 {item.status === "Completed" && (
                   <p>Người thắng: {item.winnerName || "Không có"}</p>
+                )}
+                {item.status === "Active" && (
+                  <div className="bid-leader" aria-live="polite">
+                    <small>Người trả giá cao nhất</small>
+                    <strong>{item.leadingBidderName || "Chưa có lượt đặt giá"}</strong>
+                    {item.leadingBidderName === user?.username && user && (
+                      <span className="badge Active">Bạn đang dẫn đầu</span>
+                    )}
+                    {item.minimumBid != null && (
+                      <span>Giá đặt tối thiểu tiếp theo: <b>{money(item.minimumBid)}</b></span>
+                    )}
+                  </div>
                 )}
                 {item.status === "Cancelled" && (
                   <div className="notice error">
@@ -597,7 +674,7 @@ export function Product({ id, user, admin, go, notify, openAuth }) {
                               <b className="bid-preview-val">{money(Number(rawAmount))}</b>
                             </div>
                             <div className="bid-preview-words">
-                              Đọc bằng chữ: <em>{numberToVietnameseWords(Number(rawAmount))}</em>
+                              Chữ: <em>{numberToVietnameseWords(Number(rawAmount))}</em>
                             </div>
                             {Number(rawAmount) < minBid && (
                               <div className="bid-preview-warning">
@@ -655,11 +732,13 @@ export function Product({ id, user, admin, go, notify, openAuth }) {
               <div className="panel">
                 <h2>Lịch sử đặt giá</h2>
                 {bids.error && <div className="notice error">{bids.error}</div>}
-                {bids.data?.items?.length ? (
-                  bids.data.items.map((b) => (
+                {displayedHistory.length ? (
+                  displayedHistory.map((b, index) => (
                     <div className="notification meta-row" key={b.id}>
+                      <strong>{b.bidderName}</strong>
                       <strong>{money(b.amount)}</strong>
                       <span className="muted small">{date(b.bidTime)}</span>
+                      {index === 0 && <span className="muted small">Mới nhất</span>}
                     </div>
                   ))
                 ) : (

@@ -2,9 +2,11 @@ import React, { useState, useEffect } from "react";
 import { api, json, query, money, date, parseApiDate } from "./api";
 import { OrderDetail, Notifications } from "./screens";
 import { AdminCategories, Diagnostics } from "./admin";
-import { AdminOrders, AuditLogs, SupportWorkspace } from "./Workflows.jsx";
+import { AdminOrders, AuditLogs } from "./Workflows.jsx";
+import AdminSupportCenter from "./AdminSupportCenter.jsx";
 import { Modal, PageHeader, EmptyState, LoadingState, ErrorState, useConfirm } from "./UI.jsx";
 import Avatar from "./Avatar.jsx";
+import useAuctionUpdates from "./useAuctionUpdates.js";
 
 const menu = [
   ["/admin", "Tổng quan"],
@@ -299,9 +301,17 @@ function Auctions({ notify }) {
   const result = useResult(
     "/api/products?" + query({ ...filters, page, pageSize: 12 }),
   );
+  const liveError = useAuctionUpdates(
+    (result.data?.items || []).map((product) => product.id),
+    (event) => {
+      if ((result.data?.items || []).some((product) => product.id === event.productId))
+        result.reload();
+    },
+  );
   return (
     <>
       <PageHeader eyebrow="Danh mục phiên" title="Quản lý phiên đấu giá" description="Theo dõi giá, thời hạn và trạng thái. Chọn một phiên để xem chi tiết hoặc xử lý." />
+      {liveError && <p className="muted small" role="status">Cập nhật trực tiếp tạm thời không khả dụng.</p>}
       <form
         className="admin-filters"
         onSubmit={(e) => {
@@ -337,6 +347,7 @@ function Auctions({ notify }) {
                     <tr>
                       <th>Phiên / người bán</th>
                       <th>Giá hiện tại</th>
+                      <th>Lượt đặt</th>
                       <th>Trạng thái</th>
                       <th>Kết thúc</th>
                       <th>Xử lý</th>
@@ -353,6 +364,7 @@ function Auctions({ notify }) {
                           {p.sellerName}
                         </td>
                         <td>{money(p.currentPrice)}</td>
+                        <td>{p.bidCount || 0}</td>
                         <td>
                           <span className={"badge " + p.status}>
                             {statusNames[p.status]}
@@ -404,7 +416,7 @@ export default function AdminWorkspace({ route, ...props }) {
     "/admin/products": Auctions,
     "/admin/categories": AdminCategories,
     "/admin/orders": AdminOrders,
-    "/admin/support": SupportWorkspace,
+    "/admin/support": AdminSupportCenter,
     "/admin/audit-logs": AuditLogs,
     "/admin/notifications": Notifications,
     "/admin/diagnostics": Diagnostics,
