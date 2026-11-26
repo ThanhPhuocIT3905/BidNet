@@ -29,8 +29,6 @@ const myStatusText = {
 };
 const activityIcon = { bid: "₫", open: "▶", warning: "!", sold: "✓", unsold: "×", announcement: "◎" };
 
-const liveFilter = (status) => (status ? `?${query({ status })}` : "");
-
 export function openLiveRoom(id, go, notify) {
   const base = `${location.href.split("#")[0]}#/live-room/${id}`;
   const width = Math.min(1400, Math.max(900, screen.availWidth - 60));
@@ -51,10 +49,12 @@ export function openLiveRoom(id, go, notify) {
 }
 
 export function LiveEventsPage({ user, go, notify, openAuth }) {
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(() =>
+    new URLSearchParams(location.hash.split("?")[1] || "").get("status") || "",
+  );
   const [q, setQ] = useState("");
   const events = useRemote(
-    () => api(`/api/live/events${liveFilter(status)}${q ? `&q=${encodeURIComponent(q)}` : ""}`),
+    () => api(`/api/live/events?${query({ status, q })}`),
     [status, q],
   );
   const register = async (id) => {
@@ -80,7 +80,7 @@ export function LiveEventsPage({ user, go, notify, openAuth }) {
           </p>
           <div className="actions">
             <a className="btn dark" href="#/live-auctions?status=Live">Xem phiên đang diễn ra</a>
-            <a className="btn secondary" href="#/my-products">Đưa sản phẩm vào đấu giá trực tiếp</a>
+            <a className="btn secondary" href="#/contact">Đưa sản phẩm vào đấu giá trực tiếp</a>
           </div>
         </div>
         <div className="live-hero-note">
@@ -127,6 +127,7 @@ export function LiveEventsPage({ user, go, notify, openAuth }) {
               <div className="live-facts">
                 <span><b>{event.lotCount}</b> lô</span>
                 <span><b>{event.soldCount}</b> đã bán</span>
+                {event.status === "Live" && <span><b>{event.viewerCount ?? "—"}</b> đang xem</span>}
                 <span>{date(event.scheduledStartAt)}</span>
               </div>
               {event.currentLotNumber > 0 && (
@@ -194,6 +195,7 @@ export function LiveEventPage({ id, user, go, notify, openAuth }) {
               <div className="live-facts">
                 <span>Bắt đầu: <b>{date(e.scheduledStartAt)}</b></span>
                 <span>{e.lotCount} lô · {e.soldCount} đã bán</span>
+                {e.status === "Live" && <span>{e.viewerCount ?? "—"} đang xem</span>}
                 <span>{e.registrationCount} người đã đăng ký</span>
               </div>
             </div>
@@ -252,6 +254,7 @@ export function LiveRoomPage({ id, user, go, notify, openAuth }) {
   const [bidError, setBidError] = useState("");
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(null);
+  const [viewerCount, setViewerCount] = useState(0);
   const [won, setWon] = useState(null);
   const [lightbox, setLightbox] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
@@ -274,7 +277,6 @@ export function LiveRoomPage({ id, user, go, notify, openAuth }) {
   }, [id]);
 
   useEffect(() => {
-    if (!user) return;
     let alive = true;
     const connection = new signalR.HubConnectionBuilder()
       .withUrl(`${API_BASE}/hubs/live`, { accessTokenFactory: () => getSession()?.accessToken || "" })
@@ -284,11 +286,14 @@ export function LiveRoomPage({ id, user, go, notify, openAuth }) {
     connection.onreconnecting(() => alive && setConnected(false));
     connection.onreconnected(async () => {
       try {
-        await connection.invoke("JoinEvent", id);
-        if (alive) { setConnected(true); refresh(); }
+        const count = await connection.invoke("JoinEvent", id);
+        if (alive) { setConnected(true); setViewerCount(count); refresh(); }
       } catch { if (alive) setConnected(false); }
     });
     connection.onclose(() => alive && setConnected(false));
+    connection.on("ViewerCountUpdated", (payload) => {
+      if (alive && payload?.eventId === Number(id)) setViewerCount(payload.viewerCount || 0);
+    });
     connection.on("BidAccepted", (payload) => {
       refresh();
       if (payload?.bid?.bidderCode) notify(`${payload.bid.bidderCode} vừa đặt ${money(payload.bid.amount)}`);
@@ -327,8 +332,10 @@ export function LiveRoomPage({ id, user, go, notify, openAuth }) {
       notify(payload.message);
     });
     connection.start()
-      .then(() => connection.invoke("JoinEvent", id))
-      .then(() => alive && setConnected(true))
+      .then(async () => {
+        const count = await connection.invoke("JoinEvent", id);
+        if (alive) { setConnected(true); setViewerCount(count); }
+      })
       .catch(() => alive && setConnected(false));
     return () => { alive = false; connection.stop(); };
   }, [id, user?.id]);
@@ -338,7 +345,9 @@ export function LiveRoomPage({ id, user, go, notify, openAuth }) {
     setAmount(activeLot ? String(activeLot.minimumBid) : "");
   }, [activeLot?.id, activeLot?.minimumBid]);
 
-  const connectState = user ? (connected === false ? "offline" : connected ? "online" : "connecting") : "guest";
+  const connectState = connected === false ? "offline"
+    : connected ? (user ? "online" : "guest")
+      : user ? "connecting" : "guest";
 
   const register = async () => {
     if (!user) return openAuth("login");
@@ -397,6 +406,7 @@ export function LiveRoomPage({ id, user, go, notify, openAuth }) {
           <span className={`live-connection ${connectState}`} title="Trạng thái kết nối realtime">
             <i aria-hidden="true" /> {connectState === "online" ? "Trực tiếp" : connectState === "offline" ? "Đang kết nối lại" : connectState === "guest" ? "Chế độ xem" : "Đang kết nối"}
           </span>
+          <span className="live-viewer-count">{viewerCount} đang xem</span>
           {user ? (
             <span className="live-user">{user.fullName || user.username}</span>
           ) : (
@@ -516,28 +526,93 @@ export function LiveRoomPage({ id, user, go, notify, openAuth }) {
             )}
             {bidError && <div className="notice error" role="alert">{bidError}</div>}
             {isCurrent && activeLot.status === "Open" ? (
-              data.myRegistrationStatus === "Approved" ? (
-                <form className="live-bid-form" onSubmit={placeBid}>
-                  <label htmlFor="liveAmount">Giá bạn muốn đặt (VNĐ)</label>
-                  <input
-                    id="liveAmount"
-                    type="number"
-                    inputMode="numeric"
-                    min={activeLot.minimumBid}
-                    step={activeLot.bidIncrement}
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    disabled={busy || !canBid}
-                  />
-                  <div className="actions">
-                    <button type="button" className="btn secondary" onClick={() => setAmount(String(Number(amount || 0) + activeLot.bidIncrement))}>+ {money(activeLot.bidIncrement)}</button>
-                    <button type="submit" className="btn dark" disabled={busy || !canBid}>
-                      {busy ? "Đang gửi…" : canBid ? `Đặt giá ${money(Number(amount) || activeLot.minimumBid)}` : "Không thể đặt giá"}
+              data.myRegistrationStatus === "Approved" ? (() => {
+                const numericAmount = Number(amount || 0);
+                const minBid = Number(activeLot.minimumBid || 0);
+                const stepBid = Math.max(1, Number(activeLot.bidIncrement || 1000));
+                const isBelowMin = !amount || numericAmount < minBid;
+                const isBadStep = !isBelowMin && (numericAmount - minBid) % stepBid !== 0;
+                const invalidReason = !amount
+                  ? `Cần nhập tối thiểu ${money(minBid)}`
+                  : isBelowMin
+                    ? `Thấp hơn mức tối thiểu (${money(minBid)})`
+                    : isBadStep
+                      ? `Phải tăng theo bước ${money(stepBid)}`
+                      : "";
+
+                const adjustAmount = (delta) => {
+                  const base = numericAmount >= minBid ? numericAmount : minBid;
+                  const next = Math.max(minBid, base + delta);
+                  setAmount(String(next));
+                };
+
+                return (
+                  <form className="live-bid-form" onSubmit={placeBid}>
+                    <div className="live-bid-input-group">
+                      <label htmlFor="liveAmount">
+                        <span>Giá bạn muốn đặt</span>
+                        <small>Tối thiểu {money(minBid)}</small>
+                      </label>
+                      <div className={`live-bid-stepper${invalidReason ? " invalid" : ""}`}>
+                        <button
+                          type="button"
+                          className="live-step-btn"
+                          title={`Giảm ${money(stepBid)}`}
+                          disabled={busy || !canBid || numericAmount <= minBid}
+                          onClick={() => adjustAmount(-stepBid)}
+                        >
+                          −
+                        </button>
+                        <div className="live-money-field">
+                          <input
+                            id="liveAmount"
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            placeholder={minBid.toLocaleString("vi-VN")}
+                            value={amount ? Number(amount).toLocaleString("vi-VN") : ""}
+                            onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
+                            disabled={busy || !canBid}
+                          />
+                          <span className="live-currency-tag" aria-hidden="true">VNĐ</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="live-step-btn"
+                          title={`Tăng ${money(stepBid)}`}
+                          disabled={busy || !canBid}
+                          onClick={() => adjustAmount(stepBid)}
+                        >
+                          +
+                        </button>
+                      </div>
+                      {invalidReason && (
+                        <div className="live-bid-inline-error">
+                          <span>{invalidReason}</span>
+                          <button type="button" onClick={() => setAmount(String(minBid))}>Dùng {money(minBid)}</button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="live-quick-steps" aria-label="Tăng nhanh theo bước giá">
+                      <button type="button" className="btn secondary" disabled={busy || !canBid} onClick={() => adjustAmount(stepBid)}>
+                        +{money(stepBid)}
+                      </button>
+                      <button type="button" className="btn secondary" disabled={busy || !canBid} onClick={() => adjustAmount(stepBid * 2)}>
+                        +{money(stepBid * 2)}
+                      </button>
+                      <button type="button" className="btn secondary" disabled={busy || !canBid} onClick={() => adjustAmount(stepBid * 5)}>
+                        +{money(stepBid * 5)}
+                      </button>
+                    </div>
+
+                    <button type="submit" className="btn dark live-bid-submit" disabled={busy || !canBid || Boolean(invalidReason)}>
+                      {busy ? "Đang gửi…" : canBid ? `Đặt giá ${money(numericAmount || minBid)}` : "Không thể đặt giá"}
                     </button>
-                  </div>
-                  <p className="small muted">Không công khai thông tin cá nhân; người khác chỉ thấy mã người tham gia.</p>
-                </form>
-              ) : (
+                    <p className="small muted live-bid-privacy">Không công khai thông tin cá nhân; người khác chỉ thấy mã người tham gia.</p>
+                  </form>
+                );
+              })() : (
                 <div className="live-register-cta">
                   <p>Bạn cần đăng ký sự kiện trước khi đặt giá.</p>
                   <button className="btn dark" disabled={busy} onClick={register}>
@@ -629,6 +704,7 @@ export function AdminLiveEvents({ notify, user }) {
     const timer = setTimeout(() => {
       setProductsLoading(true);
       setProductsError("");
+      setProducts([]);
       api(`/api/admin/live/products${search ? `?q=${encodeURIComponent(search)}` : ""}`)
         .then((items) => active && setProducts(items))
         .catch((e) => active && setProductsError(e.message))
@@ -666,6 +742,13 @@ export function AdminLiveEvents({ notify, user }) {
       }
       if (end && (!Number.isFinite(end.getTime()) || end <= start)) {
         setError("Thời gian kết thúc phải sau thời gian bắt đầu.");
+        return;
+      }
+    }
+    if (step === 3) {
+      const percent = Number(draft.buyerPremiumPercent);
+      if (!Number.isFinite(percent) || percent < 0 || percent > 50) {
+        setError("Phí người mua phải nằm trong khoảng 0% đến 50%.");
         return;
       }
     }
@@ -850,7 +933,7 @@ export function AdminLiveEvents({ notify, user }) {
                   </div>
                   <div className="field">
                     <label htmlFor="liveBannerFile">Banner sự kiện (tùy chọn)</label>
-                    <input id="liveBannerFile" type="file" accept="image/png,image/jpeg,image/webp" disabled={bannerBusy} onChange={(e) => uploadBanner(e.target.files?.[0])} />
+                    <input id="liveBannerFile" type="file" accept="image/png,image/jpeg,image/webp" disabled={bannerBusy} onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; uploadBanner(file); }} />
                     <small className="muted">PNG, JPEG hoặc WebP · tối đa 5 MB.</small>
                   </div>
                   {bannerBusy && <p className="muted" role="status">Đang tải banner…</p>}
@@ -1019,6 +1102,12 @@ export function AdminLiveEventDetail({ id, notify }) {
   }, [addOpen, search]);
 
   const publish = async () => {
+    const accepted = await confirm({
+      title: "Xác nhận công bố sự kiện",
+      message: "Sự kiện sẽ hiển thị công khai trên sàn. Bạn có chắc chắn muốn công bố?",
+      action: "Công bố sự kiện",
+    });
+    if (!accepted) return;
     setBusy(true); setError("");
     try { await json("POST", `/api/admin/live/events/${id}/publish`); notify("Đã công bố sự kiện."); event.reload(); }
     catch (e) { setError(e.message); }
@@ -1055,7 +1144,7 @@ export function AdminLiveEventDetail({ id, notify }) {
         <>
           <PageHeader eyebrow={`${e.code} · ${eventStatusText[e.status]}`} title={e.title} description={e.description}>
             <a className="btn secondary" href="#/admin/live">← Danh sách</a>
-            <a className="btn dark" href={`#/admin/live/${id}/control`}>Mở console điều hành</a>
+            {e.status !== "Draft" && <a className="btn dark" href={`#/admin/live/${id}/control`}>Mở console điều hành</a>}
           </PageHeader>
           <div className="admin-metrics">
             <section className="panel"><h2>Tổng lô</h2><strong>{e.lotCount}</strong></section>
