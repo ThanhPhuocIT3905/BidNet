@@ -1012,6 +1012,22 @@ input::placeholder,textarea::placeholder {color:var(--quiet)}
   font-size: 26px;
   font-weight: 650;
 }
+.seller-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.seller-live-type-tag {
+  display: inline-flex;
+  margin: 5px 0 0 6px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--success-bg);
+  color: var(--success);
+  font-size: 10px;
+  font-weight: 700;
+}
 .seller-toolbar {
   display: grid;
   grid-template-columns: minmax(240px, 1fr) auto;
@@ -1164,10 +1180,13 @@ input::placeholder,textarea::placeholder {color:var(--quiet)}
   .seller-header h1 {
     font-size: 23px;
   }
-  .seller-header > .btn {
+  .seller-header-actions .btn {
     min-height: 36px;
     padding: 7px 10px;
     font-size: 12px;
+  }
+  .seller-header-actions {
+    width: 100%;
   }
   .seller-toolbar {
     padding: 10px;

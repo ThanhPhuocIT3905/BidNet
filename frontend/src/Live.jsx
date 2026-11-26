@@ -80,7 +80,7 @@ export function LiveEventsPage({ user, go, notify, openAuth }) {
           </p>
           <div className="actions">
             <a className="btn dark" href="#/live-auctions?status=Live">Xem phiên đang diễn ra</a>
-            <a className="btn secondary" href="#/contact">Đưa sản phẩm vào đấu giá trực tiếp</a>
+            <a className="btn secondary" href="#/my-live-requests">Đưa sản phẩm vào đấu giá trực tiếp</a>
           </div>
         </div>
         <div className="live-hero-note">
@@ -697,6 +697,377 @@ const localInputValue = (value) => {
   return local.toISOString().slice(0, 16);
 };
 const toUtc = (value) => (value ? new Date(value).toISOString() : null);
+const liveRequestStatusText = {
+  PendingReview: "Chờ duyệt",
+  Reviewing: "Đang xét duyệt",
+  RevisionRequested: "Cần bổ sung",
+  AwaitingSellerConfirmation: "Chờ bạn xác nhận",
+  Approved: "Đã duyệt",
+  Rejected: "Từ chối",
+  Withdrawn: "Đã rút",
+  Scheduled: "Đã xếp lịch",
+  Live: "Đang đấu giá",
+  Completed: "Đã kết thúc",
+};
+
+function RequestStatus({ status }) {
+  return <span className={`badge live-request-status ${status}`}>{liveRequestStatusText[status] || status}</span>;
+}
+
+export function SellerLiveRequests({ notify, go }) {
+  const requests = useRemote(() => api("/api/me/live-requests"), []);
+  const eligible = useRemote(() => api("/api/me/live-requests/eligible-products"), []);
+  const events = useRemote(() => api("/api/live/events?status=Published"), []);
+  const [dialog, setDialog] = useState(null);
+  const [productId, setProductId] = useState("");
+  const [startingPrice, setStartingPrice] = useState("");
+  const [reservePrice, setReservePrice] = useState("");
+  const [bidIncrement, setBidIncrement] = useState("1000");
+  const [preferredEventId, setPreferredEventId] = useState("");
+  const [sellerNote, setSellerNote] = useState("");
+  const [consent, setConsent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const selectedProduct = eligible.data?.find((product) => String(product.id) === productId);
+
+  const openNew = () => {
+    setDialog({ mode: "create" });
+    setProductId("");
+    setStartingPrice("");
+    setReservePrice("");
+    setBidIncrement("1000");
+    setPreferredEventId("");
+    setSellerNote("");
+    setConsent(false);
+    setError("");
+  };
+  const openResubmit = (request) => {
+    setDialog({ mode: "update", request });
+    setProductId(String(request.productId));
+    setStartingPrice(String(request.proposedStartingPrice));
+    setReservePrice(request.proposedReservePrice == null ? "" : String(request.proposedReservePrice));
+    setBidIncrement(String(request.proposedBidIncrement));
+    setPreferredEventId("");
+    setSellerNote(request.sellerNote || "");
+    setConsent(true);
+    setError("");
+  };
+  const submit = async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    const body = {
+      proposedStartingPrice: Number(startingPrice),
+      proposedReservePrice: reservePrice ? Number(reservePrice) : null,
+      proposedBidIncrement: Number(bidIncrement),
+      sellerNote: sellerNote.trim() || null,
+    };
+    try {
+      if (dialog.mode === "create") {
+        await json("POST", "/api/me/live-requests", {
+          ...body,
+          productId: Number(productId),
+          preferredEventId: preferredEventId ? Number(preferredEventId) : null,
+          sellerConsent: consent,
+        });
+        notify("Đã gửi yêu cầu đấu giá trực tiếp đến Admin.");
+      } else {
+        await json("PUT", `/api/me/live-requests/${dialog.request.id}`, body);
+        notify("Đã bổ sung và gửi lại yêu cầu.");
+      }
+      setDialog(null);
+      requests.reload();
+      eligible.reload();
+    } catch (e2) {
+      setError(e2.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const confirmTerms = async (request) => {
+    setBusy(true);
+    try {
+      await json("POST", `/api/me/live-requests/${request.id}/confirm`, {});
+      notify("Đã xác nhận điều kiện đấu giá trực tiếp.");
+      requests.reload();
+      eligible.reload();
+    } catch (e) {
+      notify(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const withdraw = async (request) => {
+    if (!window.confirm(`Rút yêu cầu ${request.requestCode}?`)) return;
+    setBusy(true);
+    try {
+      await api(`/api/me/live-requests/${request.id}/withdraw`, { method: "POST" });
+      notify("Đã rút yêu cầu.");
+      requests.reload();
+      eligible.reload();
+    } catch (e) {
+      notify(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="live-request-page">
+      <PageHeader eyebrow="Dành cho người bán" title="Yêu cầu đấu giá trực tiếp" description="Gửi sản phẩm để BidNet xét duyệt. Sản phẩm chỉ được xếp lô sau khi Admin duyệt và bạn xác nhận đúng điều kiện đã thống nhất.">
+        <button className="btn dark" onClick={openNew}>+ Gửi yêu cầu</button>
+      </PageHeader>
+      {requests.error && <ErrorState message={requests.error} onRetry={requests.reload} />}
+      {requests.loading && <LoadingState />}
+      {!requests.loading && requests.data && (
+        <section className="panel table-wrap">
+          <div className="live-request-section-head">
+            <div><h2>Yêu cầu của bạn</h2><p className="muted">Theo dõi tiến độ xét duyệt và lịch tổ chức.</p></div>
+            <button type="button" className="btn secondary" onClick={requests.reload}>Làm mới</button>
+          </div>
+          {requests.data.length ? (
+            <table className="table live-request-table">
+              <thead><tr><th>Yêu cầu / Sản phẩm</th><th>Điều kiện đề xuất</th><th>Trạng thái</th><th>Cập nhật</th><th>Thao tác</th></tr></thead>
+              <tbody>{requests.data.map((request) => (
+                <tr key={request.id}>
+                  <td><strong>{request.productName}</strong><small>{request.requestCode} · #{request.productId}</small></td>
+                  <td>{money(request.proposedStartingPrice)} · bước {money(request.proposedBidIncrement)}<small>Dự trữ: {request.proposedReservePrice == null ? "Không có" : money(request.proposedReservePrice)}</small></td>
+                  <td><RequestStatus status={request.status} />{request.adminNote && <small className="live-request-note">{request.adminNote}</small>}{request.rejectReason && <small className="live-request-note">{request.rejectReason}</small>}</td>
+                  <td>{date(request.createdAt)}{request.scheduledEventTitle && <small>{request.scheduledEventTitle}</small>}</td>
+                  <td><div className="live-request-actions">
+                    {request.status === "AwaitingSellerConfirmation" && <button className="btn sm dark" disabled={busy} onClick={() => confirmTerms(request)}>Xác nhận</button>}
+                    {request.status === "RevisionRequested" && <button className="btn sm secondary" disabled={busy} onClick={() => openResubmit(request)}>Bổ sung</button>}
+                    {["PendingReview", "Reviewing", "RevisionRequested", "AwaitingSellerConfirmation", "Approved"].includes(request.status) && <button className="link-btn danger-text" disabled={busy} onClick={() => withdraw(request)}>Rút yêu cầu</button>}
+                  </div></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          ) : <EmptyState title="Bạn chưa gửi yêu cầu nào" description="Chọn một sản phẩm sắp diễn ra, chưa có lượt đặt giá để đề xuất tham gia sự kiện Live Auction." />}
+        </section>
+      )}
+      {dialog && (
+        <Modal title={dialog.mode === "create" ? "Yêu cầu đấu giá trực tiếp" : `Bổ sung ${dialog.request.requestCode}`} onClose={() => setDialog(null)} busy={busy}>
+          <form onSubmit={submit} className="live-request-form">
+            {dialog.mode === "create" ? (
+              <>
+                {eligible.error && <ErrorState message={eligible.error} onRetry={eligible.reload} />}
+                {eligible.loading && <p className="muted" role="status">Đang kiểm tra sản phẩm đủ điều kiện…</p>}
+                {!eligible.loading && !eligible.error && eligible.data?.length === 0 && (
+                  <EmptyState title="Chưa có sản phẩm đủ điều kiện" description="Sản phẩm phải thuộc tài khoản của bạn, chưa bắt đầu, chưa có lượt đặt giá hoặc giao dịch.">
+                    <a className="btn secondary" href="#/my-products">Quản lý sản phẩm</a>
+                  </EmptyState>
+                )}
+                {eligible.data?.length > 0 && <div className="field">
+                  <label htmlFor="liveRequestProduct">Sản phẩm muốn đề xuất</label>
+                  <select id="liveRequestProduct" required value={productId} onChange={(e) => {
+                    const selected = eligible.data.find((item) => String(item.id) === e.target.value);
+                    setProductId(e.target.value);
+                    setStartingPrice(selected ? String(selected.startingPrice) : "");
+                  }}>
+                    <option value="">Chọn sản phẩm của bạn</option>
+                    {eligible.data.map((product) => <option key={product.id} value={product.id}>#{product.id} · {product.name} · {money(product.startingPrice)}</option>)}
+                  </select>
+                </div>}
+                {selectedProduct && <div className="live-request-product-summary">
+                  {selectedProduct.imageUrl && <img src={selectedProduct.imageUrl} alt="" />}
+                  <div><strong>{selectedProduct.name}</strong><small>{selectedProduct.category || "Chưa phân loại"} · Sản phẩm #{selectedProduct.id}</small><small>Giá phiên thường hiện tại: {money(selectedProduct.startingPrice)}</small></div>
+                </div>}
+              </>
+            ) : <div className="live-request-product-summary">
+              {dialog.request.productImageUrl && <img src={dialog.request.productImageUrl} alt="" />}
+              <div><strong>{dialog.request.productName}</strong><small>{dialog.request.requestCode} · #{dialog.request.productId}</small></div>
+            </div>}
+            <div className="form-grid">
+              <div className="field"><label htmlFor="requestStartingPrice">Giá khởi điểm đề xuất</label><MoneyInput id="requestStartingPrice" value={startingPrice} onChange={setStartingPrice} required /></div>
+              <div className="field"><label htmlFor="requestBidIncrement">Bước giá đề xuất</label><MoneyInput id="requestBidIncrement" value={bidIncrement} onChange={setBidIncrement} required /></div>
+              <div className="field"><label htmlFor="requestReservePrice">Giá dự trữ (tùy chọn)</label><MoneyInput id="requestReservePrice" value={reservePrice} onChange={setReservePrice} /></div>
+              {dialog.mode === "create" && <div className="field">
+                <label htmlFor="preferredLiveEvent">Sự kiện mong muốn</label>
+                <select id="preferredLiveEvent" value={preferredEventId} onChange={(e) => setPreferredEventId(e.target.value)}>
+                  <option value="">Để BidNet sắp xếp</option>
+                  {(events.data || []).map((event) => <option key={event.id} value={event.id}>{event.title} · {date(event.scheduledStartAt)}</option>)}
+                </select>
+              </div>}
+            </div>
+            <div className="field"><label htmlFor="liveSellerNote">Ghi chú cho bộ phận tổ chức</label><textarea id="liveSellerNote" maxLength={1000} value={sellerNote} onChange={(e) => setSellerNote(e.target.value)} placeholder="Tình trạng, lịch mong muốn hoặc thông tin cần lưu ý…" /></div>
+            {dialog.mode === "create" && <label className="check-row live-request-consent">
+              <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+              Tôi đồng ý chuyển sản phẩm khỏi đấu giá theo thời gian trong lúc xét duyệt và đề xuất sản phẩm tham gia đấu giá trực tiếp theo các điều kiện trên.
+            </label>}
+            <div className="live-wizard-note">Sản phẩm không được đưa vào phòng đấu giá ngay khi gửi yêu cầu. Nếu Admin thay đổi giá hoặc điều kiện quan trọng, bạn phải xác nhận lại.</div>
+            {error && <div className="notice error" role="alert">{error}</div>}
+            <div className="dialog-actions">
+              <button type="button" className="btn secondary" disabled={busy} onClick={() => setDialog(null)}>Hủy</button>
+              <button className="btn dark" disabled={busy || (dialog.mode === "create" && (!consent || !productId || eligible.loading))}>{busy ? "Đang gửi…" : dialog.mode === "create" ? "Gửi yêu cầu" : "Gửi bổ sung"}</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+export function AdminLiveRequests({ notify }) {
+  const requests = useRemote(() => api("/api/admin/live-requests"), []);
+  const inventory = useRemote(() => api("/api/admin/live-inventory"), []);
+  const [tab, setTab] = useState("requests");
+  const [status, setStatus] = useState("All");
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState(null);
+  const [startingPrice, setStartingPrice] = useState("");
+  const [reservePrice, setReservePrice] = useState("");
+  const [bidIncrement, setBidIncrement] = useState("");
+  const [adminNote, setAdminNote] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const pendingCount = requests.data?.filter((item) => item.status === "PendingReview").length || 0;
+  const filtered = (requests.data || []).filter((item) =>
+    (status === "All" || item.status === status) &&
+    (!search || `${item.requestCode} ${item.productName} ${item.sellerName}`.toLowerCase().includes(search.toLowerCase())));
+
+  const openRequest = async (request) => {
+    setSelected(request);
+    setStartingPrice(String(request.proposedStartingPrice));
+    setReservePrice(request.proposedReservePrice == null ? "" : String(request.proposedReservePrice));
+    setBidIncrement(String(request.proposedBidIncrement));
+    setAdminNote(request.adminNote || "");
+    setMessage("");
+    setError("");
+    if (request.status === "PendingReview" || request.status === "RevisionRequested") {
+      setBusy(true);
+      try {
+        const accepted = await json("POST", `/api/admin/live-requests/${request.id}/review`, {});
+        setSelected(accepted);
+        requests.reload();
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+  };
+  const applyAction = async (kind) => {
+    if (!selected || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      let updated;
+      if (kind === "approve") {
+        updated = await json("POST", `/api/admin/live-requests/${selected.id}/approve`, {
+          proposedStartingPrice: Number(startingPrice),
+          proposedReservePrice: reservePrice ? Number(reservePrice) : null,
+          proposedBidIncrement: Number(bidIncrement),
+          adminNote: adminNote.trim() || null,
+        });
+      } else {
+        updated = await json("POST", `/api/admin/live-requests/${selected.id}/${kind}`, { message });
+      }
+      setSelected(updated);
+      requests.reload();
+      inventory.reload();
+      notify(kind === "approve" ? updated.status === "Approved" ? "Đã duyệt và đưa sản phẩm vào kho Live." : "Đã gửi điều kiện mới để người bán xác nhận." : kind === "reject" ? "Đã từ chối yêu cầu." : "Đã yêu cầu người bán bổ sung thông tin.");
+      if (kind !== "approve") setSelected(null);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="live-request-page">
+      <PageHeader eyebrow="Quy trình người bán" title="Yêu cầu đấu giá trực tiếp" description="Kiểm tra sự đồng ý, quyền sở hữu và điều kiện bán trước khi đưa sản phẩm vào kho Live Auction.">
+        <a className="btn secondary" href="#/admin/live">Quản lý sự kiện</a>
+      </PageHeader>
+      <div className="live-request-tabs" role="tablist">
+        <button className={tab === "requests" ? "active" : ""} onClick={() => setTab("requests")}>Yêu cầu từ người bán <b>{pendingCount}</b></button>
+        <button className={tab === "inventory" ? "active" : ""} onClick={() => { setTab("inventory"); inventory.reload(); }}>Kho đã duyệt <b>{inventory.data?.length ?? 0}</b></button>
+      </div>
+      {tab === "requests" ? (
+        <>
+          {requests.error && <ErrorState message={requests.error} onRetry={requests.reload} />}
+          {requests.loading && <LoadingState />}
+          {requests.data && <>
+            <div className="live-request-toolbar">
+              <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm sản phẩm, người bán, mã yêu cầu…" aria-label="Tìm yêu cầu Live Auction" />
+              <select aria-label="Lọc trạng thái yêu cầu" value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="All">Tất cả trạng thái</option>
+                {Object.entries(liveRequestStatusText).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+              </select>
+            </div>
+            {filtered.length ? <div className="panel table-wrap">
+              <table className="table live-request-table">
+                <thead><tr><th>Mã / Sản phẩm</th><th>Người bán</th><th>Điều kiện đề xuất</th><th>Trạng thái</th><th>Ngày gửi</th><th /></tr></thead>
+                <tbody>{filtered.map((request) => (
+                  <tr key={request.id}>
+                    <td><strong>{request.requestCode}</strong><small>{request.productName} · #{request.productId}</small></td>
+                    <td><strong>{request.sellerName}</strong><small>User #{request.sellerId}</small></td>
+                    <td>{money(request.proposedStartingPrice)}<small>Bước {money(request.proposedBidIncrement)} · Dự trữ {request.proposedReservePrice == null ? "—" : money(request.proposedReservePrice)}</small></td>
+                    <td><RequestStatus status={request.status} /></td>
+                    <td>{date(request.createdAt)}</td>
+                    <td><button className="btn sm secondary" onClick={() => openRequest(request)}>{["PendingReview", "Reviewing", "RevisionRequested"].includes(request.status) ? "Xét duyệt" : "Chi tiết"}</button></td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div> : <EmptyState title="Không có yêu cầu phù hợp" description={search ? "Thử từ khóa hoặc trạng thái khác." : "Khi người bán gửi yêu cầu, hồ sơ sẽ xuất hiện tại đây."} />}
+          </>}
+        </>
+      ) : (
+        <>
+          {inventory.error && <ErrorState message={inventory.error} onRetry={inventory.reload} />}
+          {inventory.loading && <LoadingState />}
+          {inventory.data && (inventory.data.length ? <div className="live-inventory-grid">
+            {inventory.data.map((item) => (
+              <article className="panel live-inventory-card" key={item.requestId}>
+                {item.imageUrl ? <img src={item.imageUrl} alt="" /> : <div className="live-inventory-placeholder">Ảnh sản phẩm</div>}
+                <div><span className="eyebrow">{item.requestCode} · #{item.id}</span><h2>{item.name}</h2><p>{item.sellerName} · User #{item.sellerId}</p><small>{item.category || "Chưa phân loại"}</small></div>
+                <dl><div><dt>Khởi điểm</dt><dd>{money(item.startingPrice)}</dd></div><div><dt>Bước giá</dt><dd>{money(item.bidIncrement)}</dd></div><div><dt>Dự trữ</dt><dd>{item.reservePrice == null ? "—" : money(item.reservePrice)}</dd></div></dl>
+                <a className="btn secondary" href="#/admin/live">Chọn trong sự kiện</a>
+              </article>
+            ))}
+          </div> : <EmptyState title="Kho Live đang trống" description="Chỉ các yêu cầu được duyệt và người bán đã xác nhận mới xuất hiện trong kho."><button className="btn secondary" onClick={() => setTab("requests")}>Xem yêu cầu từ người bán</button></EmptyState>)}
+        </>
+      )}
+      {selected && (
+        <Modal title={`Xét duyệt ${selected.requestCode}`} onClose={() => setSelected(null)} busy={busy}>
+          <div className="live-request-review-grid">
+            <section className="live-request-review-card">
+              {selected.productImageUrl && <img src={selected.productImageUrl} alt="" />}
+              <div><h3>{selected.productName}</h3><span>{selected.category || "Chưa phân loại"} · Product #{selected.productId}</span></div>
+            </section>
+            <section className="live-request-review-card seller">
+              {selected.sellerAvatarUrl ? <img src={selected.sellerAvatarUrl} alt="" /> : <span className="live-seller-avatar">{selected.sellerName.slice(0, 1).toUpperCase()}</span>}
+              <div><strong>{selected.sellerName}</strong><span>User ID #{selected.sellerId}</span><span>{selected.reviewerName ? `Phụ trách: ${selected.reviewerName}` : "Chưa tiếp nhận"}</span></div>
+            </section>
+          </div>
+          <div className="live-request-current-status"><RequestStatus status={selected.status} />{selected.preferredEventTitle && <span>Sự kiện mong muốn: {selected.preferredEventTitle}</span>}</div>
+          <div className="form-grid">
+            <div className="field"><label htmlFor="adminStartingPrice">Giá khởi điểm đề xuất</label><MoneyInput id="adminStartingPrice" value={startingPrice} onChange={setStartingPrice} disabled={!["Reviewing", "PendingReview"].includes(selected.status)} required /></div>
+            <div className="field"><label htmlFor="adminBidIncrement">Bước giá</label><MoneyInput id="adminBidIncrement" value={bidIncrement} onChange={setBidIncrement} disabled={!["Reviewing", "PendingReview"].includes(selected.status)} required /></div>
+            <div className="field"><label htmlFor="adminReservePrice">Giá dự trữ</label><MoneyInput id="adminReservePrice" value={reservePrice} onChange={setReservePrice} disabled={!["Reviewing", "PendingReview"].includes(selected.status)} /></div>
+          </div>
+          <div className="live-request-detail-notes"><p><b>Ghi chú người bán:</b> {selected.sellerNote || "Không có"}</p><p><b>Phản hồi Admin:</b> {selected.adminNote || selected.rejectReason || "Chưa có"}</p></div>
+          {["Reviewing", "PendingReview"].includes(selected.status) && <>
+            <div className="field"><label htmlFor="liveAdminNote">Ghi chú xét duyệt</label><textarea id="liveAdminNote" maxLength={1000} value={adminNote} onChange={(e) => setAdminNote(e.target.value)} placeholder="Ghi chú sẽ được gửi cho người bán…" /></div>
+            <div className="field"><label htmlFor="liveRequestMessage">Nội dung yêu cầu bổ sung / lý do từ chối</label><textarea id="liveRequestMessage" maxLength={1000} value={message} onChange={(e) => setMessage(e.target.value)} /></div>
+            <div className="live-review-actions">
+              <button className="btn secondary" disabled={busy || !message.trim()} onClick={() => applyAction("revision")}>Yêu cầu bổ sung</button>
+              <button className="btn danger" disabled={busy || !message.trim()} onClick={() => applyAction("reject")}>Từ chối</button>
+              <button className="btn dark" disabled={busy} onClick={() => applyAction("approve")}>Phê duyệt / gửi điều kiện</button>
+            </div>
+            <small className="muted">Nếu bạn thay đổi giá hoặc bước giá, yêu cầu sẽ chuyển sang chờ người bán xác nhận trước khi vào kho.</small>
+          </>}
+          {selected.status === "AwaitingSellerConfirmation" && <div className="notice warning">Đang chờ người bán xác nhận điều kiện mới. Sản phẩm chưa xuất hiện trong kho.</div>}
+          {selected.status === "Approved" && <div className="notice success">Đã duyệt, người bán đã đồng ý. Sản phẩm đủ điều kiện để xếp lịch.</div>}
+          {error && <div className="notice error" role="alert">{error}</div>}
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 const liveWizardSteps = ["Thông tin", "Lịch", "Danh sách lô", "Quy tắc", "Nhân sự", "Xác nhận"];
 
 function createLiveDraft() {
@@ -792,16 +1163,16 @@ export function AdminLiveEvents({ notify, user }) {
       ? current
       : [...current, {
         productId: product.id,
+        requestId: product.requestId,
+        requestCode: product.requestCode,
         name: product.name,
         imageUrl: product.imageUrl,
         sellerName: product.sellerName,
         startingPrice: String(product.startingPrice),
-        reservePrice: "",
-        bidIncrement: "1000",
+        reservePrice: product.reservePrice == null ? "" : String(product.reservePrice),
+        bidIncrement: String(product.bidIncrement),
       }]);
   };
-  const updateLot = (productId, key, value) =>
-    setLots((current) => current.map((lot) => lot.productId === productId ? { ...lot, [key]: value } : lot));
   const moveLot = (index, direction) => setLots((current) => {
     const target = index + direction;
     if (target < 0 || target >= current.length) return current;
@@ -863,10 +1234,7 @@ export function AdminLiveEvents({ notify, user }) {
       for (const lot of lots) {
         if (addedProducts.has(lot.productId)) continue;
         await json("POST", `/api/admin/live/events/${id}/lots`, {
-          productId: lot.productId,
-          startingPrice: Number(lot.startingPrice),
-          reservePrice: lot.reservePrice === "" ? null : Number(lot.reservePrice),
-          bidIncrement: Number(lot.bidIncrement),
+          liveAuctionRequestId: lot.requestId,
         });
         addedProducts.add(lot.productId);
       }
@@ -1001,19 +1369,23 @@ export function AdminLiveEvents({ notify, user }) {
               {step === 2 && (
                 <section className="live-wizard-step">
                   <h3>Danh sách lô</h3>
-                  <p className="muted">Chỉ sản phẩm đang chờ, chưa có lượt đấu giá và chưa thuộc lô live khác mới được chọn.</p>
+                  <p className="muted">Chỉ yêu cầu đã được duyệt và người bán đã xác nhận điều kiện mới xuất hiện trong kho này.</p>
                   <div className="live-product-picker">
                     <input type="search" placeholder="Tìm sản phẩm…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Tìm sản phẩm có thể đưa vào lô" />
                     {productsError && <div className="notice error" role="alert">{productsError}</div>}
                     {productsLoading && <p className="muted" role="status">Đang tải sản phẩm…</p>}
-                    {!productsLoading && !productsError && products.length === 0 && <p className="muted">Không tìm thấy sản phẩm đủ điều kiện.</p>}
+                    {!productsLoading && !productsError && products.length === 0 && (
+                      <EmptyState title="Chưa có sản phẩm đủ điều kiện" description="Chỉ sản phẩm được Admin duyệt và người bán xác nhận mới có thể xếp vào sự kiện.">
+                        <a className="btn secondary" href="#/admin/live-requests">Xem yêu cầu từ người bán</a>
+                      </EmptyState>
+                    )}
                     <div className="live-product-options">
                       {products.map((product) => {
                         const selected = lots.some((lot) => lot.productId === product.id);
                         return (
                           <article key={product.id} className="live-product-option">
                             {product.imageUrl ? <img src={product.imageUrl} alt="" /> : <span className="live-product-placeholder">Ảnh</span>}
-                            <div><b>{product.name}</b><small>{product.sellerName} · Giá gốc {money(product.startingPrice)}</small></div>
+                            <div><b>{product.name}</b><small>{product.sellerName} · User #{product.sellerId}</small><small>{product.requestCode} · {product.category || "Chưa phân loại"}</small><small>Giá đã thống nhất: {money(product.startingPrice)}</small></div>
                             <button type="button" className="btn secondary" disabled={selected} onClick={() => addProduct(product)}>{selected ? "Đã chọn" : "Thêm"}</button>
                           </article>
                         );
@@ -1026,17 +1398,18 @@ export function AdminLiveEvents({ notify, user }) {
                     {lots.map((lot, index) => (
                       <article key={lot.productId} className="live-selected-lot">
                         <div className="live-selected-lot-head">
-                          <b>Lô {String(index + 1).padStart(3, "0")} · {lot.name}</b>
+                          <b>Lô {String(index + 1).padStart(3, "0")} · {lot.name}<small className="muted"> · {lot.requestCode} · {lot.sellerName}</small></b>
                           <div>
                             <button type="button" className="link-btn" disabled={index === 0} onClick={() => moveLot(index, -1)} aria-label={`Chuyển ${lot.name} lên`}>↑</button>
                             <button type="button" className="link-btn" disabled={index === lots.length - 1} onClick={() => moveLot(index, 1)} aria-label={`Chuyển ${lot.name} xuống`}>↓</button>
                             <button type="button" className="link-btn danger-text" onClick={() => setLots((current) => current.filter((item) => item.productId !== lot.productId))}>Gỡ</button>
                           </div>
                         </div>
-                        <div className="form-grid">
-                          <div className="field"><label htmlFor={`lot-start-${lot.productId}`}>Giá khởi điểm (VNĐ)</label><MoneyInput id={`lot-start-${lot.productId}`} value={lot.startingPrice} onChange={(val) => updateLot(lot.productId, "startingPrice", val)} placeholder="100.000" required /></div>
-                          <div className="field"><label htmlFor={`lot-increment-${lot.productId}`}>Bước giá (VNĐ)</label><MoneyInput id={`lot-increment-${lot.productId}`} value={lot.bidIncrement} onChange={(val) => updateLot(lot.productId, "bidIncrement", val)} placeholder="10.000" required /></div>
-                          <div className="field"><label htmlFor={`lot-reserve-${lot.productId}`}>Giá dự trữ (tùy chọn)</label><MoneyInput id={`lot-reserve-${lot.productId}`} value={lot.reservePrice} onChange={(val) => updateLot(lot.productId, "reservePrice", val)} placeholder="Không bắt buộc" /></div>
+                        <div className="live-approved-terms">
+                          <span>Khởi điểm <b>{money(Number(lot.startingPrice))}</b></span>
+                          <span>Bước giá <b>{money(Number(lot.bidIncrement))}</b></span>
+                          <span>Giá dự trữ <b>{lot.reservePrice ? money(Number(lot.reservePrice)) : "Không có"}</b></span>
+                          <small>Điều kiện đã được người bán xác nhận và không thể sửa tại bước xếp lô.</small>
                         </div>
                       </article>
                     ))}
@@ -1119,20 +1492,29 @@ export function AdminLiveEventDetail({ id, notify }) {
   const event = useRemote(() => api(`/api/admin/live/events/${id}`), [id]);
   const registrations = useRemote(() => api(`/api/admin/live/events/${id}/registrations`), [id]);
   const [addOpen, setAddOpen] = useState(false);
-  const [addStartPrice, setAddStartPrice] = useState("");
   const [search, setSearch] = useState("");
+  const [selectedRequestId, setSelectedRequestId] = useState("");
   const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState("");
+  const [inventoryRefresh, setInventoryRefresh] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const confirm = useConfirm();
 
   useEffect(() => {
-    if (!addOpen) { setAddStartPrice(""); return; }
+    if (!addOpen) return;
     let alive = true;
-    api(`/api/admin/live/products${search ? `?q=${encodeURIComponent(search)}` : ""}`)
-      .then((data) => alive && setProducts(data), (e) => alive && setError(e.message));
-    return () => { alive = false; };
-  }, [addOpen, search]);
+    const timer = window.setTimeout(() => {
+      setProductsLoading(true);
+      setProductsError("");
+      api(`/api/admin/live-inventory${search ? `?q=${encodeURIComponent(search)}` : ""}`)
+        .then((data) => alive && setProducts(data))
+        .catch((e) => alive && setProductsError(e.message))
+        .finally(() => alive && setProductsLoading(false));
+    }, 200);
+    return () => { alive = false; window.clearTimeout(timer); };
+  }, [addOpen, search, inventoryRefresh]);
 
   const publish = async () => {
     const accepted = await confirm({
@@ -1148,17 +1530,14 @@ export function AdminLiveEventDetail({ id, notify }) {
   };
   const addLot = async (submitEvent) => {
     submitEvent.preventDefault();
-    const form = new FormData(submitEvent.currentTarget);
     setBusy(true); setError("");
     try {
       await json("POST", `/api/admin/live/events/${id}/lots`, {
-        productId: Number(form.get("productId")),
-        startingPrice: Number(form.get("startingPrice")),
-        reservePrice: form.get("reservePrice") ? Number(form.get("reservePrice")) : null,
-        bidIncrement: Number(form.get("bidIncrement")),
+        liveAuctionRequestId: Number(selectedRequestId),
       });
       notify("Đã thêm lô vào sự kiện.");
       setAddOpen(false);
+      setSelectedRequestId("");
       event.reload();
     } catch (e) { setError(e.message); }
     finally { setBusy(false); }
@@ -1188,7 +1567,7 @@ export function AdminLiveEventDetail({ id, notify }) {
           {error && <div className="notice error" role="alert">{error}</div>}
           <div className="actions admin-detail-actions">
             {e.status === "Draft" && <button className="btn" disabled={busy} onClick={publish}>Công bố sự kiện</button>}
-            {["Draft", "Published", "Live"].includes(e.status) && <button className="btn secondary" onClick={() => { setAddOpen(true); setError(""); }}>+ Thêm lô</button>}
+            {["Draft", "Published"].includes(e.status) && <button className="btn secondary" onClick={() => { setAddOpen(true); setError(""); setSelectedRequestId(""); }}>+ Thêm lô</button>}
             <a className="btn ghost" href={`#/live-room/${id}`} target="_blank" rel="noreferrer">Xem phòng ↗</a>
           </div>
           <div className="panel table-wrap">
@@ -1224,34 +1603,30 @@ export function AdminLiveEventDetail({ id, notify }) {
         </>
       )}
       {addOpen && (
-        <Modal title="Thêm lô từ sản phẩm" onClose={() => setAddOpen(false)} busy={busy}>
-          <p className="muted">Chỉ hiện sản phẩm đang chờ, chưa có lượt đặt giá và chưa thuộc lô đấu giá trực tiếp nào.</p>
+        <Modal title="Thêm lô đấu giá trực tiếp" onClose={() => setAddOpen(false)} busy={busy}>
+          <p className="muted">Chỉ lấy hồ sơ đã được duyệt, người bán đã đồng ý và chưa xếp lịch vào sự kiện khác.</p>
           <input type="search" placeholder="Tìm sản phẩm…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Tìm sản phẩm" />
+          {productsLoading && <p className="muted" role="status">Đang tải kho sản phẩm đã duyệt…</p>}
+          {productsError && <div className="notice error" role="alert">{productsError}<button type="button" className="link-btn" onClick={() => setInventoryRefresh((value) => value + 1)}>Thử lại</button></div>}
+          {!productsLoading && !productsError && products.length === 0 && (
+            <EmptyState title="Chưa có sản phẩm đủ điều kiện" description="Yêu cầu cần được Admin duyệt và người bán phải xác nhận các điều kiện trước khi xếp lô.">
+              <a className="btn secondary" href="#/admin/live-requests">Đi đến yêu cầu từ người bán</a>
+            </EmptyState>
+          )}
           <form onSubmit={addLot}>
-            <div className="field">
-              <label htmlFor="lotProduct">Sản phẩm</label>
-              <select
-                id="lotProduct"
-                name="productId"
-                required
-                onChange={(e) => {
-                  const chosen = products.find((p) => String(p.id) === e.target.value);
-                  if (chosen) setAddStartPrice(String(chosen.startingPrice || ""));
-                }}
-              >
-                <option value="">Chọn sản phẩm</option>
-                {products.map((p) => <option key={p.id} value={p.id}>#{p.id} · {p.name} · {p.sellerName} · {money(p.startingPrice)}</option>)}
-              </select>
+            <div className="live-product-options">
+              {products.map((product) => (
+                <label key={product.requestId} className={`live-product-option live-inventory-option ${String(product.requestId) === selectedRequestId ? "selected" : ""}`}>
+                  <input type="radio" name="liveRequest" value={product.requestId} checked={String(product.requestId) === selectedRequestId} onChange={(e) => setSelectedRequestId(e.target.value)} />
+                  {product.imageUrl ? <img src={product.imageUrl} alt="" /> : <span className="live-product-placeholder">Ảnh</span>}
+                  <span><b>{product.name}</b><small>{product.sellerName} · User #{product.sellerId}</small><small>{product.requestCode} · {product.category || "Chưa phân loại"}</small><small>Khởi điểm {money(product.startingPrice)} · Bước {money(product.bidIncrement)} · Dự trữ {product.reservePrice == null ? "—" : money(product.reservePrice)}</small></span>
+                </label>
+              ))}
             </div>
-            <div className="form-grid">
-              <div className="field"><label htmlFor="lotStart">Giá khởi điểm (VNĐ)</label><MoneyInput id="lotStart" name="startingPrice" value={addStartPrice} onChange={setAddStartPrice} placeholder="100.000" required /></div>
-              <div className="field"><label htmlFor="lotStep">Bước giá (VNĐ)</label><MoneyInput id="lotStep" name="bidIncrement" defaultValue="1000" placeholder="1.000" required /></div>
-            </div>
-            <div className="field"><label htmlFor="lotReserve">Giá dự trữ (tùy chọn)</label><MoneyInput id="lotReserve" name="reservePrice" placeholder="Không bắt buộc" /></div>
             {error && <div className="notice error" role="alert">{error}</div>}
             <div className="dialog-actions">
               <button type="button" className="btn secondary" onClick={() => setAddOpen(false)}>Hủy</button>
-              <button className="btn dark" disabled={busy || !products.length}>{busy ? "Đang thêm…" : "Thêm lô"}</button>
+              <button className="btn dark" disabled={busy || !selectedRequestId || productsLoading}>{busy ? "Đang thêm…" : "Thêm lô đã duyệt"}</button>
             </div>
           </form>
         </Modal>

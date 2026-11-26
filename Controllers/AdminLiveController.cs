@@ -12,6 +12,7 @@ namespace BidNet.Controllers;
 [Route("api/admin/live")]
 public class AdminLiveController(
     LiveAuctionService live,
+    LiveAuctionRequestService requests,
     Cloudinary cloudinary,
     ILogger<AdminLiveController> logger) : ControllerBase
 {
@@ -134,5 +135,5 @@ public class AdminLiveController(
 
     [HttpGet("products")]
     public async Task<ActionResult<List<LiveProductOptionDto>>> Products(string? q, CancellationToken ct) =>
-        Ok(await live.AvailableProductsAsync(q, ct));
+        Ok(await requests.InventoryAsync(q, ct));
 }

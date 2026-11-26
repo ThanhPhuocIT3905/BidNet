@@ -25,6 +25,7 @@ namespace BidNet.Data
         public DbSet<LiveLot> LiveLots => Set<LiveLot>();
         public DbSet<LiveBid> LiveBids => Set<LiveBid>();
         public DbSet<LiveRegistration> LiveRegistrations => Set<LiveRegistration>();
+        public DbSet<LiveAuctionRequest> LiveAuctionRequests => Set<LiveAuctionRequest>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -59,6 +60,7 @@ namespace BidNet.Data
             });
             modelBuilder.Entity<Product>().ToTable(t => {
                 t.HasCheckConstraint("CK_Products_Status", "[Status] IN (0,1,2,3)");
+                t.HasCheckConstraint("CK_Products_AuctionType", "[AuctionType] IN (0,1)");
                 t.HasCheckConstraint("CK_Products_Time", "[EndTime] > [StartTime]");
                 t.HasCheckConstraint("CK_Products_Prices", "[StartingPrice] >= 1000 AND [CurrentPrice] >= [StartingPrice] AND [StartingPrice] = FLOOR([StartingPrice]) AND [CurrentPrice] = FLOOR([CurrentPrice])");
             });
@@ -172,6 +174,8 @@ namespace BidNet.Data
             // unique trên các lô còn hiệu lực (Pending/Open/Paused/Sold).
             modelBuilder.Entity<LiveLot>().HasIndex(l => l.ProductId).IsUnique()
                 .HasFilter("[Status] IN (0, 1, 2, 3)");
+            modelBuilder.Entity<LiveLot>().HasIndex(l => l.LiveAuctionRequestId).IsUnique()
+                .HasFilter("[LiveAuctionRequestId] IS NOT NULL");
             modelBuilder.Entity<LiveLot>().HasIndex(l => new { l.EventId, l.SequenceNumber }).IsUnique();
             modelBuilder.Entity<LiveLot>().HasIndex(l => new { l.Status, l.EventId });
             modelBuilder.Entity<LiveLot>().HasOne(l => l.Product).WithMany()
@@ -182,6 +186,24 @@ namespace BidNet.Data
                 .HasForeignKey(l => l.LeadingBidderId).OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<LiveLot>().HasOne(l => l.Winner).WithMany()
                 .HasForeignKey(l => l.WinnerId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<LiveLot>().HasOne(l => l.AddedBy).WithMany()
+                .HasForeignKey(l => l.AddedById).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<LiveLot>().HasOne(l => l.LiveAuctionRequest).WithOne(r => r.Lot)
+                .HasForeignKey<LiveLot>(l => l.LiveAuctionRequestId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<LiveAuctionRequest>().HasIndex(r => r.RequestCode).IsUnique();
+            modelBuilder.Entity<LiveAuctionRequest>().HasIndex(r => r.ProductId).IsUnique()
+                .HasFilter("[Status] IN (0, 1, 2, 3, 4, 7, 8)");
+            modelBuilder.Entity<LiveAuctionRequest>().HasIndex(r => new { r.Status, r.CreatedAt });
+            modelBuilder.Entity<LiveAuctionRequest>().HasOne(r => r.Product).WithMany()
+                .HasForeignKey(r => r.ProductId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<LiveAuctionRequest>().HasOne(r => r.Seller).WithMany()
+                .HasForeignKey(r => r.SellerId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<LiveAuctionRequest>().HasOne(r => r.ReviewedBy).WithMany()
+                .HasForeignKey(r => r.ReviewedById).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<LiveAuctionRequest>().HasOne(r => r.PreferredEvent).WithMany()
+                .HasForeignKey(r => r.PreferredEventId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<LiveAuctionRequest>().HasOne(r => r.ScheduledEvent).WithMany()
+                .HasForeignKey(r => r.ScheduledEventId).OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<LiveBid>().HasOne(b => b.Lot).WithMany(l => l.Bids)
                 .HasForeignKey(b => b.LotId).OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<LiveBid>().HasOne(b => b.User).WithMany()

@@ -18,6 +18,7 @@ public static class ProductMapper
         StartTime = p.StartTime,
         EndTime = p.EndTime,
         Status = p.Status.ToString(),
+        AuctionType = p.AuctionType.ToString(),
         ImageUrl = p.ImageUrl,
         Category = p.Category,
         CategoryId = p.CategoryId,

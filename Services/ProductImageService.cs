@@ -147,7 +147,8 @@ public class ProductImageService(
 
     private async Task RequireEditableAsync(Product product, CancellationToken ct)
     {
-        if (product.Status != ProductStatus.Scheduled || product.StartTime <= DateTime.UtcNow ||
+        if (product.AuctionType != ProductAuctionType.Timed ||
+            product.Status != ProductStatus.Scheduled || product.StartTime <= DateTime.UtcNow ||
             await db.Bids.AnyAsync(b => b.ProductId == product.Id, ct))
             throw new ApiException(409, "auction_started", "Chỉ được thay ảnh trước khi phiên bắt đầu và chưa có lượt giá.");
     }

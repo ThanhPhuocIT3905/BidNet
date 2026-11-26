@@ -22,6 +22,8 @@ public class BidService(
         var now = DateTime.UtcNow;
         if (product.SellerId == user.Id)
             throw new ApiException(403, "seller_cannot_bid", "Người bán không được tự đặt giá.");
+        if (product.AuctionType != ProductAuctionType.Timed)
+            throw new ApiException(409, "live_auction_only", "Sản phẩm đang được xử lý theo hình thức đấu giá trực tiếp.");
         // Sản phẩm đang nằm trong một lô live chỉ nhận giá trong phòng live.
         if (await db.LiveLots.AnyAsync(l => l.ProductId == productId &&
                 l.Status != LiveLotStatus.Unsold && l.Status != LiveLotStatus.Skipped &&

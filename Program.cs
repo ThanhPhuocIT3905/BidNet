@@ -178,6 +178,7 @@ try
     builder.Services.AddScoped<IProductService, ProductService>();
     builder.Services.AddScoped<IBidService, BidService>();
     builder.Services.AddScoped<LiveAuctionService>();
+    builder.Services.AddScoped<LiveAuctionRequestService>();
     builder.Services.AddSingleton<LiveViewerTracker>();
     builder.Services.AddScoped<CurrentUser>();
     builder.Services.AddScoped<IUserRepository, UserRepository>();

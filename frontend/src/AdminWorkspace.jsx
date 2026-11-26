@@ -4,7 +4,7 @@ import { OrderDetail, Notifications } from "./screens";
 import { AdminCategories, Diagnostics } from "./admin";
 import { AdminOrders, AuditLogs } from "./Workflows.jsx";
 import AdminSupportCenter from "./AdminSupportCenter.jsx";
-import { AdminLiveEvents, AdminLiveEventDetail, AdminLiveConsole } from "./Live.jsx";
+import { AdminLiveEvents, AdminLiveEventDetail, AdminLiveConsole, AdminLiveRequests } from "./Live.jsx";
 import { Modal, PageHeader, EmptyState, LoadingState, ErrorState, useConfirm } from "./UI.jsx";
 import Avatar from "./Avatar.jsx";
 import useAuctionUpdates from "./useAuctionUpdates.js";
@@ -14,6 +14,7 @@ const menu = [
   ["/admin/users", "Tài khoản"],
   ["/admin/auctions", "Phiên đấu giá"],
   ["/admin/live", "Đấu giá trực tiếp"],
+  ["/admin/live-requests", "Yêu cầu & kho Live"],
   ["/admin/categories", "Danh mục"],
   ["/admin/orders", "Đơn hàng"],
   ["/admin/support", "Yêu cầu hỗ trợ"],
@@ -413,6 +414,7 @@ export default function AdminWorkspace({ route, ...props }) {
   const liveControl = Boolean(liveMatch?.[2]);
   const selectedPath = path === "/admin/products" ? "/admin/auctions"
     : orderId ? "/admin/orders"
+    : path === "/admin/live-requests" ? path
     : path.startsWith("/admin/live") ? "/admin/live"
     : path;
   const identity = useResult("/api/users/me");
@@ -421,6 +423,7 @@ export default function AdminWorkspace({ route, ...props }) {
     "/admin/users": Accounts,
     "/admin/auctions": Auctions,
     "/admin/live": AdminLiveEvents,
+    "/admin/live-requests": AdminLiveRequests,
     /* Alias cũ: /admin/products từng trả về trang trống. */
     "/admin/products": Auctions,
     "/admin/categories": AdminCategories,
@@ -442,7 +445,7 @@ export default function AdminWorkspace({ route, ...props }) {
               href={"#" + path}
               aria-current={selectedPath === path ? "page" : undefined}
             >
-              <span className="nav-marker" aria-hidden="true">{["◫", "◎", "◇", "▦", "▤", "◉", "⌘"][index]}</span>{label}
+              <span className="nav-marker" aria-hidden="true">{["◫", "◎", "◇", "▦", "▤", "◉", "▧", "⌘", "◉", "⌘", "◎"][index]}</span>{label}
             </a>
           ))}
         </nav>

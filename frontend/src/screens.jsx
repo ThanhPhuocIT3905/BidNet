@@ -205,9 +205,14 @@ export function MyProducts({ go, notify }) {
           <h1>Sản phẩm của tôi</h1>
           <p className="muted">Quản lý sản phẩm và phiên đấu giá của bạn.</p>
         </div>
-        <button className="btn" onClick={() => go("/product/new")}>
-          + Đăng sản phẩm
-        </button>
+        <div className="seller-header-actions">
+          <button className="btn secondary" onClick={() => go("/my-live-requests")}>
+            Yêu cầu đấu giá trực tiếp
+          </button>
+          <button className="btn" onClick={() => go("/product/new")}>
+            + Đăng sản phẩm
+          </button>
+        </div>
       </div>
 
       <div className="seller-toolbar">
@@ -301,14 +306,17 @@ export function MyProducts({ go, notify }) {
                       </div>
                     </div>
                   </td>
-                  <td><Badge value={x.status} /></td>
+                  <td>
+                    <Badge value={x.status} />
+                    {x.auctionType === "Live" && <span className="seller-live-type-tag">Đấu giá trực tiếp</span>}
+                  </td>
                   <td>
                     {renderPriceInfo(x)}
                     <small className="seller-bid-count">{x.bidCount || 0} lượt đặt</small>
                   </td>
                   <td>
                     <small className="seller-date-label">
-                      {x.status === "Scheduled" ? "Mở phiên" : "Kết thúc"}
+                      {x.auctionType === "Live" ? "Ngày mong muốn" : x.status === "Scheduled" ? "Mở phiên" : "Kết thúc"}
                     </small>
                     <span>{date(x.status === "Scheduled" ? x.startTime : x.endTime)}</span>
                   </td>
@@ -317,12 +325,12 @@ export function MyProducts({ go, notify }) {
                       <button className="btn sm secondary" onClick={() => go(`/product/${x.id}`)}>
                         Chi tiết
                       </button>
-                      {x.status === "Scheduled" && (
+                      {x.status === "Scheduled" && x.auctionType !== "Live" && (
                         <button className="btn sm secondary" onClick={() => go(`/product/${x.id}/edit`)}>
                           Sửa
                         </button>
                       )}
-                      {(x.status === "Scheduled" || (x.status === "Active" && !x.bidCount)) && (
+                      {x.auctionType !== "Live" && (x.status === "Scheduled" || (x.status === "Active" && !x.bidCount)) && (
                         <button
                           className="btn sm danger"
                           onClick={() => { setCancelingItem(x); setCancelReason(""); }}
@@ -330,9 +338,14 @@ export function MyProducts({ go, notify }) {
                           Hủy
                         </button>
                       )}
-                      {x.status === "Scheduled" && !x.bidCount && (
+                      {x.status === "Scheduled" && !x.bidCount && x.auctionType !== "Live" && (
                         <button className="btn sm ghost" onClick={() => setDeletingItem(x)}>
                           Xóa
+                        </button>
+                      )}
+                      {x.auctionType === "Live" && (
+                        <button className="btn sm secondary" onClick={() => go("/my-live-requests")}>
+                          Theo dõi yêu cầu
                         </button>
                       )}
                       {(x.status === "Completed" || x.status === "Cancelled") && (

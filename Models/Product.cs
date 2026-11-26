@@ -34,6 +34,8 @@ namespace BidNet.Models
         [Required]
         public ProductStatus Status { get; set; } = ProductStatus.Scheduled;
 
+        public ProductAuctionType AuctionType { get; set; } = ProductAuctionType.Timed;
+
         [ForeignKey("Seller")]
         public int SellerId { get; set; }
         public virtual User Seller { get; set; } = null!;
@@ -81,5 +83,11 @@ namespace BidNet.Models
         Completed = 1,
         Cancelled = 2,
         Scheduled = 3
+    }
+
+    public enum ProductAuctionType
+    {
+        Timed = 0,
+        Live = 1
     }
 }

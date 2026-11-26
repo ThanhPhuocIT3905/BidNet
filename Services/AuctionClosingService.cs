@@ -39,14 +39,16 @@ public class AuctionClosingService(
         // Mỗi lượt chỉ lấy tối đa 50 phiên đến giờ mở để không giữ DB quá lâu.
         // Lượt quét sau sẽ xử lý phần còn lại nếu số phiên lớn hơn 50.
         var pendingIds = await db.Products.AsNoTracking()
-            .Where(p => p.Status == ProductStatus.Scheduled && p.StartTime <= now &&
+            .Where(p => p.AuctionType == ProductAuctionType.Timed &&
+                p.Status == ProductStatus.Scheduled && p.StartTime <= now &&
                 !db.LiveLots.Any(l => l.ProductId == p.Id && l.Status != LiveLotStatus.Unsold &&
                     l.Status != LiveLotStatus.Skipped && l.Status != LiveLotStatus.Withdrawn))
             .OrderBy(p => p.StartTime).Select(p => p.Id).Take(50).ToListAsync(ct);
         foreach (var id in pendingIds)
         {
             var product = await db.Products.FindAsync([id], ct);
-            if (product is null || product.Status != ProductStatus.Scheduled) continue;
+            if (product is null || product.AuctionType != ProductAuctionType.Timed ||
+                product.Status != ProductStatus.Scheduled) continue;
             product.Status = ProductStatus.Active;
             product.UpdatedAt = now;
             try { await db.SaveChangesAsync(ct); }
@@ -58,14 +60,16 @@ public class AuctionClosingService(
 
         // Chỉ đóng phiên Active đã qua EndTime, không đụng phiên đã hủy.
         var expiredIds = await db.Products.AsNoTracking()
-            .Where(p => p.Status == ProductStatus.Active && p.EndTime <= now &&
+            .Where(p => p.AuctionType == ProductAuctionType.Timed &&
+                p.Status == ProductStatus.Active && p.EndTime <= now &&
                 !db.LiveLots.Any(l => l.ProductId == p.Id && l.Status != LiveLotStatus.Unsold &&
                     l.Status != LiveLotStatus.Skipped && l.Status != LiveLotStatus.Withdrawn))
             .OrderBy(p => p.EndTime).Select(p => p.Id).Take(50).ToListAsync(ct);
         foreach (var id in expiredIds)
         {
             var product = await db.Products.FindAsync([id], ct);
-            if (product is null || product.Status != ProductStatus.Active) continue;
+            if (product is null || product.AuctionType != ProductAuctionType.Timed ||
+                product.Status != ProductStatus.Active) continue;
             var winningBid = await db.Bids.AsNoTracking().Where(b => b.ProductId == id)
                 // Giá cao nhất thắng. Nếu bằng giá, bid sớm hơn thắng; Id phá hòa
                 // khi BidTime cũng trùng. Không có bid thì WinnerId để null.

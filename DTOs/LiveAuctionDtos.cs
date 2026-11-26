@@ -21,11 +21,91 @@ public class UpdateLiveEventDto : CreateLiveEventDto { }
 
 public class AddLiveLotDto
 {
-    [Range(1, int.MaxValue, ErrorMessage = "Sản phẩm không hợp lệ.")]
+    [Range(1, int.MaxValue, ErrorMessage = "Yêu cầu đấu giá trực tiếp không hợp lệ.")]
+    public int LiveAuctionRequestId { get; set; }
+}
+
+public class CreateLiveAuctionRequestDto
+{
+    [Range(1, int.MaxValue)]
     public int ProductId { get; set; }
-    public decimal? StartingPrice { get; set; }
-    public decimal? ReservePrice { get; set; }
-    public decimal? BidIncrement { get; set; }
+    [Range(1000, 100000000000)]
+    public decimal ProposedStartingPrice { get; set; }
+    public decimal? ProposedReservePrice { get; set; }
+    [Range(1, 100000000000)]
+    public decimal ProposedBidIncrement { get; set; } = 1000;
+    public int? PreferredEventId { get; set; }
+    [MaxLength(1000)]
+    public string? SellerNote { get; set; }
+    public bool SellerConsent { get; set; }
+}
+
+public class UpdateLiveAuctionRequestDto
+{
+    [Range(1000, 100000000000)]
+    public decimal ProposedStartingPrice { get; set; }
+    public decimal? ProposedReservePrice { get; set; }
+    [Range(1, 100000000000)]
+    public decimal ProposedBidIncrement { get; set; } = 1000;
+    [MaxLength(1000)]
+    public string? SellerNote { get; set; }
+}
+
+public class ReviewLiveAuctionRequestDto
+{
+    [Range(1000, 100000000000)]
+    public decimal ProposedStartingPrice { get; set; }
+    public decimal? ProposedReservePrice { get; set; }
+    [Range(1, 100000000000)]
+    public decimal ProposedBidIncrement { get; set; }
+    [MaxLength(1000)]
+    public string? AdminNote { get; set; }
+}
+
+public class LiveAuctionRequestMessageDto
+{
+    [Required, MaxLength(1000)]
+    public string Message { get; set; } = string.Empty;
+}
+
+public class LiveAuctionRequestDto
+{
+    public int Id { get; set; }
+    public string RequestCode { get; set; } = string.Empty;
+    public int ProductId { get; set; }
+    public string ProductName { get; set; } = string.Empty;
+    public string? ProductImageUrl { get; set; }
+    public string? Category { get; set; }
+    public int SellerId { get; set; }
+    public string SellerName { get; set; } = string.Empty;
+    public string? SellerAvatarUrl { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public decimal ProposedStartingPrice { get; set; }
+    public decimal? ProposedReservePrice { get; set; }
+    public decimal ProposedBidIncrement { get; set; }
+    public int? PreferredEventId { get; set; }
+    public string? PreferredEventTitle { get; set; }
+    public string? SellerNote { get; set; }
+    public string? AdminNote { get; set; }
+    public string? RejectReason { get; set; }
+    public int TermsVersion { get; set; }
+    public int? AcceptedTermsVersion { get; set; }
+    public DateTime? SellerConfirmedAt { get; set; }
+    public DateTime? ReviewedAt { get; set; }
+    public string? ReviewerName { get; set; }
+    public int? ScheduledEventId { get; set; }
+    public string? ScheduledEventTitle { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+public class LiveAuctionEligibleProductDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? ImageUrl { get; set; }
+    public string? Category { get; set; }
+    public decimal StartingPrice { get; set; }
+    public DateTime StartTime { get; set; }
 }
 
 public class PlaceLiveBidDto
@@ -69,6 +149,8 @@ public class LiveLotDto
     public int Id { get; set; }
     public int EventId { get; set; }
     public int ProductId { get; set; }
+    public int? LiveAuctionRequestId { get; set; }
+    public string? RequestCode { get; set; }
     public int LotNumber { get; set; }
     public int SequenceNumber { get; set; }
     public string Title { get; set; } = string.Empty;
@@ -142,8 +224,14 @@ public class LiveRegistrationDto
 public class LiveProductOptionDto
 {
     public int Id { get; set; }
+    public int RequestId { get; set; }
+    public string RequestCode { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public decimal StartingPrice { get; set; }
+    public decimal? ReservePrice { get; set; }
+    public decimal BidIncrement { get; set; }
     public string? ImageUrl { get; set; }
+    public string? Category { get; set; }
+    public int SellerId { get; set; }
     public string SellerName { get; set; } = string.Empty;
 }

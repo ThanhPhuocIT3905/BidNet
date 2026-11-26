@@ -30,7 +30,7 @@ import MarketplaceHome from "./MarketplaceHome.jsx";
 import { ConfirmProvider } from "./UI.jsx";
 import Avatar from "./Avatar.jsx";
 import { AuthModal } from "./AuthModal.jsx";
-import { LiveEventsPage, LiveEventPage, LiveRoomPage } from "./Live.jsx";
+import { LiveEventsPage, LiveEventPage, LiveRoomPage, SellerLiveRequests } from "./Live.jsx";
 import "./live.css";
 import SupportWidget from "./SupportWidget.jsx";
 
@@ -250,7 +250,7 @@ function App() {
   const user = session?.user;
   const admin = user?.role === "Admin";
   const adminArea = admin && (path === "/admin" || path.startsWith("/admin/"));
-  const accountArea = user && ["/my-products", "/my-bids", "/orders", "/notifications", "/profile"].includes(path);
+  const accountArea = user && ["/my-products", "/my-live-requests", "/my-bids", "/orders", "/notifications", "/profile"].includes(path);
   const common = { go, notify, user, admin, openAuth: setAuthTab };
   const submitSearch = (event) => {
     event.preventDefault();
@@ -279,10 +279,11 @@ function App() {
   /* Yêu thích lưu bằng localStorage nên không cần đăng nhập; đặt trước
      cổng đăng nhập để link ♡ trên header luôn mở được. */
   else if (path === "/favorites") page = <FavoritesPage {...common} />;
-  else if (!user && (/^\/(my-products|my-bids|orders|notifications|profile|admin)(\/|$)/.test(path) || path === "/product/new" || /^\/(product\/\d+\/edit|order\/\d+)$/.test(path))) page = <Gate openAuth={setAuthTab} />;
-  else if (admin && (path === "/product/new" || path === "/my-products" || path === "/my-bids" || /^\/product\/\d+\/edit$/.test(path)))
+  else if (!user && (/^\/(my-products|my-live-requests|my-bids|orders|notifications|profile|admin)(\/|$)/.test(path) || path === "/product/new" || /^\/(product\/\d+\/edit|order\/\d+)$/.test(path))) page = <Gate openAuth={setAuthTab} />;
+  else if (admin && (path === "/product/new" || path === "/my-products" || path === "/my-live-requests" || path === "/my-bids" || /^\/product\/\d+\/edit$/.test(path)))
     page = <section className="empty"><h1>Chức năng dành cho thành viên</h1><p>Admin quản lý hệ thống, không tham gia đăng bán hoặc đặt giá.</p><a className="btn" href="#/admin">Về quản trị</a></section>;
   else if (path === "/my-products") page = <MyProducts {...common} />;
+  else if (path === "/my-live-requests") page = <SellerLiveRequests {...common} />;
   else if (path === "/product/new" || /^\/product\/\d+\/edit$/.test(path))
     page = (
       <ProductForm
@@ -415,6 +416,7 @@ function App() {
                   }}
                 >
                   {!admin && <><a href="#/my-products">Sản phẩm của tôi</a>
+                  <a href="#/my-live-requests">Yêu cầu đấu giá trực tiếp</a>
                   <a href="#/my-bids">Đấu giá của tôi</a>
                   <a href="#/orders">Đơn hàng</a></>}
                   <a href="#/notifications">Thông báo</a>
@@ -488,7 +490,7 @@ function App() {
       {accountArea && (
         <div className="account-nav-bar">
           <nav className="account-nav" aria-label="Tài khoản của tôi">
-            {(admin ? [["/admin", "Quản trị"], ["/notifications", "Thông báo"], ["/profile", "Hồ sơ"]] : [["/my-products", "Đăng bán"], ["/my-bids", "Đấu giá của tôi"], ["/orders", "Đơn hàng"], ["/notifications", "Thông báo"], ["/profile", "Hồ sơ"]]).map(([href, label]) => (
+            {(admin ? [["/admin", "Quản trị"], ["/notifications", "Thông báo"], ["/profile", "Hồ sơ"]] : [["/my-products", "Sản phẩm"], ["/my-live-requests", "Yêu cầu Live"], ["/my-bids", "Đấu giá của tôi"], ["/orders", "Đơn hàng"], ["/notifications", "Thông báo"], ["/profile", "Hồ sơ"]]).map(([href, label]) => (
               <a key={href} href={`#${href}`} aria-current={path === href ? "page" : undefined}>{label}</a>
             ))}
           </nav>

@@ -15,7 +15,8 @@ public class ProductService(AppDbContext db, CurrentUser currentUser, IConfigura
         // Sản phẩm đã được xếp vào lô đấu giá trực tiếp không xuất hiện như
         // phiên đấu giá theo thời gian để tránh bán trùng.
         var query = db.Products.AsNoTracking()
-            .Where(p => !db.LiveLots.Any(l => l.ProductId == p.Id &&
+            .Where(p => p.AuctionType == ProductAuctionType.Timed &&
+                !db.LiveLots.Any(l => l.ProductId == p.Id &&
                 l.Status != LiveLotStatus.Unsold && l.Status != LiveLotStatus.Skipped &&
                 l.Status != LiveLotStatus.Withdrawn));
         if (!string.IsNullOrWhiteSpace(filter.Q))
@@ -70,6 +71,12 @@ public class ProductService(AppDbContext db, CurrentUser currentUser, IConfigura
         var product = await WithUsers(db.Products.AsNoTracking())
             .FirstOrDefaultAsync(p => p.Id == id, ct)
             ?? throw new ApiException(404, "product_not_found", "Không tìm thấy sản phẩm.");
+        if (product.AuctionType == ProductAuctionType.Live)
+        {
+            var viewer = await currentUser.OptionalAsync(ct);
+            if (viewer?.Id != product.SellerId && viewer?.Role != "Admin")
+                throw new ApiException(404, "product_not_found", "Không tìm thấy sản phẩm.");
+        }
         var response = ProductMapper.ToResponse(product);
         var increment = config.GetValue<decimal>("Auction:MinBidIncrement");
         if (increment < 1 || increment != decimal.Truncate(increment))
@@ -132,7 +139,8 @@ public class ProductService(AppDbContext db, CurrentUser currentUser, IConfigura
         if (product.SellerId != user.Id)
             throw new ApiException(403, "not_owner", "Bạn không phải người bán sản phẩm này.");
         VersionGuard.Check(request.Version, product.RowVersion);
-        if (product.Status != ProductStatus.Scheduled || product.StartTime <= DateTime.UtcNow ||
+        if (product.AuctionType != ProductAuctionType.Timed ||
+            product.Status != ProductStatus.Scheduled || product.StartTime <= DateTime.UtcNow ||
             await db.Bids.AnyAsync(b => b.ProductId == id, ct))
             throw new ApiException(409, "auction_started", "Không thể sửa phiên đã bắt đầu hoặc đã có giá.");
         Validate(request.Name, request.StartingPrice, request.StartTime, request.EndTime,
@@ -166,6 +174,11 @@ public class ProductService(AppDbContext db, CurrentUser currentUser, IConfigura
 
         if (product.SellerId != user.Id && user.Role != "Admin")
             throw new ApiException(403, "forbidden", "Bạn không có quyền hủy phiên đấu giá này.");
+
+        if (await db.LiveAuctionRequests.AnyAsync(r => r.ProductId == id &&
+            r.Status != LiveAuctionRequestStatus.Rejected && r.Status != LiveAuctionRequestStatus.Withdrawn &&
+            r.Status != LiveAuctionRequestStatus.Completed, ct))
+            throw new ApiException(409, "live_request_active", "Hãy xử lý hoặc rút yêu cầu đấu giá trực tiếp trước.");
 
         if (product.Status is ProductStatus.Completed or ProductStatus.Cancelled)
             throw new ApiException(400, "invalid_status", "Không thể hủy phiên đấu giá đã kết thúc hoặc đã hủy.");
@@ -203,6 +216,9 @@ public class ProductService(AppDbContext db, CurrentUser currentUser, IConfigura
 
         if (product.Bids.Count > 0)
             throw new ApiException(400, "cannot_delete_with_bids", "Không thể xóa sản phẩm đã có lịch sử đặt giá.");
+
+        if (await db.LiveAuctionRequests.AnyAsync(r => r.ProductId == id, ct))
+            throw new ApiException(409, "live_request_history", "Không thể xóa sản phẩm đã có lịch sử yêu cầu đấu giá trực tiếp.");
 
         if (product.Status == ProductStatus.Active)
             throw new ApiException(400, "cannot_delete_active", "Không thể xóa phiên đấu giá đang diễn ra.");

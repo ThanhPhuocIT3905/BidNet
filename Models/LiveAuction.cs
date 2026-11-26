@@ -79,6 +79,14 @@ public class LiveLot
     [ForeignKey(nameof(ProductId))]
     public virtual Product Product { get; set; } = null!;
 
+    public int? LiveAuctionRequestId { get; set; }
+    [ForeignKey(nameof(LiveAuctionRequestId))]
+    public virtual LiveAuctionRequest? LiveAuctionRequest { get; set; }
+
+    public int? AddedById { get; set; }
+    [ForeignKey(nameof(AddedById))]
+    public virtual User? AddedBy { get; set; }
+
     public int SellerId { get; set; }
     [ForeignKey(nameof(SellerId))]
     public virtual User Seller { get; set; } = null!;
