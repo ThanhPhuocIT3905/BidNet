@@ -243,7 +243,7 @@ function App() {
     );
   return (
     <>
-      {adminArea ? <header className="workspace-top"><a className="brand" href="#/admin">Bid<span>Net</span><small>WORKSPACE</small></a><div className="workspace-top-actions"><a href="#/">Xem sàn đấu giá ↗</a><ThemeToggle /><a href="#/profile" className="workspace-identity"><Avatar user={user} /><span>{user.fullName || user.username}<small>Quản trị viên</small></span></a><button className="btn secondary" onClick={logout}>Đăng xuất</button></div></header> : <header className={`top ${scrollState.scrolled ? "is-scrolled" : ""} ${scrollState.compact ? "is-compact" : ""}`}>
+      {adminArea ? <header className="workspace-top"><a className="brand" href="#/admin">Bid<span>Net</span><small>WORKSPACE</small></a><div className="workspace-top-actions"><a href="#/">Xem sàn đấu giá ↗</a><ThemeToggle /><a href="#/profile" className="workspace-identity"><Avatar user={user} /><span>{user.fullName || user.username}<small>Quản trị viên</small></span></a><button className="btn secondary" onClick={logout}>Đăng xuất</button></div></header> : <div className={`sticky-top-shell ${scrollState.scrolled ? "is-scrolled" : ""} ${scrollState.compact ? "is-compact" : ""}`}><header className={`top ${scrollState.scrolled ? "is-scrolled" : ""} ${scrollState.compact ? "is-compact" : ""}`}>
         <div className="top-bar">
           <div className="top-bar-inner">
             <span>BidNet · Sàn đấu giá trực tuyến</span>
@@ -319,7 +319,7 @@ function App() {
                 </summary>
                 <div className="account-panel">
                   {!admin && <><a href="#/my-products">Sản phẩm của tôi</a>
-                  <a href="#/my-bids">Lịch sử đặt giá</a>
+                  <a href="#/my-bids">Đấu giá của tôi</a>
                   <a href="#/orders">Đơn hàng</a></>}
                   <a href="#/notifications">Thông báo</a>
                   <a href="#/favorites">Yêu thích</a>
@@ -376,10 +376,19 @@ function App() {
             {user && <a href="#/favorites">Yêu thích ({favorites.length})</a>}
           </div>
         </nav>
-      </header>}
+      </header>
+      {accountArea && (
+        <div className="account-nav-bar">
+          <nav className="account-nav" aria-label="Tài khoản của tôi">
+            {(admin ? [["/admin", "Quản trị"], ["/notifications", "Thông báo"], ["/profile", "Hồ sơ"]] : [["/my-products", "Đăng bán"], ["/my-bids", "Đấu giá của tôi"], ["/orders", "Đơn hàng"], ["/notifications", "Thông báo"], ["/profile", "Hồ sơ"]]).map(([href, label]) => (
+              <a key={href} href={`#${href}`} aria-current={path === href ? "page" : undefined}>{label}</a>
+            ))}
+          </nav>
+        </div>
+      )}
+      </div>}
 
-      <main id="main-content" tabIndex={-1} className={`wrap ${adminArea ? "workspace-wrap" : ""} ${scrollState.compact ? "has-compact-header" : ""} ${scrollState.scrolled && !scrollState.compact ? "has-expanded-header" : ""}`}>
-        {accountArea && <nav className="account-nav" aria-label="Tài khoản của tôi">{(admin ? [["/admin", "Quản trị"], ["/notifications", "Thông báo"], ["/profile", "Hồ sơ"]] : [["/my-products", "Đăng bán"], ["/my-bids", "Lượt đặt giá"], ["/orders", "Đơn hàng"], ["/notifications", "Thông báo"], ["/profile", "Hồ sơ"]]).map(([href, label]) => <a key={href} href={`#${href}`} aria-current={path === href ? "page" : undefined}>{label}</a>)}</nav>}
+      <main id="main-content" tabIndex={-1} className={`wrap ${adminArea ? "workspace-wrap" : ""}`}>
         {page}
       </main>
 
