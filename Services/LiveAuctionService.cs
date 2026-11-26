@@ -107,7 +107,10 @@ public class LiveAuctionService(
                 Event = e,
                 LotCount = e.Lots.Count(),
                 SoldCount = e.Lots.Count(l => l.Status == LiveLotStatus.Sold),
-                CurrentLotNumber = e.Lots.Where(l => l.Id == e.CurrentLotId).Select(l => l.LotNumber).FirstOrDefault()
+                CurrentLotNumber = e.Lots.Where(l => l.Id == e.CurrentLotId).Select(l => l.LotNumber).FirstOrDefault(),
+                CurrentLotTitle = e.Lots.Where(l => l.Id == e.CurrentLotId).Select(l => l.Title).FirstOrDefault(),
+                CurrentLotImageUrl = e.Lots.Where(l => l.Id == e.CurrentLotId).Select(l => l.ImageUrl).FirstOrDefault(),
+                CurrentLotPrice = e.Lots.Where(l => l.Id == e.CurrentLotId).Select(l => (decimal?)l.CurrentPrice).FirstOrDefault()
             }).ToListAsync(ct);
         var viewer = await currentUser.OptionalAsync(ct);
         var eventIds = rows.Select(x => x.Event.Id).ToList();
@@ -116,8 +119,15 @@ public class LiveAuctionService(
             : await db.LiveRegistrations.AsNoTracking()
                 .Where(r => r.UserId == viewer.Id && eventIds.Contains(r.EventId))
                 .ToDictionaryAsync(r => r.EventId, ct);
-        return rows.Select(row => Summary<LiveEventSummaryDto>(row.Event, registrations.GetValueOrDefault(row.Event.Id),
-            row.LotCount, row.SoldCount, row.CurrentLotNumber)).ToList();
+        return rows.Select(row =>
+        {
+            var item = Summary<LiveEventSummaryDto>(row.Event, registrations.GetValueOrDefault(row.Event.Id),
+                row.LotCount, row.SoldCount, row.CurrentLotNumber);
+            item.CurrentLotTitle = row.CurrentLotTitle;
+            item.CurrentLotImageUrl = row.CurrentLotImageUrl;
+            item.CurrentLotPrice = row.CurrentLotPrice;
+            return item;
+        }).ToList();
     }
 
     public async Task<LiveEventDto> GetAsync(int id, CancellationToken ct)
@@ -133,6 +143,10 @@ public class LiveAuctionService(
             entity.Lots.FirstOrDefault(l => l.Id == entity.CurrentLotId)?.LotNumber ?? 0);
         dto.Lots = lots;
         dto.RegistrationCount = entity.Registrations.Count(r => r.Status == LiveRegistrationStatus.Approved);
+        var currentLot = entity.Lots.FirstOrDefault(l => l.Id == entity.CurrentLotId);
+        dto.CurrentLotTitle = currentLot?.Title;
+        dto.CurrentLotImageUrl = currentLot?.ImageUrl;
+        dto.CurrentLotPrice = currentLot?.CurrentPrice;
         // Khách chưa đăng nhập vẫn xem được sự kiện, nhưng không thấy trạng thái đăng ký.
         return dto;
     }
@@ -140,6 +154,8 @@ public class LiveAuctionService(
     public async Task<LiveSnapshotDto> SnapshotAsync(int id, CancellationToken ct)
     {
         var entity = await GetAsync(id, ct);
+        if (entity.Status == nameof(LiveEventStatus.Draft))
+            throw new ApiException(404, "event_not_found", "Không tìm thấy sự kiện đấu giá trực tiếp.");
         var viewer = await currentUser.OptionalAsync(ct);
         var current = entity.Lots.FirstOrDefault(l => l.Id == entity.CurrentLotId);
         var recent = new List<LiveBidDto>();
@@ -322,6 +338,14 @@ public class LiveAuctionService(
         return dto;
     }
 
+    public async Task<LiveEventDto> GetPublicAsync(int id, CancellationToken ct)
+    {
+        var entity = await GetAsync(id, ct);
+        if (entity.Status == nameof(LiveEventStatus.Draft))
+            throw new ApiException(404, "event_not_found", "Không tìm thấy sự kiện đấu giá trực tiếp.");
+        return entity;
+    }
+
     public async Task<List<LiveBidDto>> RecentBidsAsync(int lotId, CancellationToken ct)
     {
         var viewer = await currentUser.OptionalAsync(ct);
@@ -396,6 +420,7 @@ public class LiveAuctionService(
         entity.Status = LiveEventStatus.Published;
         entity.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
+        await BroadcastCatalogChanged(id, "Published", ct);
         return await GetAsync(id, ct);
     }
 
@@ -755,6 +780,23 @@ public class LiveAuctionService(
         {
             // Realtime chỉ là kênh phụ; dữ liệu đã lưu trong DB vẫn là nguồn đúng.
             logger.LogWarning(ex, "Không gửi được {Method} cho sự kiện live {EventId}", method, eventId);
+        }
+
+        if (method is "BidAccepted" or "LotOpened" or "LotSold" or "LotUnsold" or
+            "EventPaused" or "EventResumed" or "EventCompleted" or "LotsChanged")
+            await BroadcastCatalogChanged(eventId, method, ct);
+    }
+
+    private async Task BroadcastCatalogChanged(int eventId, string change, CancellationToken ct)
+    {
+        try
+        {
+            await hub.Clients.Group(LiveAuctionHub.LobbyGroupName)
+                .SendAsync("LiveCatalogChanged", new { eventId, change }, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Không gửi được thay đổi danh mục live {Change} cho sự kiện {EventId}", change, eventId);
         }
     }
 

@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using CloudinaryDotNet;
 using System.Threading.RateLimiting;
 using BidNet.Data;
@@ -178,6 +178,7 @@ try
     builder.Services.AddScoped<IProductService, ProductService>();
     builder.Services.AddScoped<IBidService, BidService>();
     builder.Services.AddScoped<LiveAuctionService>();
+    builder.Services.AddSingleton<LiveViewerTracker>();
     builder.Services.AddScoped<CurrentUser>();
     builder.Services.AddScoped<IUserRepository, UserRepository>();
     builder.Services.AddScoped<IUserService, UserService>();
@@ -227,7 +228,7 @@ try
         app.MapOpenApi();
         app.MapScalarApiReference();
         // Swagger UI đọc cùng tài liệu OpenAPI; chỉ mở trong môi trường Development.
-        app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "BidNet API v1"));
+        app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "Auctora API v1"));
     }
     app.UseRouting();
     // Bật CORS ngay sau UseRouting và trước Authentication theo đúng chuẩn Buổi 13

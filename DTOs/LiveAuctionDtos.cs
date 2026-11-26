@@ -56,6 +56,10 @@ public class LiveEventSummaryDto
     public int SoldCount { get; set; }
     public int? CurrentLotId { get; set; }
     public int CurrentLotNumber { get; set; }
+    public string? CurrentLotTitle { get; set; }
+    public string? CurrentLotImageUrl { get; set; }
+    public decimal? CurrentLotPrice { get; set; }
+    public int ViewerCount { get; set; }
     public string? MyRegistrationStatus { get; set; }
     public string? AuctioneerName { get; set; }
 }

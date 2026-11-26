@@ -10,7 +10,7 @@ const STATUS_LABELS = {
 };
 
 const QUICK_REPLIES = [
-  "Xin chào, BidNet đã tiếp nhận yêu cầu của bạn và đang tiến hành kiểm tra.",
+  "Xin chào, Auctora đã tiếp nhận yêu cầu của bạn và đang tiến hành kiểm tra.",
   "Chúng tôi đã kiểm tra thông tin phiên đấu giá/đơn hàng của bạn. Vui lòng kiểm tra lại cập nhật mới nhất.",
   "Vấn đề đã được xử lý xong. Nếu còn thắc mắc nào khác, bạn có thể phản hồi tại đây để mở lại yêu cầu.",
 ];
@@ -206,7 +206,7 @@ export default function AdminSupportCenter({ user, notify }) {
     <div className="admin-support-center">
       <PageHeader
         eyebrow="Chăm sóc khách hàng"
-        title="BidNet Support Center"
+        title="Auctora Support Center"
         description="Quản lý yêu cầu hỗ trợ, trò chuyện trực tuyến realtime và gợi ý phản hồi AI Copilot."
       >
         <span className={`bn-realtime-pill ${hubConnected ? "online" : ""}`}>
@@ -343,7 +343,7 @@ export default function AdminSupportCenter({ user, notify }) {
               {/* AI Copilot Panel */}
               <div className="ai-copilot-box">
                 <div className="ai-copilot-head">
-                  <strong>🤖 BidNet AI Copilot</strong>
+                  <strong>🤖 Auctora AI Copilot</strong>
                   <small>Gợi ý câu trả lời cho nhân viên</small>
                 </div>
                 {copilotLoading ? (

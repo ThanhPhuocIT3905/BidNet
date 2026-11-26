@@ -77,7 +77,7 @@ export function Home({ go }) {
     <>
       <section className="home-hero">
         <div className="home-hero-copy">
-          <span className="eyebrow">Sàn đấu giá trực tuyến · BidNet</span>
+          <span className="eyebrow">Sàn đấu giá trực tuyến · Auctora</span>
           <h1>Mỗi lượt giá đều minh bạch, mỗi phiên đều có người theo dõi.</h1>
           <p>
             Khám phá phiên đang diễn ra, theo dõi thời gian kết thúc và đặt giá với quy tắc
@@ -197,7 +197,7 @@ export function Home({ go }) {
         />
       </Section>
 
-      <Section title="Tin tức & thông báo" note="Hướng dẫn và cập nhật mới từ BidNet." href="#/news">
+      <Section title="Tin tức & thông báo" note="Hướng dẫn và cập nhật mới từ Auctora." href="#/news">
         <div className="news-grid">
           {news.slice(0, 3).map((article) => (
             <a className="news-card" key={article.slug} href={`#/news/${article.slug}`}>
@@ -288,7 +288,7 @@ export function NewsPage({ slug }) {
         <span className="news-cat">{article.category}</span>
         <h1>{article.title}</h1>
         <p className="article-meta">
-          {fmtDate(article.date)} · {article.read} phút đọc · BidNet
+          {fmtDate(article.date)} · {article.read} phút đọc · Auctora
         </p>
         <p className="article-lead">{article.excerpt}</p>
         <ArticleBody blocks={article.body} />
@@ -314,7 +314,7 @@ export function NewsPage({ slug }) {
         <div>
           <span className="eyebrow">Tin tức & thông báo</span>
           <h1>Cập nhật từ sàn đấu giá</h1>
-          <p>Hướng dẫn, kinh nghiệm và thông báo vận hành do BidNet biên soạn.</p>
+          <p>Hướng dẫn, kinh nghiệm và thông báo vận hành do Auctora biên soạn.</p>
         </div>
       </div>
       <div className="status-tabs" role="tablist" aria-label="Lọc tin tức">
@@ -406,7 +406,7 @@ export function DocPage({ section, slug }) {
           <h1>{isGuides ? "Bắt đầu đấu giá đúng cách" : "Minh bạch trước và sau giao dịch"}</h1>
           <p>
             {isGuides
-              ? "Các bước thao tác trên BidNet, viết cho người mua và người bán mới."
+              ? "Các bước thao tác trên Auctora, viết cho người mua và người bán mới."
               : "Điều khoản, bảo mật, phí và quy trình xử lý khiếu nại."}
           </p>
         </div>
@@ -483,7 +483,7 @@ export function ContactPage({ user, go }) {
       </div>
       <div className="contact-grid">
         <div className="contact-card">
-          <h2>Hỗ trợ trên BidNet</h2>
+          <h2>Hỗ trợ trên Auctora</h2>
           <p>Đăng nhập và gửi yêu cầu trực tiếp tới quản trị viên bằng biểu mẫu bên dưới.</p>
           <p className="muted small">Nêu mã phiên hoặc mã đơn hàng để quản trị viên tra cứu. Yêu cầu được lưu trong hệ thống; đây không phải kênh email tự động.</p>
         </div>

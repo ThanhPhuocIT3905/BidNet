@@ -1,4 +1,4 @@
-// Nội dung biên tập cho các trang thông tin của BidNet.
+// Nội dung biên tập cho các trang thông tin của Auctora.
 // Đây là nội dung gốc của đồ án, không sao chép văn bản từ website tham khảo.
 export const news = [
   {
@@ -6,11 +6,11 @@ export const news = [
     category: "Tin tức",
     title: "Khai mạc mùa đấu giá cuối năm 2026",
     excerpt:
-      "BidNet mở mùa đấu giá cuối năm với nhóm sản phẩm công nghệ, đồng hồ và đồ sưu tầm đã được người bán xác thực.",
+      "Auctora mở mùa đấu giá cuối năm với nhóm sản phẩm công nghệ, đồng hồ và đồ sưu tầm đã được người bán xác thực.",
     date: "2026-11-20",
     read: 5,
     body: [
-      ["p", "Mùa đấu giá cuối năm 2026 trên BidNet chính thức bắt đầu. Các phiên được chia theo danh mục để người mua dễ theo dõi: đồ điện tử và công nghệ, đồng hồ và trang sức, nghệ thuật và đồ cổ, xe cộ và phụ tùng."],
+      ["p", "Mùa đấu giá cuối năm 2026 trên Auctora chính thức bắt đầu. Các phiên được chia theo danh mục để người mua dễ theo dõi: đồ điện tử và công nghệ, đồng hồ và trang sức, nghệ thuật và đồ cổ, xe cộ và phụ tùng."],
       ["h", "Điểm mới trong mùa này"],
       ["p", "Mỗi phiên hiển thị rõ giá khởi điểm, bước giá tối thiểu theo cấu hình hệ thống và thời điểm kết thúc. Người tham gia có thể theo dõi đồng hồ đếm ngược ngay trên thẻ sản phẩm và nhận thông báo khi bị vượt giá."],
       ["p", "Ban quản trị chỉ hủy phiên khi có lý do được ghi lại trong hệ thống. Khi phiên kết thúc, người thắng nhận thông báo và đơn hàng ở trạng thái chờ xử lý."],
@@ -27,7 +27,7 @@ export const news = [
     date: "2026-11-18",
     read: 4,
     body: [
-      ["p", "Một trang sản phẩm trên BidNet gồm ảnh, mô tả, thông tin người bán và khối đặt giá. Hiểu đúng từng vùng giúp bạn tránh trả giá cao hơn dự kiến."],
+      ["p", "Một trang sản phẩm trên Auctora gồm ảnh, mô tả, thông tin người bán và khối đặt giá. Hiểu đúng từng vùng giúp bạn tránh trả giá cao hơn dự kiến."],
       ["h", "Bốn thông tin quan trọng"],
       ["p", "Thứ nhất là giá hiện tại – mức giá thấp nhất mà lượt đặt tiếp theo phải vượt qua. Thứ hai là giá khởi điểm, dùng để so sánh mức tăng của phiên."],
       ["p", "Thứ ba là thời gian còn lại. Đồng hồ đếm ngược chạy theo giờ máy người dùng nhưng dữ liệu gốc là UTC từ máy chủ. Thứ tư là lịch sử đặt giá, nơi hiển thị số tiền và thời điểm của từng lượt."],
@@ -47,7 +47,7 @@ export const news = [
       ["p", "Đấu giá trực tuyến không chỉ là trả giá cao nhất. Người mua hiệu quả thường chuẩn bị ngân sách và giới hạn của mình trước khi phiên bắt đầu."],
       ["h", "Ba nguyên tắc cơ bản"],
       ["p", "Một, xác định giá trị tối đa bạn sẵn sàng trả cho sản phẩm, bao gồm cả chi phí vận chuyển. Hai, không đặt giá chỉ để giữ vị trí dẫn đầu nếu mức giá đã vượt giới hạn."],
-      ["p", "Ba, ưu tiên các phiên có mô tả rõ ràng và người bán có lịch sử hoạt động. Trên BidNet, lịch sử đặt giá công khai giúp bạn thấy mức tăng thực tế của từng phiên."],
+      ["p", "Ba, ưu tiên các phiên có mô tả rõ ràng và người bán có lịch sử hoạt động. Trên Auctora, lịch sử đặt giá công khai giúp bạn thấy mức tăng thực tế của từng phiên."],
       ["h", "Theo dõi thay vì vội vàng"],
       ["p", "Chức năng yêu thích giúp lưu phiên quan tâm. Bạn có thể quay lại trước giờ kết thúc để quyết định thay vì theo dõi liên tục."],
     ],
@@ -61,9 +61,9 @@ export const news = [
     date: "2026-11-12",
     read: 4,
     body: [
-      ["p", "Tài khoản BidNet chứa lịch sử đặt giá và thông tin đơn hàng. Bảo vệ tài khoản là trách nhiệm của cả người dùng và hệ thống."],
+      ["p", "Tài khoản Auctora chứa lịch sử đặt giá và thông tin đơn hàng. Bảo vệ tài khoản là trách nhiệm của cả người dùng và hệ thống."],
       ["h", "Thói quen nên duy trì"],
-      ["p", "Dùng mật khẩu riêng cho BidNet, không dùng lại mật khẩu email. Đăng xuất khi dùng máy tính công cộng. Không gửi mã token hoặc ảnh chụp màn hình có token cho người khác."],
+      ["p", "Dùng mật khẩu riêng cho Auctora, không dùng lại mật khẩu email. Đăng xuất khi dùng máy tính công cộng. Không gửi mã token hoặc ảnh chụp màn hình có token cho người khác."],
       ["h", "Phía hệ thống"],
       ["p", "Mật khẩu được lưu dưới dạng PBKDF2 với salt riêng cho từng tài khoản. API giới hạn số lần đăng nhập và đặt giá để giảm nguy cơ dò mật khẩu hoặc spam."],
     ],
@@ -106,7 +106,7 @@ export const guides = [
   {
     slug: "mo-tai-khoan",
     title: "Mở tài khoản và xác thực",
-    excerpt: "Tạo tài khoản, đăng nhập và cập nhật hồ sơ cá nhân trên BidNet.",
+    excerpt: "Tạo tài khoản, đăng nhập và cập nhật hồ sơ cá nhân trên Auctora.",
     body: [
       ["h", "Bước 1. Đăng ký"],
       ["p", "Mở trang Đăng ký, nhập tên đăng nhập, email và mật khẩu tối thiểu 8 ký tự. Hệ thống kiểm tra trùng username/email trước khi tạo tài khoản."],
@@ -175,7 +175,7 @@ export const policies = [
     slug: "dieu-khoan-su-dung",
     title: "Điều khoản sử dụng",
     body: [
-      ["p", "Khi sử dụng BidNet, bạn đồng ý cung cấp thông tin chính xác, không tạo nhiều tài khoản để thao túng giá và tuân thủ quy định pháp luật về giao dịch."],
+      ["p", "Khi sử dụng Auctora, bạn đồng ý cung cấp thông tin chính xác, không tạo nhiều tài khoản để thao túng giá và tuân thủ quy định pháp luật về giao dịch."],
       ["h", "Tài khoản"],
       ["p", "Người dùng chịu trách nhiệm bảo mật thông tin đăng nhập. Tài khoản có thể bị khóa nếu có dấu hiệu gian lận hoặc vi phạm quy tắc đấu giá."],
       ["h", "Nội dung đăng bán"],
@@ -197,7 +197,7 @@ export const policies = [
     slug: "chinh-sach-bao-mat",
     title: "Chính sách bảo mật",
     body: [
-      ["p", "BidNet chỉ thu thập thông tin cần thiết để vận hành tài khoản và giao dịch: tên đăng nhập, email, họ tên, số điện thoại và lịch sử đấu giá."],
+      ["p", "Auctora chỉ thu thập thông tin cần thiết để vận hành tài khoản và giao dịch: tên đăng nhập, email, họ tên, số điện thoại và lịch sử đấu giá."],
       ["h", "Lưu trữ"],
       ["p", "Mật khẩu được băm bằng PBKDF2 và không lưu dạng văn bản. Token đăng nhập có thời hạn và được gửi qua header Authorization."],
       ["h", "Chia sẻ"],
@@ -208,7 +208,7 @@ export const policies = [
     slug: "phi-dich-vu",
     title: "Phí dịch vụ",
     body: [
-      ["p", "BidNet hiện là hệ thống phục vụ đồ án học tập. Các giao dịch trong hệ thống không phát sinh phí thật và không kết nối cổng thanh toán."],
+      ["p", "Auctora hiện là hệ thống phục vụ đồ án học tập. Các giao dịch trong hệ thống không phát sinh phí thật và không kết nối cổng thanh toán."],
       ["h", "Trạng thái thanh toán"],
       ["p", "Đơn hàng có trạng thái Đã thanh toán khi người bán hoặc quản trị viên xác nhận thủ công. Đây không phải bằng chứng chuyển tiền thực tế."],
       ["h", "Tương lai"],
@@ -240,9 +240,9 @@ export const policies = [
 ];
 
 export const about = {
-  title: "Về BidNet",
+  title: "Về Auctora",
   intro:
-    "BidNet là hệ thống sàn đấu giá trực tuyến được xây dựng trong học phần Lập trình Web 2 tại Trường Đại học Đông Á. Đồ án tập trung vào nghiệp vụ đấu giá, tính đúng đắn của giá và khả năng xử lý đồng thời.",
+    "Auctora là hệ thống sàn đấu giá trực tuyến được xây dựng trong học phần Lập trình Web 2 tại Trường Đại học Đông Á. Đồ án tập trung vào nghiệp vụ đấu giá, tính đúng đắn của giá và khả năng xử lý đồng thời.",
   sections: [
     ["Sứ mệnh", "Tạo một môi trường đấu giá minh bạch, nơi mỗi lượt giá được ghi nhận, người bán không thể tự nâng giá và người mua luôn thấy mức giá thực tế."],
     ["Công nghệ", "Backend ASP.NET Core Web API, Entity Framework Core và SQL Server. Giao diện React/Vite gọi API qua JSON, nhận cập nhật realtime bằng SignalR và hiển thị đồng hồ đếm ngược theo dữ liệu UTC."],
@@ -253,7 +253,7 @@ export const about = {
 
 export const contact = {
   hotline: "0236 3 686 251",
-  email: "contact@bidnet.local",
+  email: "contact@Auctora.local",
   address: "Khoa Công nghệ thông tin, Trường Đại học Đông Á, Đà Nẵng",
   hours: "Thứ Hai – Thứ Sáu, 08:00 – 17:00",
   channels: [

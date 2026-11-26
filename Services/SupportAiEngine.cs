@@ -3,9 +3,9 @@ using BidNet.DTOs;
 namespace BidNet.Services;
 
 /// <summary>
-/// Engine AI hỗ trợ nội bộ BidNet – không dùng API key thật.
+/// Engine AI hỗ trợ nội bộ Auctora – không dùng API key thật.
 /// Sử dụng quy tắc từ khóa + ngữ cảnh trang để trả lời các câu hỏi phổ biến
-/// về đấu giá, tài khoản, đơn hàng và hướng dẫn sử dụng BidNet.
+/// về đấu giá, tài khoản, đơn hàng và hướng dẫn sử dụng Auctora.
 /// 
 /// Kiến trúc: Keyword matching + Context-aware FAQ lookup.
 /// Mở rộng lên LLM thật: thay method Respond() bằng gọi OpenAI/Gemini API.
@@ -17,10 +17,10 @@ public static class SupportAiEngine
     private static readonly FaqEntry[] KnowledgeBase =
     [
         new(["chào", "xin chào", "hello", "hi", "hey", "alo"],
-            "Chào bạn! Tôi là **BidNet AI** – trợ lý hỗ trợ của sàn đấu giá BidNet.\n\nTôi có thể giúp bạn giải đáp về:\n• Cách tham gia đấu giá & bước giá\n• Đăng bán & quản lý sản phẩm\n• Đơn hàng, giao nhận & thanh toán demo\n• Tài khoản & bảo mật\n\nBạn đang cần hỗ trợ vấn đề gì hôm nay?",
-            null, ["BidNet hoạt động thế nào?", "Tham gia đấu giá thế nào?", "Gặp nhân viên hỗ trợ"]),
+            "Chào bạn! Tôi là **Auctora AI** – trợ lý hỗ trợ của sàn đấu giá Auctora.\n\nTôi có thể giúp bạn giải đáp về:\n• Cách tham gia đấu giá & bước giá\n• Đăng bán & quản lý sản phẩm\n• Đơn hàng, giao nhận & thanh toán demo\n• Tài khoản & bảo mật\n\nBạn đang cần hỗ trợ vấn đề gì hôm nay?",
+            null, ["Auctora hoạt động thế nào?", "Tham gia đấu giá thế nào?", "Gặp nhân viên hỗ trợ"]),
         new(["đấu giá", "cách", "tham gia", "hướng dẫn"],
-            "Để tham gia đấu giá trên BidNet:\n1. Đăng nhập tài khoản\n2. Vào trang sản phẩm bạn quan tâm\n3. Nhập giá đặt cao hơn giá hiện tại\n4. Bấm **Đặt giá**\n\nHệ thống sẽ thông báo nếu có người trả giá cao hơn bạn.",
+            "Để tham gia đấu giá trên Auctora:\n1. Đăng nhập tài khoản\n2. Vào trang sản phẩm bạn quan tâm\n3. Nhập giá đặt cao hơn giá hiện tại\n4. Bấm **Đặt giá**\n\nHệ thống sẽ thông báo nếu có người trả giá cao hơn bạn.",
             "#/guides", ["Bước giá là gì?", "Khi nào phiên kết thúc?"]),
         new(["bước giá", "increment", "mức giá", "tăng bao nhiêu"],
             "**Bước giá** là mức tăng tối thiểu mỗi lần đặt giá.\n- Nếu giá hiện tại là 1.000.000 ₫ và bước giá là 50.000 ₫, bạn cần đặt tối thiểu 1.050.000 ₫.\n- Giá trị bước giá hiển thị ngay dưới khung đặt giá trên trang sản phẩm.",
@@ -29,7 +29,7 @@ public static class SupportAiEngine
             "Có một số lý do khiến bạn không thể đặt giá:\n• **Giá quá thấp** – Phải cao hơn giá tối thiểu hiện tại\n• **Sai bước giá** – Giá phải tăng đúng bội số bước giá\n• **Phiên đã đóng** – Thời gian đấu giá đã hết\n• **Chính chủ sản phẩm** – Người bán không được tự đặt giá\n• **Chưa đăng nhập** – Cần tài khoản để tham gia",
             null, ["Liên hệ nhân viên hỗ trợ"]),
         new(["đăng ký", "tạo tài khoản", "đăng nhập", "quên mật khẩu"],
-            "Để **đăng ký** tài khoản BidNet:\n1. Bấm **Đăng ký** góc trên phải\n2. Điền Tên đăng nhập, Email và Mật khẩu\n3. Nhấn **Tạo tài khoản**\n\nNếu **quên mật khẩu**, liên hệ hỗ trợ qua mục này để được Admin đặt lại.",
+            "Để **đăng ký** tài khoản Auctora:\n1. Bấm **Đăng ký** góc trên phải\n2. Điền Tên đăng nhập, Email và Mật khẩu\n3. Nhấn **Tạo tài khoản**\n\nNếu **quên mật khẩu**, liên hệ hỗ trợ qua mục này để được Admin đặt lại.",
             null, ["Thay đổi thông tin tài khoản", "Bảo mật tài khoản"]),
         new(["đăng bán", "đăng sản phẩm", "bán", "seller"],
             "Để **đăng sản phẩm đấu giá**:\n1. Vào **Đăng bán** trên menu\n2. Điền thông tin sản phẩm (4 bước)\n3. Đặt giá khởi điểm và thời gian\n4. Bấm **Đăng bán**\n\nSản phẩm sẽ chờ Admin duyệt trước khi hiển thị công khai.",
@@ -44,23 +44,23 @@ public static class SupportAiEngine
             "Để cập nhật **địa chỉ giao hàng**:\n1. Vào **Đơn hàng** → chọn đơn\n2. Bấm **Cập nhật địa chỉ**\n3. Điền đầy đủ thông tin người nhận và địa chỉ\n\nNgười bán sẽ giao hàng theo địa chỉ bạn cung cấp.",
             "#/orders"),
         new(["hủy", "cancel", "hoàn tiền", "refund"],
-            "Chính sách **hủy và hoàn tiền** BidNet:\n- Phiên **Chưa bắt đầu**: Người bán có thể hủy\n- Phiên **Đang diễn ra + chưa có lượt đặt**: Người bán có thể hủy kèm lý do\n- Phiên **Có người đặt giá**: Liên hệ Admin để xử lý\n- Đơn hàng: Người bán/Admin có thể hủy kèm lý do",
+            "Chính sách **hủy và hoàn tiền** Auctora:\n- Phiên **Chưa bắt đầu**: Người bán có thể hủy\n- Phiên **Đang diễn ra + chưa có lượt đặt**: Người bán có thể hủy kèm lý do\n- Phiên **Có người đặt giá**: Liên hệ Admin để xử lý\n- Đơn hàng: Người bán/Admin có thể hủy kèm lý do",
             "#/policies"),
         new(["bảo mật", "mật khẩu", "tài khoản bị khóa", "hack"],
-            "Để **bảo vệ tài khoản** BidNet:\n• Không chia sẻ mật khẩu hoặc OTP\n• Đăng xuất khi dùng thiết bị công cộng\n• Liên hệ ngay nếu nghi tài khoản bị xâm phạm\n\nTài khoản bị khóa do vi phạm chính sách – liên hệ Admin để khiếu nại.",
+            "Để **bảo vệ tài khoản** Auctora:\n• Không chia sẻ mật khẩu hoặc OTP\n• Đăng xuất khi dùng thiết bị công cộng\n• Liên hệ ngay nếu nghi tài khoản bị xâm phạm\n\nTài khoản bị khóa do vi phạm chính sách – liên hệ Admin để khiếu nại.",
             "#/policies/chinh-sach-bao-mat"),
         new(["phí", "chi phí", "hoa hồng", "bao nhiêu tiền"],
-            "BidNet (đồ án) hiện **không thu phí** hoa hồng hay phí đăng bán.\nThanh toán là mô phỏng demo (BANK_TRANSFER_DEMO, MOMO_DEMO) – không phát sinh giao dịch tiền thật.",
+            "Auctora (đồ án) hiện **không thu phí** hoa hồng hay phí đăng bán.\nThanh toán là mô phỏng demo (BANK_TRANSFER_DEMO, MOMO_DEMO) – không phát sinh giao dịch tiền thật.",
             "#/policies"),
         new(["liên hệ", "nhân viên", "hỗ trợ", "gặp người thật", "gặp nhân viên"],
-            "Bạn có thể **gửi yêu cầu hỗ trợ** cho đội ngũ BidNet:\n1. Điền thông tin vào form bên dưới (hoặc tại trang Liên hệ)\n2. Admin sẽ phản hồi qua hệ thống ticket\n3. Theo dõi tiến trình tại mục **Yêu cầu hỗ trợ** trong tài khoản",
+            "Bạn có thể **gửi yêu cầu hỗ trợ** cho đội ngũ Auctora:\n1. Điền thông tin vào form bên dưới (hoặc tại trang Liên hệ)\n2. Admin sẽ phản hồi qua hệ thống ticket\n3. Theo dõi tiến trình tại mục **Yêu cầu hỗ trợ** trong tài khoản",
             "#/contact", ["Tạo yêu cầu hỗ trợ"]),
     ];
 
     // Câu hỏi gợi ý theo ngữ cảnh trang
     private static readonly Dictionary<string, string[]> ContextQuickReplies = new()
     {
-        ["home"]          = ["BidNet hoạt động thế nào?", "Làm sao để tham gia đấu giá?", "Làm sao để đăng bán?"],
+        ["home"]          = ["Auctora hoạt động thế nào?", "Làm sao để tham gia đấu giá?", "Làm sao để đăng bán?"],
         ["product"]       = ["Bước giá là gì?", "Tôi không đặt được giá", "Phiên kết thúc khi nào?"],
         ["auctions"]      = ["Lọc sản phẩm thế nào?", "Tại sao tôi không thấy sản phẩm?", "Tham gia đấu giá thế nào?"],
         ["my-products"]   = ["Sản phẩm chưa được duyệt?", "Làm sao hủy phiên?", "Đăng lại sản phẩm?"],
@@ -69,7 +69,7 @@ public static class SupportAiEngine
         ["profile"]       = ["Đổi mật khẩu thế nào?", "Cập nhật thông tin cá nhân", "Bảo mật tài khoản"],
         ["contact"]       = ["Gửi yêu cầu hỗ trợ", "Thời gian phản hồi bao lâu?", "Khiếu nại sản phẩm"],
         ["guides"]        = ["Quy tắc đấu giá", "Hướng dẫn thanh toán", "Chính sách giao hàng"],
-        [""]              = ["BidNet hoạt động thế nào?", "Tham gia đấu giá", "Liên hệ hỗ trợ"],
+        [""]              = ["Auctora hoạt động thế nào?", "Tham gia đấu giá", "Liên hệ hỗ trợ"],
     };
 
     public static AiSuggestResponse Respond(AiSuggestDto dto)
@@ -125,13 +125,13 @@ public static class SupportAiEngine
         ctx switch
         {
             var c when c.Contains("product") =>
-                "Xin chào! Tôi là **BidNet AI**.\nTôi thấy bạn đang xem trang sản phẩm. Tôi có thể giúp bạn về:\n• Cách đặt giá và bước giá\n• Thời gian phiên đấu giá\n• Quy định tham gia\n\nBạn cần hỗ trợ gì?",
+                "Xin chào! Tôi là **Auctora AI**.\nTôi thấy bạn đang xem trang sản phẩm. Tôi có thể giúp bạn về:\n• Cách đặt giá và bước giá\n• Thời gian phiên đấu giá\n• Quy định tham gia\n\nBạn cần hỗ trợ gì?",
             var c when c.Contains("order") =>
-                "Xin chào! Tôi là **BidNet AI**.\nTôi có thể hỗ trợ bạn về đơn hàng:\n• Trạng thái đơn hàng\n• Cập nhật địa chỉ giao hàng\n• Thanh toán và xác nhận\n\nBạn đang gặp vấn đề gì?",
+                "Xin chào! Tôi là **Auctora AI**.\nTôi có thể hỗ trợ bạn về đơn hàng:\n• Trạng thái đơn hàng\n• Cập nhật địa chỉ giao hàng\n• Thanh toán và xác nhận\n\nBạn đang gặp vấn đề gì?",
             var c when c.Contains("my-products") =>
-                "Xin chào! Tôi là **BidNet AI**.\nTôi có thể hỗ trợ bạn về sản phẩm đang bán:\n• Trạng thái kiểm duyệt\n• Hủy phiên đấu giá\n• Đăng lại sản phẩm\n\nBạn cần hỗ trợ gì?",
+                "Xin chào! Tôi là **Auctora AI**.\nTôi có thể hỗ trợ bạn về sản phẩm đang bán:\n• Trạng thái kiểm duyệt\n• Hủy phiên đấu giá\n• Đăng lại sản phẩm\n\nBạn cần hỗ trợ gì?",
             _ =>
-                "Xin chào! Tôi là **BidNet AI** – trợ lý hỗ trợ tự động.\n\nTôi có thể giúp bạn về:\n• Hướng dẫn đấu giá và đặt giá\n• Đăng bán và quản lý sản phẩm\n• Tài khoản và bảo mật\n• Đơn hàng và thanh toán\n\nBạn đang cần trợ giúp về vấn đề gì?"
+                "Xin chào! Tôi là **Auctora AI** – trợ lý hỗ trợ tự động.\n\nTôi có thể giúp bạn về:\n• Hướng dẫn đấu giá và đặt giá\n• Đăng bán và quản lý sản phẩm\n• Tài khoản và bảo mật\n• Đơn hàng và thanh toán\n\nBạn đang cần trợ giúp về vấn đề gì?"
         };
 
     private static FaqEntry? FindBestMatch(string msg)

@@ -82,7 +82,7 @@ export function AuthModal({ tab, onTab, onClose, onLogin }) {
       </button>
       <div className="auth-card">
         <span className="brand auth-brand">
-          Bid<span>Net</span>
+          Auc<span>tora</span>
         </span>
         <h2 id="auth-title">
           {register ? "Tạo tài khoản mới" : "Chào mừng bạn trở lại!"}

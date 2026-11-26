@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { LotPhoto, isPlaceholderImage, priceLabel } from "./Lot.jsx";
 import { Lightbox, Magnifier } from "./ImageZoom.jsx";
 import { CancelAuction } from "./AdminWorkspace";
@@ -129,7 +129,7 @@ export function Product({ id, user, admin, go, notify, openAuth }) {
   const share = async () => {
     const url = location.href;
     try {
-      if (navigator.share) await navigator.share({ title: item?.name || "BidNet", url });
+      if (navigator.share) await navigator.share({ title: item?.name || "Auctora", url });
       else {
         await navigator.clipboard.writeText(url);
         notify("Đã sao chép liên kết phiên.");
@@ -533,7 +533,7 @@ export function Product({ id, user, admin, go, notify, openAuth }) {
                   {item.description || "Người bán chưa cung cấp mô tả cho sản phẩm này."}
                 </p>
                 <p className="muted small">
-                  Thông tin do người bán cung cấp. BidNet không xác minh tình trạng thực tế
+                  Thông tin do người bán cung cấp. Auctora không xác minh tình trạng thực tế
                   của sản phẩm; người mua nên kiểm tra trước khi thanh toán.
                 </p>
               </div>

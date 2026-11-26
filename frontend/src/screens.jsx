@@ -645,7 +645,7 @@ export function ProductForm({ id, go, notify, user }) {
         </div>
         <h1>{id ? "Chỉnh sửa phiên đấu giá" : "Đăng sản phẩm lên sàn đấu giá"}</h1>
         <p className="muted">
-          Hoàn thành 4 bước bên dưới để niêm yết sản phẩm và thiết lập phiên đấu giá minh bạch trên BidNet.
+          Hoàn thành 4 bước bên dưới để niêm yết sản phẩm và thiết lập phiên đấu giá minh bạch trên Auctora.
         </p>
 
         <div className="wizard-progress">
@@ -900,7 +900,7 @@ export function ProductForm({ id, go, notify, user }) {
           <div>
             <h2>Bước 4: Xác nhận & Đăng bán</h2>
             <p className="muted small">
-              Kiểm tra lại toàn bộ thông tin trước khi chính thức niêm yết sản phẩm lên sàn BidNet.
+              Kiểm tra lại toàn bộ thông tin trước khi chính thức niêm yết sản phẩm lên sàn Auctora.
             </p>
 
             <div className="wizard-confirmation-grid">
@@ -1136,7 +1136,7 @@ export function OrderDetail({ id, user, notify }) {
                     <p><strong>QR minh họa</strong><br />Không thể dùng để chuyển khoản. Bấm nút bên dưới để hoàn tất thanh toán giả lập.</p>
                   </>
                 ) : (
-                  <p><strong>Ví MoMo Demo</strong><br />Giao dịch chỉ mô phỏng trong BidNet, không mở ứng dụng ví và không trừ tiền.</p>
+                  <p><strong>Ví MoMo Demo</strong><br />Giao dịch chỉ mô phỏng trong Auctora, không mở ứng dụng ví và không trừ tiền.</p>
                 )}
               </div>
               <div className="demo-payment-total">

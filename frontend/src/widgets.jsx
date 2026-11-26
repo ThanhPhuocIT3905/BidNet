@@ -123,7 +123,7 @@ export function AuctionCard({ item, favorite = false, onFavorite }) {
   );
 }
 
-const FAV_KEY = "bidnet.favorites";
+const FAV_KEY = "Auctora.favorites";
 const readFavorites = () => {
   try {
     const value = JSON.parse(localStorage.getItem(FAV_KEY) || "[]");
@@ -132,16 +132,16 @@ const readFavorites = () => {
     return [];
   }
 };
-const emit = () => dispatchEvent(new Event("bidnet:favorites"));
+const emit = () => dispatchEvent(new Event("Auctora:favorites"));
 
 export function useFavorites() {
   const [ids, setIds] = useState(readFavorites);
   useEffect(() => {
     const sync = () => setIds(readFavorites());
-    addEventListener("bidnet:favorites", sync);
+    addEventListener("Auctora:favorites", sync);
     addEventListener("storage", sync);
     return () => {
-      removeEventListener("bidnet:favorites", sync);
+      removeEventListener("Auctora:favorites", sync);
       removeEventListener("storage", sync);
     };
   }, []);

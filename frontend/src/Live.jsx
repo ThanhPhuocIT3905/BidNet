@@ -37,7 +37,7 @@ export function openLiveRoom(id, go, notify) {
   const top = Math.max(0, (screen.availHeight - height) / 2);
   const room = window.open(
     base,
-    `BidNetLive_${id}`,
+    `AuctoraLive_${id}`,
     `popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`,
   );
   if (!room) {
@@ -71,12 +71,12 @@ export function LiveEventsPage({ user, go, notify, openAuth }) {
     <div className="live-page">
       <section className="live-hero">
         <div>
-          <span className="eyebrow">BidNet Live · Đấu giá trực tiếp</span>
+          <span className="eyebrow">Auctora Live · Đấu giá trực tiếp</span>
           <h1>Phòng đấu giá có người điều hành</h1>
           <p>
             Theo dõi từng lô được mở lần lượt, đặt giá theo thời gian thực và nhận
             kết quả ngay khi người điều hành chốt. Phòng đấu giá mở trong cửa sổ
-            riêng để bạn vừa theo dõi vừa dùng BidNet.
+            riêng để bạn vừa theo dõi vừa dùng Auctora.
           </p>
           <div className="actions">
             <a className="btn dark" href="#/live-auctions?status=Live">Xem phiên đang diễn ra</a>
@@ -109,7 +109,7 @@ export function LiveEventsPage({ user, go, notify, openAuth }) {
       {events.error && <ErrorState message={events.error} onRetry={events.reload} />}
       {events.loading && <LoadingState />}
       {events.data && !events.data.length && (
-        <EmptyState title="Chưa có sự kiện đấu giá trực tiếp" description="Các sự kiện do BidNet tổ chức sẽ xuất hiện tại đây." />
+        <EmptyState title="Chưa có sự kiện đấu giá trực tiếp" description="Các sự kiện do Auctora tổ chức sẽ xuất hiện tại đây." />
       )}
       <div className="live-event-grid">
         {events.data?.map((event) => (
@@ -123,7 +123,7 @@ export function LiveEventsPage({ user, go, notify, openAuth }) {
             </div>
             <div className="live-event-body">
               <h2><a href={`#/live-auctions/${event.id}`}>{event.title}</a></h2>
-              <p className="muted">{event.description || "Sự kiện đấu giá trực tiếp do BidNet tổ chức."}</p>
+              <p className="muted">{event.description || "Sự kiện đấu giá trực tiếp do Auctora tổ chức."}</p>
               <div className="live-facts">
                 <span><b>{event.lotCount}</b> lô</span>
                 <span><b>{event.soldCount}</b> đã bán</span>
@@ -397,7 +397,7 @@ export function LiveRoomPage({ id, user, go, notify, openAuth }) {
   return (
     <div className="live-room-page">
       <header className="live-room-top">
-        <a className="brand" href="#/" aria-label="BidNet">Bid<span>Net</span> <small>LIVE</small></a>
+        <a className="brand" href="#/" aria-label="Auctora">Auc<span>tora</span> <small>LIVE</small></a>
         <div className="live-room-title">
           <strong>{event.title}</strong>
           <span>{event.code} · {eventStatusText[event.status]}</span>
@@ -878,7 +878,7 @@ export function AdminLiveEvents({ notify, user }) {
 
   return (
     <>
-      <PageHeader eyebrow="BidNet Live" title="Sự kiện đấu giá trực tiếp" description="Tạo sự kiện, xếp lô và công bố lịch. Chỉ sự kiện đã công bố mới hiển thị công khai.">
+      <PageHeader eyebrow="Auctora Live" title="Sự kiện đấu giá trực tiếp" description="Tạo sự kiện, xếp lô và công bố lịch. Chỉ sự kiện đã công bố mới hiển thị công khai.">
         <button className="btn dark" onClick={startWizard}>+ Tạo sự kiện</button>
       </PageHeader>
       {result.error && <ErrorState message={result.error} onRetry={result.reload} />}
@@ -1043,7 +1043,7 @@ export function AdminLiveEvents({ notify, user }) {
                   <h3>Kiểm tra & xác nhận</h3>
                   <div className="live-review-card">
                     {draft.bannerUrl && <img className="live-review-banner" src={draft.bannerUrl} alt="" />}
-                    <span className="eyebrow">BidNet Live</span>
+                    <span className="eyebrow">Auctora Live</span>
                     <h4>{draft.title || "Chưa đặt tên sự kiện"}</h4>
                     <p>{draft.description || "Chưa có mô tả."}</p>
                     <div className="live-facts">
@@ -1264,7 +1264,7 @@ export function AdminLiveConsole({ id, notify }) {
 
   return (
     <div className="live-console">
-      <PageHeader eyebrow="BidNet Live Control" title={event?.title || "Console điều hành"} description={`${event?.code || ""} · Người điều hành chỉ thao tác trên lô đang mở, mọi thay đổi được phát realtime tới phòng.`}>
+      <PageHeader eyebrow="Auctora Live Control" title={event?.title || "Console điều hành"} description={`${event?.code || ""} · Người điều hành chỉ thao tác trên lô đang mở, mọi thay đổi được phát realtime tới phòng.`}>
         <a className="btn secondary" href={`#/admin/live/${id}`}>← Quản lý sự kiện</a>
         <a className="btn ghost" href={`#/live-room/${id}`} target="_blank" rel="noreferrer">Mở phòng ↗</a>
       </PageHeader>

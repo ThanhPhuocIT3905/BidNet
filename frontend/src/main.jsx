@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { api, getSession, setSession } from "./api";
+import * as signalR from "@microsoft/signalr";
+import { api, API_BASE, getSession, setSession } from "./api";
 import {
   MyProducts,
   ProductForm,
@@ -67,6 +68,7 @@ function App() {
   const [catOpen, setCatOpen] = useState(false);
   const [categories, setCategories] = useState([]);
   const [search, setSearch] = useState("");
+  const [liveCatalog, setLiveCatalog] = useState({ live: null, upcoming: null, loading: true, error: "" });
   const [scrollState, setScrollState] = useState({ scrolled: false, compact: false, backTop: false });
   const compactRef = useRef(false);
   const backTopRef = useRef(false);
@@ -88,7 +90,12 @@ function App() {
       scrollFrame.current = requestAnimationFrame(() => {
         scrollFrame.current = 0;
         const y = window.scrollY;
-        const compact = compactRef.current ? y > 72 : y > 120;
+        const compactExitThreshold = 120;
+        const expandedHeaderHeight =
+          document.querySelector(".sticky-top-shell")?.offsetHeight || 0;
+        const compact = compactRef.current
+          ? y > compactExitThreshold
+          : y > expandedHeaderHeight + compactExitThreshold;
         const backTop = backTopRef.current ? y > 340 : y > 400;
         compactRef.current = compact;
         backTopRef.current = backTop;
@@ -150,6 +157,52 @@ function App() {
     api("/api/Categories").then(setCategories, () => setCategories([]));
   }, []);
   useEffect(() => {
+    let active = true;
+    let refreshVersion = 0;
+    const refresh = async () => {
+      const version = ++refreshVersion;
+      try {
+        const [live, upcoming] = await Promise.all([
+          api("/api/live/events?status=Live"),
+          api("/api/live/events?status=Published"),
+        ]);
+        if (!active || version !== refreshVersion) return;
+        setLiveCatalog({ live, upcoming, loading: false, error: "" });
+      } catch (error) {
+        if (!active || version !== refreshVersion) return;
+        setLiveCatalog((current) => ({ ...current, loading: false, error: error.message }));
+      }
+    };
+
+    refresh();
+    const timer = setInterval(refresh, 30000);
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl(`${API_BASE}/hubs/live`, { accessTokenFactory: () => getSession()?.accessToken || "" })
+      .withAutomaticReconnect()
+      .build();
+    connection.on("LiveCatalogChanged", refresh);
+    connection.onreconnected(async () => {
+      try {
+        await connection.invoke("JoinLobby");
+        await refresh();
+      } catch {
+        if (active) refresh();
+      }
+    });
+    connection.start()
+      .then(() => connection.invoke("JoinLobby"))
+      .then(refresh)
+      .catch(() => {
+        // Polling remains active when realtime is unavailable.
+      });
+
+    return () => {
+      active = false;
+      clearInterval(timer);
+      connection.stop();
+    };
+  }, []);
+  useEffect(() => {
     if (!toast) return;
     const id = setTimeout(() => setToast(""), 4500);
     return () => clearTimeout(id);
@@ -160,8 +213,8 @@ function App() {
       location.hash = "/login";
       setToast(event.detail || "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
     }
-    addEventListener("bidnet:expired", expired);
-    return () => removeEventListener("bidnet:expired", expired);
+    addEventListener("Auctora:expired", expired);
+    return () => removeEventListener("Auctora:expired", expired);
   }, []);
   const go = (next) => {
     // Không điều hướng sang trang đăng nhập: mở modal ngay trên trang hiện tại.
@@ -204,7 +257,7 @@ function App() {
     go(`/auctions?q=${encodeURIComponent(search.trim())}`);
   };
   let page;
-  if (path === "/") page = <MarketplaceHome {...common} />;
+  if (path === "/") page = <MarketplaceHome {...common} liveCatalog={liveCatalog} />;
   else if (path === "/auctions" || path === "/products")
     page = <Explore key={route} route={route} {...common} />;
   else if (/^\/product\/\d+$/.test(path))
@@ -279,18 +332,18 @@ function App() {
     );
   return (
     <>
-      {adminArea ? <header className="workspace-top"><a className="brand" href="#/admin">Bid<span>Net</span><small>WORKSPACE</small></a><div className="workspace-top-actions"><a href="#/">Xem sàn đấu giá ↗</a><ThemeToggle /><a href="#/profile" className="workspace-identity"><Avatar user={user} /><span>{user.fullName || user.username}<small>Quản trị viên</small></span></a><button className="btn secondary" onClick={logout}>Đăng xuất</button></div></header> : <div className={`sticky-top-shell ${scrollState.scrolled ? "is-scrolled" : ""} ${scrollState.compact ? "is-compact" : ""}`}><header className={`top ${scrollState.scrolled ? "is-scrolled" : ""} ${scrollState.compact ? "is-compact" : ""}`}>
+      {adminArea ? <header className="workspace-top"><a className="brand" href="#/admin">Auc<span>tora</span><small>WORKSPACE</small></a><div className="workspace-top-actions"><a href="#/">Xem sàn đấu giá ↗</a><ThemeToggle /><a href="#/profile" className="workspace-identity"><Avatar user={user} /><span>{user.fullName || user.username}<small>Quản trị viên</small></span></a><button className="btn secondary" onClick={logout}>Đăng xuất</button></div></header> : <div className={`sticky-top-shell ${scrollState.scrolled ? "is-scrolled" : ""} ${scrollState.compact ? "is-compact" : ""}`}><header className={`top ${scrollState.scrolled ? "is-scrolled" : ""} ${scrollState.compact ? "is-compact" : ""}`}>
         <div className="top-bar">
           <div className="top-bar-inner">
-            <span>BidNet · Sàn đấu giá trực tuyến</span>
+            <span>Auctora · Sàn đấu giá trực tuyến</span>
             <span className="top-bar-right">
               <ThemeToggle />
             </span>
           </div>
         </div>
         <div className="top-inner">
-          <a className="brand" aria-label="BidNet – Trang chủ" href="#/">
-            Bid<span>Net</span>
+          <a className="brand" aria-label="Auctora – Trang chủ" href="#/">
+            Auc<span>tora</span>
           </a>
           <div
             className={`cat-menu ${catOpen ? "open" : ""}`}
@@ -410,7 +463,19 @@ function App() {
                 }
                 href={`#${href}`}
               >
-                {label}
+                {href === "/live-auctions" ? (
+                  <>
+                    {label}
+                    {liveCatalog.live?.length > 0 && (
+                      <span className="nav-live-badge" aria-label={`${liveCatalog.live.length} sự kiện đang LIVE`}>
+                        <i aria-hidden="true" /> LIVE{liveCatalog.live.length > 1 ? ` ${liveCatalog.live.length}` : ""}
+                      </span>
+                    )}
+                    {liveCatalog.error && !liveCatalog.live && (
+                      <span className="nav-live-error" title={liveCatalog.error} aria-label="Không tải được trạng thái Live Auction">!</span>
+                    )}
+                  </>
+                ) : label}
               </a>
             ))}
             <span className="nav-sep" />
@@ -439,7 +504,7 @@ function App() {
         <div className="footer-grid">
           <div>
             <a className="brand footer-brand" href="#/">
-              Bid<span>Net</span>
+              Auc<span>tora</span>
             </a>
             <p>
               Khám phá sản phẩm, theo dõi phiên và quản lý giao dịch đấu giá của bạn.
@@ -460,7 +525,7 @@ function App() {
             <a href="#/contact">Liên hệ & khiếu nại</a>
           </div>
           <div>
-            <strong>Về BidNet</strong>
+            <strong>Về Auctora</strong>
             <a href="#/about">Giới thiệu</a>
             <a href="#/news">Tin tức</a>
             <a href="#/policies/chinh-sach-bao-mat">Bảo mật</a>
@@ -468,7 +533,7 @@ function App() {
           </div>
         </div>
         <div className="footer-bottom">
-          <span>© 2026 BidNet · Đồ án Lập trình Web 2, Đại học Đông Á</span>
+          <span>© 2026 Auctora · Đồ án Lập trình Web 2, Đại học Đông Á</span>
           <a href="#/policies">Điều khoản & chính sách</a>
         </div>
       </footer>}
@@ -514,7 +579,7 @@ function Gate({ openAuth }) {
   return (
     <div className="panel form-wrap">
       <h1>Vui lòng đăng nhập</h1>
-      <p className="muted">Tính năng này cần tài khoản BidNet.</p>
+      <p className="muted">Tính năng này cần tài khoản Auctora.</p>
       <button className="btn" onClick={() => openAuth("login")}>
         Đăng nhập
       </button>

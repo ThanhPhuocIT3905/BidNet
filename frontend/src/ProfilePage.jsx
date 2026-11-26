@@ -80,7 +80,7 @@ export default function ProfilePage({ onProfile, notify }) {
   }
   const admin = account?.role === "Admin";
   return <>
-    <PageHeader eyebrow="Tài khoản của tôi" title="Hồ sơ cá nhân" description="Thông tin liên hệ, tình trạng tài khoản và hoạt động trên BidNet." />
+    <PageHeader eyebrow="Tài khoản của tôi" title="Hồ sơ cá nhân" description="Thông tin liên hệ, tình trạng tài khoản và hoạt động trên Auctora." />
     {r.error && <ErrorState message={r.error} onRetry={r.reload} />}
     {r.loading && <LoadingState />}
     {account && <>

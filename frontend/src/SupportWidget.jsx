@@ -135,12 +135,12 @@ export default function SupportWidget({ route, user, go, openAuth, notify }) {
         {
           id: Date.now(),
           sender: "ai",
-          text: "Xin chào! Tôi là **BidNet AI**. Tôi có thể hỗ trợ bạn về đấu giá, đăng bán, đơn hàng và tài khoản.",
+          text: "Xin chào! Tôi là **Auctora AI**. Tôi có thể hỗ trợ bạn về đấu giá, đăng bán, đơn hàng và tài khoản.",
           canEscalate: true,
           time: new Date().toISOString(),
         },
       ]);
-      setAiQuickReplies(["BidNet hoạt động thế nào?", "Tham gia đấu giá", "Gặp nhân viên hỗ trợ"]);
+      setAiQuickReplies(["Auctora hoạt động thế nào?", "Tham gia đấu giá", "Gặp nhân viên hỗ trợ"]);
     } finally {
       setAiTyping(false);
     }
@@ -220,7 +220,7 @@ export default function SupportWidget({ route, user, go, openAuth, notify }) {
       if (prefillSubject) {
         setTicketForm((f) => ({
           ...f,
-          subject: f.subject || `Hỗ trợ từ ${PAGE_LABELS[ctx.pageContext] || "BidNet"}`,
+          subject: f.subject || `Hỗ trợ từ ${PAGE_LABELS[ctx.pageContext] || "Auctora"}`,
         }));
       }
     }
@@ -400,18 +400,18 @@ export default function SupportWidget({ route, user, go, openAuth, notify }) {
         type="button"
         className="bn-chat-launcher"
         onClick={handleToggleOpen}
-        aria-label="Mở BidNet Support"
-        title="BidNet Support – Trợ lý AI & Nhân viên hỗ trợ"
+        aria-label="Mở Auctora Support"
+        title="Auctora Support – Trợ lý AI & Nhân viên hỗ trợ"
       >
         <span className="bn-launcher-icon" aria-hidden="true">💬</span>
-        <span className="bn-launcher-text">{minimized ? "BidNet Support" : "Bạn cần trợ giúp?"}</span>
+        <span className="bn-launcher-text">{minimized ? "Auctora Support" : "Bạn cần trợ giúp?"}</span>
         {unread > 0 && <span className="bn-launcher-badge">{unread}</span>}
       </button>
     );
   }
 
   return (
-    <aside className="bn-chat-window" aria-label="BidNet Support">
+    <aside className="bn-chat-window" aria-label="Auctora Support">
       {/* Header */}
       <header className="bn-chat-header">
         <div className="bn-chat-brand">
@@ -419,7 +419,7 @@ export default function SupportWidget({ route, user, go, openAuth, notify }) {
             {tab === "ai" ? "🤖" : "🎧"}
           </div>
           <div>
-            <strong>BidNet Support</strong>
+            <strong>Auctora Support</strong>
             <small className="bn-chat-status">
               <span className="bn-status-dot" />
               {tab === "ai"
@@ -583,7 +583,7 @@ export default function SupportWidget({ route, user, go, openAuth, notify }) {
                   <span>●</span>
                   <span>●</span>
                   <span>●</span>
-                  <small>BidNet AI đang trả lời…</small>
+                  <small>Auctora AI đang trả lời…</small>
                 </div>
               </div>
             )}
@@ -619,7 +619,7 @@ export default function SupportWidget({ route, user, go, openAuth, notify }) {
             </button>
           </form>
           <div className="bn-chat-disclaimer">
-            BidNet AI · Không chia sẻ mật khẩu hoặc mã OTP
+            Auctora AI · Không chia sẻ mật khẩu hoặc mã OTP
           </div>
         </>
       )}
@@ -629,7 +629,7 @@ export default function SupportWidget({ route, user, go, openAuth, notify }) {
         <div className="bn-live-wrap">
           {!user ? (
             <div className="bn-live-gate">
-              <p>Vui lòng đăng nhập để trò chuyện trực tiếp và theo dõi yêu cầu hỗ trợ cùng nhân viên BidNet.</p>
+              <p>Vui lòng đăng nhập để trò chuyện trực tiếp và theo dõi yêu cầu hỗ trợ cùng nhân viên Auctora.</p>
               <button type="button" className="btn dark" onClick={() => openAuth?.("login")}>
                 Đăng nhập ngay
               </button>
