@@ -1863,3 +1863,115 @@ input::placeholder,textarea::placeholder {color:var(--quiet)}
   display: flex;
   justify-content: flex-end;
 }
+
+/* ══ Smart Sticky Header, Sticky Account Nav & Back to Top ══ */
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 980;
+  transition: box-shadow 0.2s ease;
+}
+.top.is-scrolled {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+}
+:root[data-theme="dark"] .top.is-scrolled {
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.35);
+}
+.top-bar,
+.main-nav {
+  max-height: 70px;
+  opacity: 1;
+  transition: max-height 0.2s ease, opacity 0.18s ease, border-color 0.2s ease;
+}
+.top-inner {
+  transition: min-height 0.2s ease, padding 0.2s ease;
+}
+.top.is-scrolled .top-bar {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  border-bottom-width: 0;
+}
+.top.is-compact .top-inner {
+  min-height: 60px;
+  padding: 8px 24px;
+}
+.top.is-compact .main-nav {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  border-top-width: 0;
+}
+.top.is-compact .cat-btn .cat-label {
+  display: none;
+}
+.top.is-compact .cat-btn {
+  padding: 8px 11px;
+}
+.compact-sell-btn {
+  display: none !important;
+  min-height: 34px !important;
+  padding: 0 12px !important;
+  font-size: 13px !important;
+  white-space: nowrap;
+}
+.top.is-compact .compact-sell-btn {
+  display: inline-flex !important;
+}
+@media (max-width: 780px) {
+  .top.is-compact .top-inner {
+    padding: 8px 16px;
+  }
+  .top.is-compact .top-search {
+    display: none;
+  }
+}
+
+/* Sticky Account Navigation */
+.account-nav {
+  position: sticky;
+  top: 0;
+  z-index: 940;
+  background: var(--canvas);
+  transition: top 0.2s ease;
+}
+.has-compact-header .account-nav {
+  top: 60px;
+}
+.has-expanded-header .account-nav {
+  top: 109px;
+}
+@media (max-width: 780px) {
+  .has-compact-header .account-nav {
+    top: 56px;
+  }
+  .has-expanded-header .account-nav {
+    top: 152px;
+  }
+}
+
+/* Back to Top button */
+.back-to-top {
+  position: fixed;
+  right: 24px;
+  bottom: 78px;
+  z-index: 988;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--green);
+  font-size: 18px;
+  font-weight: 700;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+  cursor: pointer;
+  transition: transform 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+.back-to-top:hover {
+  background: var(--green);
+  color: var(--surface);
+  transform: translateY(-2px);
+}

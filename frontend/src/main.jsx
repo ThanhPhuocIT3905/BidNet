@@ -64,10 +64,36 @@ function App() {
   const [catOpen, setCatOpen] = useState(false);
   const [categories, setCategories] = useState([]);
   const [search, setSearch] = useState("");
+  const [scrollState, setScrollState] = useState({ scrolled: false, compact: false, backTop: false });
   const { ids: favorites } = useFavorites();
   const [path] = route.split("?");
   const routeRef = useRef(route);
   routeRef.current = route;
+  useEffect(() => {
+    let lastY = window.scrollY;
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const y = window.scrollY;
+        const scrolled = y > 100;
+        const backTop = y > 360;
+        setScrollState((prev) => {
+          let compact = prev.compact;
+          if (!scrolled) compact = false;
+          else if (y - lastY > 8) compact = true;
+          else if (lastY - y > 8) compact = false;
+          lastY = y;
+          if (prev.scrolled === scrolled && prev.compact === compact && prev.backTop === backTop) return prev;
+          return { scrolled, compact, backTop };
+        });
+        ticking = false;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
   useEffect(() => {
     const onHash = () => {
       const auth = parseAuthRoute(location.hash);
@@ -217,7 +243,7 @@ function App() {
     );
   return (
     <>
-      {adminArea ? <header className="workspace-top"><a className="brand" href="#/admin">Bid<span>Net</span><small>WORKSPACE</small></a><div className="workspace-top-actions"><a href="#/">Xem sàn đấu giá ↗</a><ThemeToggle /><a href="#/profile" className="workspace-identity"><Avatar user={user} /><span>{user.fullName || user.username}<small>Quản trị viên</small></span></a><button className="btn secondary" onClick={logout}>Đăng xuất</button></div></header> : <header className="top">
+      {adminArea ? <header className="workspace-top"><a className="brand" href="#/admin">Bid<span>Net</span><small>WORKSPACE</small></a><div className="workspace-top-actions"><a href="#/">Xem sàn đấu giá ↗</a><ThemeToggle /><a href="#/profile" className="workspace-identity"><Avatar user={user} /><span>{user.fullName || user.username}<small>Quản trị viên</small></span></a><button className="btn secondary" onClick={logout}>Đăng xuất</button></div></header> : <header className={`top ${scrollState.scrolled ? "is-scrolled" : ""} ${scrollState.compact ? "is-compact" : ""}`}>
         <div className="top-bar">
           <div className="top-bar-inner">
             <span>BidNet · Sàn đấu giá trực tuyến</span>
@@ -240,7 +266,7 @@ function App() {
               aria-expanded={catOpen}
               onClick={() => setCatOpen(!catOpen)}
             >
-              <span aria-hidden="true">☰</span> Danh mục
+              <span aria-hidden="true">☰</span> <span className="cat-label">Danh mục</span>
             </button>
             {catOpen && (
               <div className="cat-panel">
@@ -276,6 +302,11 @@ function App() {
             </button>
           </form>
           <div className="nav-right">
+            {user && !admin && (
+              <a className="btn dark compact-sell-btn" href="#/product/new">
+                + Đăng bán
+              </a>
+            )}
             <a className="fav-link" href="#/favorites" title="Phiên đang theo dõi">
               <span aria-hidden="true">♡</span>
               <em>{favorites.length}</em>
@@ -347,7 +378,7 @@ function App() {
         </nav>
       </header>}
 
-      <main id="main-content" tabIndex={-1} className={`wrap ${adminArea ? "workspace-wrap" : ""}`}>
+      <main id="main-content" tabIndex={-1} className={`wrap ${adminArea ? "workspace-wrap" : ""} ${scrollState.compact ? "has-compact-header" : ""} ${scrollState.scrolled && !scrollState.compact ? "has-expanded-header" : ""}`}>
         {accountArea && <nav className="account-nav" aria-label="Tài khoản của tôi">{(admin ? [["/admin", "Quản trị"], ["/notifications", "Thông báo"], ["/profile", "Hồ sơ"]] : [["/my-products", "Đăng bán"], ["/my-bids", "Lượt đặt giá"], ["/orders", "Đơn hàng"], ["/notifications", "Thông báo"], ["/profile", "Hồ sơ"]]).map(([href, label]) => <a key={href} href={`#${href}`} aria-current={path === href ? "page" : undefined}>{label}</a>)}</nav>}
         {page}
       </main>
@@ -402,6 +433,17 @@ function App() {
         <div id="toast" role="status" aria-live="polite">
           {toast}
         </div>
+      )}
+      {!adminArea && scrollState.backTop && (
+        <button
+          type="button"
+          className="back-to-top"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          aria-label="Lên đầu trang"
+          title="Lên đầu trang"
+        >
+          ↑
+        </button>
       )}
       {!adminArea && (
         <SupportWidget
