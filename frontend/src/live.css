@@ -46,11 +46,11 @@
 .badge.Paused,.badge.Skipped,.badge.Withdrawn,.badge.Draft {background:var(--soft);color:var(--quiet)}
 
 /* ── Phòng đấu giá (cửa sổ riêng) ── */
-body.live-room-mode .top,body.live-room-mode .site-footer {display:none}
+body.live-room-mode .top,body.live-room-mode .sticky-top-shell,body.live-room-mode .site-footer {display:none}
 body.live-room-mode {background:#eef1ec}
 body.live-room-mode .wrap {max-width:none;margin:0;padding:0}
-.live-room-page {display:flex;flex-direction:column;min-height:100vh;background:var(--canvas);color:var(--ink)}
-.live-room-top {display:flex;align-items:center;gap:16px;padding:10px 20px;background:#10201b;color:#eaf1ec;flex-wrap:wrap}
+.live-room-page {display:flex;flex-direction:column;height:100dvh;min-height:100vh;overflow:hidden;background:var(--canvas);color:var(--ink)}
+.live-room-top {position:sticky;top:0;z-index:40;flex-shrink:0;display:flex;align-items:center;gap:16px;padding:10px 20px;background:#10201b;color:#eaf1ec;flex-wrap:wrap}
 .live-room-top .brand {font-size:22px;color:#fff;display:flex;align-items:center;gap:8px}
 .live-room-top .brand small {font-size:9px;font-weight:700;letter-spacing:.16em;color:#ffd2a1;border:1px solid #ffffff40;border-radius:4px;padding:3px 5px}
 .live-room-title {display:grid;line-height:1.25;min-width:0;flex:1}
@@ -69,7 +69,7 @@ body.live-room-mode .wrap {max-width:none;margin:0;padding:0}
 .live-banner {display:flex;gap:12px;align-items:center;padding:10px 20px;font-size:13px;background:var(--warning-bg);color:var(--warning);border-bottom:1px solid var(--line)}
 .live-banner.error {background:var(--danger-bg);color:var(--danger)}
 .live-banner.warning b {white-space:nowrap}
-.live-room-grid {display:grid;grid-template-columns:minmax(230px,.8fr) minmax(0,1.75fr) minmax(270px,1fr);gap:0;flex:1;min-height:0;height:calc(100vh - 60px)}
+.live-room-grid {display:grid;grid-template-columns:minmax(230px,.8fr) minmax(0,1.75fr) minmax(270px,1fr);gap:0;flex:1;min-height:0}
 .live-room-grid > * {min-height:0}
 .live-lots-panel {display:flex;flex-direction:column;gap:8px;padding:14px;border-right:1px solid var(--line);background:var(--surface);overflow:auto}
 .live-panel-head {display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -115,7 +115,7 @@ body.live-room-mode .wrap {max-width:none;margin:0;padding:0}
 .live-feed-item p {margin:0;font-size:12.5px}
 .live-feed-item b {font-size:13px}
 .live-feed-item time {display:block;font-size:10.5px;color:var(--quiet)}
-.live-bidbar {display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:12px 20px;border-top:1px solid var(--line);background:var(--surface);box-shadow:0 -8px 24px #0f261b12}
+.live-bidbar {position:sticky;bottom:0;z-index:30;flex-shrink:0;display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:12px 20px;border-top:1px solid var(--line);background:var(--surface);box-shadow:0 -8px 24px #0f261b12}
 .live-bid-facts {display:flex;gap:20px;flex-wrap:wrap}
 .live-bid-facts div {display:grid}
 .live-bid-facts span {font-size:11px;color:var(--quiet)}
@@ -183,9 +183,10 @@ body.live-room-mode .wrap {max-width:none;margin:0;padding:0}
 .live-wizard-footer {position:sticky;bottom:0;display:flex;justify-content:flex-end;gap:9px;padding:14px 24px;border-top:1px solid var(--line);background:var(--surface)}
 
 @media(max-width:1100px) {
+  .live-room-page {height:auto;overflow:visible}
   .live-room-grid {grid-template-columns:minmax(200px,.8fr) minmax(0,1.6fr);height:auto}
   .live-feed-panel {grid-column:1/-1;border-left:0;border-top:1px solid var(--line);max-height:320px}
-  .live-bidbar {position:sticky;bottom:0;z-index:5}
+  .live-bidbar {position:sticky;bottom:0;z-index:30}
 }
 @media(max-width:800px) {
   .live-wizard {min-height:calc(100dvh - 120px)}
