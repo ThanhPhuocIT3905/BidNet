@@ -83,6 +83,7 @@ public class LiveLotDto
     public decimal? HammerPrice { get; set; }
     public string Status { get; set; } = string.Empty;
     public string CallingStage { get; set; } = string.Empty;
+    public DateTime? WarningAvailableAt { get; set; }
     public string SellerName { get; set; } = string.Empty;
     public int? WinnerId { get; set; }
     public string? WinnerName { get; set; }

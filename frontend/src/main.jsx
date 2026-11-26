@@ -91,11 +91,11 @@ function App() {
         scrollFrame.current = 0;
         const y = window.scrollY;
         const compactExitThreshold = 120;
-        const expandedHeaderHeight =
-          document.querySelector(".sticky-top-shell")?.offsetHeight || 0;
+        const compactEntryThreshold = 450;
+        // Keep hysteresis wider than the header's height change to avoid anchor-scroll oscillation.
         const compact = compactRef.current
           ? y > compactExitThreshold
-          : y > expandedHeaderHeight + compactExitThreshold;
+          : y > compactEntryThreshold;
         const backTop = backTopRef.current ? y > 340 : y > 400;
         compactRef.current = compact;
         backTopRef.current = backTop;

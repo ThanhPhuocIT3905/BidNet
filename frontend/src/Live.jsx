@@ -278,19 +278,52 @@ export function LiveRoomPage({ id, user, go, notify, openAuth }) {
 
   useEffect(() => {
     let alive = true;
+    let retryTimer;
+    let retryDelay = 1000;
     const connection = new signalR.HubConnectionBuilder()
       .withUrl(`${API_BASE}/hubs/live`, { accessTokenFactory: () => getSession()?.accessToken || "" })
       .withAutomaticReconnect()
       .build();
     const refresh = () => reloadRef.current();
+    const scheduleConnect = () => {
+      if (!alive || retryTimer) return;
+      retryTimer = window.setTimeout(() => {
+        retryTimer = undefined;
+        connect();
+      }, retryDelay);
+      retryDelay = Math.min(retryDelay * 2, 30000);
+    };
+    const connect = async () => {
+      if (!alive) return;
+      try {
+        if (connection.state === signalR.HubConnectionState.Disconnected) await connection.start();
+        if (connection.state !== signalR.HubConnectionState.Connected) return;
+        const count = await connection.invoke("JoinEvent", id);
+        if (alive) {
+          setConnected(true);
+          setViewerCount(count);
+          retryDelay = 1000;
+          refresh();
+        }
+      } catch {
+        if (alive) setConnected(false);
+        scheduleConnect();
+      }
+    };
     connection.onreconnecting(() => alive && setConnected(false));
     connection.onreconnected(async () => {
       try {
         const count = await connection.invoke("JoinEvent", id);
         if (alive) { setConnected(true); setViewerCount(count); refresh(); }
-      } catch { if (alive) setConnected(false); }
+      } catch {
+        if (alive) setConnected(false);
+        scheduleConnect();
+      }
     });
-    connection.onclose(() => alive && setConnected(false));
+    connection.onclose(() => {
+      if (alive) setConnected(false);
+      scheduleConnect();
+    });
     connection.on("ViewerCountUpdated", (payload) => {
       if (alive && payload?.eventId === Number(id)) setViewerCount(payload.viewerCount || 0);
     });
@@ -331,13 +364,12 @@ export function LiveRoomPage({ id, user, go, notify, openAuth }) {
       ].slice(0, 10));
       notify(payload.message);
     });
-    connection.start()
-      .then(async () => {
-        const count = await connection.invoke("JoinEvent", id);
-        if (alive) { setConnected(true); setViewerCount(count); }
-      })
-      .catch(() => alive && setConnected(false));
-    return () => { alive = false; connection.stop(); };
+    connect();
+    return () => {
+      alive = false;
+      window.clearTimeout(retryTimer);
+      connection.stop();
+    };
   }, [id, user?.id]);
 
   useEffect(() => {
@@ -1233,10 +1265,76 @@ export function AdminLiveConsole({ id, notify }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [connected, setConnected] = useState(false);
+  const [now, setNow] = useState(Date.now());
+  const reloadRef = useRef(snap.reload);
+  reloadRef.current = snap.reload;
   const data = snap.data;
   const event = data?.event;
   const current = event?.lots.find((lot) => lot.id === event.currentLotId) || null;
   const next = event?.lots.find((lot) => lot.status === "Pending") || null;
+  const canControlLot = event?.status === "Live" && current?.status === "Open";
+  const allLotsFinal = event?.lots.every((lot) => ["Sold", "Unsold", "Skipped", "Withdrawn"].includes(lot.status)) ?? false;
+  const warningAvailableAt = current?.warningAvailableAt ? new Date(current.warningAvailableAt).getTime() : 0;
+  const warningWait = Math.max(0, Math.ceil((warningAvailableAt - now) / 1000));
+  const hasSaleableBid = Boolean(current?.bidCount && current.reserveMet);
+  const needsSecondWarning = hasSaleableBid && current?.callingStage !== "Twice";
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    let retryTimer;
+    let retryDelay = 1000;
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl(`${API_BASE}/hubs/live`, { accessTokenFactory: () => getSession()?.accessToken || "" })
+      .withAutomaticReconnect()
+      .build();
+    const refresh = () => reloadRef.current();
+    const scheduleConnect = () => {
+      if (!alive || retryTimer) return;
+      retryTimer = window.setTimeout(() => {
+        retryTimer = undefined;
+        connect();
+      }, retryDelay);
+      retryDelay = Math.min(retryDelay * 2, 30000);
+    };
+    const connect = async () => {
+      if (!alive) return;
+      try {
+        if (connection.state === signalR.HubConnectionState.Disconnected) await connection.start();
+        if (connection.state !== signalR.HubConnectionState.Connected) return;
+        await connection.invoke("JoinEvent", id);
+        if (alive) {
+          setConnected(true);
+          retryDelay = 1000;
+          refresh();
+        }
+      } catch {
+        if (alive) setConnected(false);
+        scheduleConnect();
+      }
+    };
+    ["BidAccepted", "LotOpened", "FairWarning", "LotSold", "LotUnsold", "EventPaused", "EventResumed", "EventCompleted", "LotsChanged"]
+      .forEach((name) => connection.on(name, refresh));
+    connection.onreconnecting(() => alive && setConnected(false));
+    connection.onreconnected(() => connect());
+    connection.onclose(() => {
+      if (alive) setConnected(false);
+      scheduleConnect();
+    });
+    connect();
+    const poll = window.setInterval(refresh, 15000);
+    return () => {
+      alive = false;
+      window.clearTimeout(retryTimer);
+      window.clearInterval(poll);
+      connection.stop();
+    };
+  }, [id]);
 
   const action = async (path, body) => {
     if (busy) return;
@@ -1244,7 +1342,10 @@ export function AdminLiveConsole({ id, notify }) {
     try {
       await json("POST", path, body);
       await snap.reload();
-    } catch (e) { setError(e.message); }
+    } catch (e) {
+      setError(e.message);
+      await snap.reload();
+    }
     finally { setBusy(false); }
   };
   const skip = async (lot) => {
@@ -1264,7 +1365,7 @@ export function AdminLiveConsole({ id, notify }) {
 
   return (
     <div className="live-console">
-      <PageHeader eyebrow="Auctora Live Control" title={event?.title || "Console điều hành"} description={`${event?.code || ""} · Người điều hành chỉ thao tác trên lô đang mở, mọi thay đổi được phát realtime tới phòng.`}>
+      <PageHeader eyebrow="Auctora Live Control" title={event?.title || "Console điều hành"} description={`${event?.code || ""} · ${connected ? "Đã kết nối realtime" : "Đang kết nối lại realtime"}; mọi thay đổi được đồng bộ với phòng đấu giá.`}>
         <a className="btn secondary" href={`#/admin/live/${id}`}>← Quản lý sự kiện</a>
         <a className="btn ghost" href={`#/live-room/${id}`} target="_blank" rel="noreferrer">Mở phòng ↗</a>
       </PageHeader>
@@ -1290,9 +1391,11 @@ export function AdminLiveConsole({ id, notify }) {
                     <p>{money(current.currentPrice)} · {current.bidCount} lượt · cảnh báo: {current.callingStage}</p>
                   </div>
                   <div className="live-console-actions">
-                    <button className="btn secondary" disabled={busy} onClick={() => action(`/api/admin/live/lots/${current.id}/warning`)}>Cảnh báo chốt</button>
-                    <button className="btn" disabled={busy} onClick={() => action(`/api/admin/live/lots/${current.id}/close`)}>Chốt bán</button>
-                    <button className="btn danger" disabled={busy} onClick={() => { if (confirm("Chốt lô này là không bán được?")) action(`/api/admin/live/lots/${current.id}/close?forceUnsold=true`); }}>Không bán được</button>
+                    <button className="btn secondary" disabled={busy || !canControlLot || current.callingStage === "Twice" || warningWait > 0} title={!canControlLot ? "Chỉ điều khiển lô khi sự kiện đang diễn ra" : warningWait > 0 ? `Có thể cảnh báo lần 2 sau ${warningWait} giây` : undefined} onClick={() => action(`/api/admin/live/lots/${current.id}/warning`)}>
+                      {warningWait > 0 ? `Chờ ${warningWait} giây` : current.callingStage === "Twice" ? "Đã cảnh báo 2 lần" : "Cảnh báo chốt"}
+                    </button>
+                    <button className="btn" disabled={busy || !canControlLot || Boolean(needsSecondWarning)} title={!canControlLot ? "Chỉ điều khiển lô khi sự kiện đang diễn ra" : needsSecondWarning ? "Cần gửi đủ hai cảnh báo trước khi chốt bán" : undefined} onClick={() => action(`/api/admin/live/lots/${current.id}/close`)}>Chốt bán</button>
+                    <button className="btn danger" disabled={busy || !canControlLot || Boolean(hasSaleableBid)} title={!canControlLot ? "Chỉ điều khiển lô khi sự kiện đang diễn ra" : hasSaleableBid ? "Không thể đánh dấu không bán khi đã đạt giá dự trữ" : undefined} onClick={() => { if (confirm("Chốt lô này là không bán được?")) action(`/api/admin/live/lots/${current.id}/close?forceUnsold=true`); }}>Không bán được</button>
                   </div>
                 </>
               ) : (
@@ -1316,12 +1419,25 @@ export function AdminLiveConsole({ id, notify }) {
                 {event.status === "Published" && <button className="btn" disabled={busy || !next} onClick={() => action(`/api/admin/live/lots/${next.id}/open`)}>Bắt đầu sự kiện</button>}
                 {event.status === "Live" && <button className="btn secondary" disabled={busy} onClick={() => action(`/api/admin/live/events/${id}/pause`)}>Tạm dừng</button>}
                 {event.status === "Paused" && <button className="btn" disabled={busy} onClick={() => action(`/api/admin/live/events/${id}/resume`)}>Tiếp tục</button>}
-                {["Live", "Paused", "Published"].includes(event.status) && <button className="btn danger" disabled={busy || Boolean(current)} onClick={() => { if (confirm("Kết thúc toàn bộ sự kiện?")) action(`/api/admin/live/events/${id}/complete`); }}>Kết thúc sự kiện</button>}
+                {["Live", "Paused", "Published"].includes(event.status) && <button className="btn danger" disabled={busy || !allLotsFinal} title={!allLotsFinal ? "Hãy xử lý tất cả các lô trước khi kết thúc" : undefined} onClick={() => { if (confirm("Kết thúc toàn bộ sự kiện?")) action(`/api/admin/live/events/${id}/complete`); }}>Kết thúc sự kiện</button>}
               </div>
               <form onSubmit={announce}>
                 <div className="field"><label htmlFor="announcement">Thông báo tới phòng</label><textarea id="announcement" value={message} maxLength={500} onChange={(e) => setMessage(e.target.value)} placeholder="Ví dụ: Lô tiếp theo sẽ mở sau 2 phút." /></div>
                 <button className="btn secondary" disabled={busy || !message.trim()}>Gửi thông báo</button>
               </form>
+            </section>
+            <section className="panel">
+              <h2>Lịch sử giá gần đây</h2>
+              {data.recentBids?.length ? (
+                <ol className="live-console-bids">
+                  {data.recentBids.map((bid) => (
+                    <li key={bid.id}>
+                      <span><strong>{bid.bidderCode}</strong><small>{date(bid.bidTime)}</small></span>
+                      <b>{money(bid.amount)}</b>
+                    </li>
+                  ))}
+                </ol>
+              ) : <p className="muted">Chưa có lượt đặt giá cho lô hiện tại.</p>}
             </section>
           </div>
           <section className="panel">

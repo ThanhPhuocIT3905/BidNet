@@ -13,6 +13,9 @@ public class LiveAuctionService(
     AppDbContext db, CurrentUser currentUser, IConfiguration config,
     IHubContext<LiveAuctionHub> hub, ILogger<LiveAuctionService> logger)
 {
+    private int WarningIntervalSeconds =>
+        Math.Clamp(config.GetValue<int?>("LiveAuction:MinWarningIntervalSeconds") ?? 5, 1, 300);
+
     private static string Mask(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return "Ẩn danh";
@@ -40,7 +43,7 @@ public class LiveAuctionService(
         AuctioneerName = e.CreatedBy?.Username
     };
 
-    private static LiveLotDto LotDto(LiveLot lot, User? viewer)
+    private LiveLotDto LotDto(LiveLot lot, User? viewer)
     {
         var minimum = lot.BidCount == 0 ? lot.StartingPrice : lot.CurrentPrice + lot.BidIncrement;
         var hasBid = viewer != null && lot.Bids.Any(b => b.UserId == viewer.Id);
@@ -66,6 +69,9 @@ public class LiveAuctionService(
             HammerPrice = lot.HammerPrice,
             Status = lot.Status.ToString(),
             CallingStage = lot.CallingStage.ToString(),
+            WarningAvailableAt = lot.CallingStage == LiveCallingStage.Once && lot.LastWarningAt is DateTime lastWarningAt
+                ? lastWarningAt.AddSeconds(WarningIntervalSeconds)
+                : null,
             SellerName = lot.Seller?.Username ?? string.Empty,
             WinnerId = lot.WinnerId,
             WinnerName = lot.Winner?.Username,
@@ -295,6 +301,7 @@ public class LiveAuctionService(
         lot.BidCount += 1;
         // Lượt giá mới đặt lại giai đoạn gọi giá theo quy tắc công bố.
         lot.CallingStage = LiveCallingStage.None;
+        lot.LastWarningAt = null;
 
         if (previousLeaderId is int previousId && previousId != user.Id)
         {
@@ -515,6 +522,7 @@ public class LiveAuctionService(
         lot.CurrentPrice = lot.StartingPrice;
         lot.OpenedAt = now;
         lot.CallingStage = LiveCallingStage.None;
+        lot.LastWarningAt = null;
         entity.Status = LiveEventStatus.Live;
         entity.StartedAt ??= now;
         entity.CurrentLotId = lot.Id;
@@ -532,22 +540,55 @@ public class LiveAuctionService(
     public async Task<LiveSnapshotDto> WarnAsync(int lotId, CancellationToken ct)
     {
         await currentUser.RequireAdminAsync(ct);
-        var lot = await db.LiveLots.FirstOrDefaultAsync(l => l.Id == lotId, ct)
+        var lot = await db.LiveLots.Include(l => l.Event).FirstOrDefaultAsync(l => l.Id == lotId, ct)
             ?? throw new ApiException(404, "lot_not_found", "Không tìm thấy lô.");
-        if (lot.Status != LiveLotStatus.Open)
-            throw new ApiException(409, "lot_not_open", "Chỉ cảnh báo chốt cho lô đang mở.");
-        var stage = lot.CallingStage switch
+        if (lot.Status != LiveLotStatus.Open || lot.Event.Status != LiveEventStatus.Live ||
+            lot.Event.CurrentLotId != lot.Id)
+            throw new ApiException(409, "lot_not_open", "Chỉ cảnh báo lô hiện tại của sự kiện đang diễn ra.");
+
+        var now = DateTime.UtcNow;
+        LiveCallingStage stage;
+        if (lot.CallingStage == LiveCallingStage.None)
         {
-            LiveCallingStage.None => LiveCallingStage.Once,
-            LiveCallingStage.Once => LiveCallingStage.Twice,
-            _ => LiveCallingStage.Twice
-        };
+            stage = LiveCallingStage.Once;
+        }
+        else if (lot.CallingStage == LiveCallingStage.Once)
+        {
+            var lastWarningAt = lot.LastWarningAt ?? now;
+            var availableAt = lastWarningAt.AddSeconds(WarningIntervalSeconds);
+            if (availableAt > now)
+            {
+                if (lot.LastWarningAt is null)
+                {
+                    lot.LastWarningAt = now;
+                    try { await db.SaveChangesAsync(ct); }
+                    catch (DbUpdateConcurrencyException)
+                    {
+                        throw new ApiException(409, "lot_conflict", "Lô vừa thay đổi. Vui lòng tải lại trước khi cảnh báo.");
+                    }
+                }
+                var secondsRemaining = Math.Ceiling((availableAt - now).TotalSeconds);
+                throw new ApiException(409, "warning_interval",
+                    $"Vui lòng chờ {secondsRemaining:N0} giây trước khi gửi cảnh báo lần 2.");
+            }
+            stage = LiveCallingStage.Twice;
+        }
+        else
+        {
+            throw new ApiException(409, "warning_complete", "Lô đã nhận đủ hai cảnh báo chốt.");
+        }
+
         lot.CallingStage = stage;
-        await db.SaveChangesAsync(ct);
+        lot.LastWarningAt = now;
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ApiException(409, "lot_conflict", "Lô vừa thay đổi. Vui lòng tải lại trước khi cảnh báo.");
+        }
         await Broadcast(lot.EventId, "FairWarning", new
         {
             eventId = lot.EventId, lotId = lot.Id,
-            stage = stage.ToString(), call = (int)stage, serverTime = DateTime.UtcNow
+            stage = stage.ToString(), call = (int)stage, serverTime = now
         }, ct);
         return await SnapshotAsync(lot.EventId, ct);
     }
@@ -555,20 +596,30 @@ public class LiveAuctionService(
     public async Task<LiveSnapshotDto> CloseLotAsync(int lotId, bool forceUnsold, CancellationToken ct)
     {
         await currentUser.RequireAdminAsync(ct);
-        var lot = await db.LiveLots.FirstOrDefaultAsync(l => l.Id == lotId, ct)
+        var lot = await db.LiveLots.Include(l => l.Event).FirstOrDefaultAsync(l => l.Id == lotId, ct)
             ?? throw new ApiException(404, "lot_not_found", "Không tìm thấy lô.");
         if (lot.Status != LiveLotStatus.Open)
             throw new ApiException(409, "lot_not_open", "Lô này chưa mở hoặc đã chốt.");
+        if (lot.Event.Status != LiveEventStatus.Live || lot.Event.CurrentLotId != lot.Id)
+            throw new ApiException(409, "event_not_live", "Chỉ có thể chốt lô hiện tại của sự kiện đang diễn ra.");
+
         var now = DateTime.UtcNow;
-        var winning = forceUnsold ? null : await db.LiveBids.AsNoTracking()
+        var winning = await db.LiveBids.AsNoTracking()
             .Where(b => b.LotId == lot.Id)
             .OrderByDescending(b => b.Amount).ThenBy(b => b.BidTime).ThenBy(b => b.Id)
             .FirstOrDefaultAsync(ct);
         var meetsReserve = winning != null && (lot.ReservePrice is null || winning.Amount >= lot.ReservePrice.Value);
+        if (forceUnsold && meetsReserve)
+            throw new ApiException(409, "unsold_not_allowed",
+                "Không thể đánh dấu không bán được khi đã có giá hợp lệ đạt giá dự trữ. Hãy tạm dừng và xử lý sự cố.");
+        if (!forceUnsold && meetsReserve && lot.CallingStage != LiveCallingStage.Twice)
+            throw new ApiException(409, "warning_required",
+                "Cần gửi đủ hai cảnh báo chốt trước khi xác nhận bán.");
+
         var product = await db.Products.FirstOrDefaultAsync(p => p.Id == lot.ProductId, ct);
         lot.ClosedAt = now;
         lot.CallingStage = LiveCallingStage.None;
-        lot.Event = await db.LiveEvents.FirstAsync(e => e.Id == lot.EventId, ct);
+        lot.LastWarningAt = null;
         lot.Event.CurrentLotId = null;
         lot.Event.UpdatedAt = now;
 
@@ -711,8 +762,9 @@ public class LiveAuctionService(
             ?? throw new ApiException(404, "event_not_found", "Không tìm thấy sự kiện.");
         if (entity.Status is LiveEventStatus.Completed or LiveEventStatus.Cancelled)
             throw new ApiException(409, "invalid_status", "Sự kiện đã kết thúc.");
-        if (entity.Lots.Any(l => l.Status == LiveLotStatus.Open))
-            throw new ApiException(409, "lot_open", "Hãy chốt lô đang mở trước khi kết thúc sự kiện.");
+        if (entity.Lots.Any(l => l.Status is not (
+            LiveLotStatus.Sold or LiveLotStatus.Unsold or LiveLotStatus.Skipped or LiveLotStatus.Withdrawn)))
+            throw new ApiException(409, "lots_pending", "Hãy xử lý tất cả các lô trước khi kết thúc sự kiện.");
         entity.Status = LiveEventStatus.Completed;
         entity.EndedAt = DateTime.UtcNow;
         entity.CurrentLotId = null;

@@ -270,6 +270,9 @@ namespace BidNet.Data.Migrations
                         .HasMaxLength(2048)
                         .HasColumnType("nvarchar(2048)");
 
+                    b.Property<DateTime?>("LastWarningAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int?>("LeadingBidderId")
                         .HasColumnType("int");
 

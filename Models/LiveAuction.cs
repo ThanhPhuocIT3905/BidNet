@@ -106,6 +106,7 @@ public class LiveLot
 
     public LiveLotStatus Status { get; set; } = LiveLotStatus.Pending;
     public LiveCallingStage CallingStage { get; set; } = LiveCallingStage.None;
+    public DateTime? LastWarningAt { get; set; }
 
     public int? LeadingBidderId { get; set; }
     [ForeignKey(nameof(LeadingBidderId))]
