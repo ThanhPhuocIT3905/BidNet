@@ -34,7 +34,8 @@ try
     });
 
     // Controller xử lý request; OpenAPI tạo tài liệu cho Swagger/Scalar.
-    builder.Services.AddControllers();
+    builder.Services.AddControllers().AddJsonOptions(options =>
+        options.JsonSerializerOptions.Converters.Add(new BidNet.DTOs.UtcDateTimeConverter()));
     builder.Services.AddHttpClient();
     builder.Services.AddOpenApi(options =>
     {
@@ -148,6 +149,9 @@ try
     builder.Services.AddRateLimiter(options =>
     {
         options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        options.AddPolicy("support", context => RateLimitPartition.GetFixedWindowLimiter(
+            context.User.Identity?.Name ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = 5, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
         options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions
@@ -190,8 +194,8 @@ try
     var app = builder.Build();
 
     // Global Exception Handling & Request Logging (theo mẫu chuẩn của thầy)
-    app.UseExceptionHandling();
     app.UseRequestLogging();
+    app.UseExceptionHandling();
 
     // StatusCodePages bổ sung JSON cho 401/403/404/429 phát sinh ngoài controller.
     app.UseStatusCodePages(async context =>
@@ -233,6 +237,7 @@ try
     app.MapHub<AuctionHub>("/hubs/auction");
     app.Run();
 }
+catch (HostAbortedException) { throw; }
 catch (Exception ex)
 {
     Log.Fatal(ex, "Ứng dụng dừng bất thường khi khởi động.");

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-label="Gia dụng và nội thất">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5a5736"/>
+      <stop offset="1" stop-color="#2b2a19"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#g)"/>
+  <circle cx="640" cy="480" r="180" fill="#d9d79a" opacity=".10"/>
+  <path d="M400 150l185 150v170H215V300z" fill="none" stroke="#efeec9" stroke-width="14" stroke-linejoin="round"/>
+  <path d="M330 470V335h140v135" fill="none" stroke="#efeec9" stroke-width="14"/>
+  <rect x="270" y="300" width="48" height="52" fill="#efeec9" opacity=".55"/>
+  <rect x="482" y="300" width="48" height="52" fill="#efeec9" opacity=".55"/>
+  <path d="M150 500h500" stroke="#c9c78d" stroke-width="8" stroke-linecap="round" opacity=".5"/>
+</svg>

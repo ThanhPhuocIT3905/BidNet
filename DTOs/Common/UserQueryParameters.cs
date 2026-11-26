@@ -4,7 +4,9 @@ public class UserQueryParameters
 {
     private const int MaxPageSize = 50;
 
+    [System.ComponentModel.DataAnnotations.Range(1, 1000000)]
     public int PageNumber { get; set; } = 1;
+    public bool? IsActive { get; set; }
 
     private int _pageSize = 10;
     public int PageSize

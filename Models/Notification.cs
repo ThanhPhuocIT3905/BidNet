@@ -24,6 +24,11 @@ public class Notification
 
     // Trạng thái đã xem hay chưa
     public bool IsRead { get; set; } = false;
+    public int? ProductId { get; set; }
+    public int? OrderId { get; set; }
+    public int? TicketId { get; set; }
+    public SupportTicket? Ticket { get; set; }
+    public Order? Order { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

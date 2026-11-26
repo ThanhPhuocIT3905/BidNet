@@ -10,6 +10,7 @@ public static class ProductMapper
     public static ProductResponseDto ToResponse(Product p) => new()
     {
         Id = p.Id,
+        Version = Convert.ToBase64String(p.RowVersion),
         Name = p.Name,
         Description = p.Description,
         StartingPrice = p.StartingPrice,
@@ -22,6 +23,8 @@ public static class ProductMapper
         CategoryId = p.CategoryId,
         SellerId = p.SellerId,
         SellerName = p.Seller.Username,
+        SellerAvatarUrl = p.Seller.AvatarUrl,
+        SellerJoinedAt = p.Seller.CreatedAt,
         WinnerId = p.WinnerId,
         WinnerName = p.Winner?.Username,
         CreatedAt = p.CreatedAt,

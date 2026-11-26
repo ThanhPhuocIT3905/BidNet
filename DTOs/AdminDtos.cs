@@ -4,6 +4,7 @@ namespace BidNet.DTOs;
 
 public class UserStatusDto
 {
+    [MaxLength(500)] public string? Reason { get; set; }
     // Admin bật/tắt tài khoản mà không xóa lịch sử của người dùng.
     public bool IsActive { get; set; }
 }

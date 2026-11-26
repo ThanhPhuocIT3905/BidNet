@@ -39,6 +39,7 @@ namespace BidNet.DTOs
     // Khi sửa, service chỉ chấp nhận phiên Scheduled chưa bắt đầu/chưa có bid.
     public class UpdateProductDto
     {
+        public string? Version { get; set; }
         [Required, MaxLength(200)]
         public string Name { get; set; } = string.Empty;
 
@@ -62,11 +63,14 @@ namespace BidNet.DTOs
     // Dữ liệu trả về để client hiển thị; không bao gồm RowVersion hay entity User.
     public class ProductResponseDto
     {
+        public string Version { get; set; } = string.Empty;
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public decimal StartingPrice { get; set; }
         public decimal CurrentPrice { get; set; }
+        public decimal? MinimumBid { get; set; }
+        public decimal? MinBidIncrement { get; set; }
         public DateTime StartTime { get; set; }
         public DateTime EndTime { get; set; }
         public string Status { get; set; } = string.Empty;
@@ -76,6 +80,9 @@ namespace BidNet.DTOs
 
         public int SellerId { get; set; }
         public string SellerName { get; set; } = string.Empty;
+        // Public seller context only; contact details stay private to the seller.
+        public string? SellerAvatarUrl { get; set; }
+        public DateTime SellerJoinedAt { get; set; }
 
         // WinnerId/Name null trước khi có kết quả hoặc phiên không có người thắng.
         public int? WinnerId { get; set; }

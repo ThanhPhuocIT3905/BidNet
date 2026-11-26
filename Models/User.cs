@@ -20,6 +20,11 @@ namespace BidNet.Models
 
         [MaxLength(200)]
         public string? FullName { get; set; }
+        [MaxLength(2048)] public string? AvatarUrl { get; set; }
+        [MaxLength(255)] public string? AvatarPublicId { get; set; }
+        public DateOnly? DateOfBirth { get; set; }
+        [MaxLength(20)] public string? Gender { get; set; }
+        [MaxLength(500)] public string? ContactAddress { get; set; }
 
         [Column(TypeName = "decimal(18,2)")]
         public decimal Balance { get; set; } = 0; // Chưa dùng để trừ tiền/đặt cọc trong phiên bản này.

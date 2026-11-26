@@ -45,6 +45,32 @@ public class AuctionRulesTests
         }).Build();
 
     [Fact]
+    public async Task ProductDetail_UsesConfiguredIncrementAfterFirstBidAtStartingPrice()
+    {
+        await using var db = NewDatabase();
+        var seller = new User { Id = 1, Username = "seller", Email = "seller@example.com" };
+        db.Users.Add(seller);
+        db.Products.Add(new Product
+        {
+            Id = 1, Name = "Camera", SellerId = 1, Seller = seller,
+            StartingPrice = 10000, CurrentPrice = 10000,
+            StartTime = DateTime.UtcNow.AddHours(-1), EndTime = DateTime.UtcNow.AddHours(1),
+            Status = ProductStatus.Active
+        });
+        await db.SaveChangesAsync();
+        var config = Settings();
+        config["Auction:MinBidIncrement"] = "5000";
+        var service = new ProductService(db, Current(db, 1), config);
+        var first = await service.GetAsync(1, CancellationToken.None);
+        Assert.Equal(5000m, first.MinBidIncrement);
+        Assert.Equal(10000m, first.MinimumBid);
+        db.Bids.Add(new Bid { ProductId = 1, UserId = 2, Amount = 10000, BidTime = DateTime.UtcNow });
+        await db.SaveChangesAsync();
+        var next = await service.GetAsync(1, CancellationToken.None);
+        Assert.Equal(15000m, next.MinimumBid);
+    }
+
+    [Fact]
     public async Task RegisterAndLogin_UsesHashedPasswordAndRejectsBlockedUser()
     {
         await using var db = NewDatabase();
@@ -84,7 +110,7 @@ public class AuctionRulesTests
         await using var db = NewDatabase();
         db.Users.Add(new User { Id = 1, Username = "seller", Email = "seller@example.com" });
         await db.SaveChangesAsync();
-        var service = new ProductService(db, Current(db, 1));
+        var service = new ProductService(db, Current(db, 1), Settings());
         var request = new CreateProductDto
         {
             Name = "Máy ảnh", StartingPrice = 1000.5m,
@@ -158,12 +184,12 @@ public class AuctionRulesTests
             StartTime = DateTime.UtcNow.AddMinutes(20), EndTime = DateTime.UtcNow.AddHours(2)
         };
         var notOwner = await Assert.ThrowsAsync<ApiException>(() =>
-            new ProductService(db, Current(db, 2)).UpdateAsync(1, request, CancellationToken.None));
+            new ProductService(db, Current(db, 2), Settings()).UpdateAsync(1, request, CancellationToken.None));
         Assert.Equal(403, notOwner.StatusCode);
         (await db.Products.SingleAsync()).Status = ProductStatus.Active;
         await db.SaveChangesAsync();
         var started = await Assert.ThrowsAsync<ApiException>(() =>
-            new ProductService(db, Current(db, 1)).UpdateAsync(1, request, CancellationToken.None));
+            new ProductService(db, Current(db, 1), Settings()).UpdateAsync(1, request, CancellationToken.None));
         Assert.Equal(409, started.StatusCode);
     }
 
@@ -192,6 +218,33 @@ public class AuctionRulesTests
         var expired = await Assert.ThrowsAsync<ApiException>(() =>
             service.PlaceAsync(1, 2000, CancellationToken.None));
         Assert.Equal(409, expired.StatusCode);
+    }
+
+    [Fact]
+    public async Task Bid_RejectsAmountOffConfiguredIncrement()
+    {
+        await using var db = NewDatabase();
+        db.Users.AddRange(
+            new User { Id = 1, Username = "seller", Email = "seller@example.com" },
+            new User { Id = 2, Username = "buyer", Email = "buyer@example.com" });
+        db.Products.Add(new Product
+        {
+            Id = 1, Name = "Máy ảnh", SellerId = 1, StartingPrice = 10000, CurrentPrice = 10000,
+            StartTime = DateTime.UtcNow.AddMinutes(-10), EndTime = DateTime.UtcNow.AddHours(1),
+            Status = ProductStatus.Active
+        });
+        await db.SaveChangesAsync();
+        var hub = new Mock<IHubContext<AuctionHub>>();
+        var service = new BidService(db, Current(db, 2), Settings(), hub.Object,
+            NullLogger<BidService>.Instance);
+        await service.PlaceAsync(1, 10000, CancellationToken.None);
+        // Tối thiểu kế tiếp là 11.000; 11.500 lệch bước giá 1.000 nên bị từ chối.
+        var offStep = await Assert.ThrowsAsync<ApiException>(() =>
+            service.PlaceAsync(1, 11500, CancellationToken.None));
+        Assert.Equal(400, offStep.StatusCode);
+        Assert.Equal("bid_increment", offStep.Code);
+        async Task<BidResponseDto> OnStep() => await service.PlaceAsync(1, 12000, CancellationToken.None);
+        Assert.Equal(12000, (await OnStep()).Amount);
     }
 
     [Fact]
@@ -232,7 +285,7 @@ public class AuctionRulesTests
             new Product { Id = 2, Name = "Hai", SellerId = 1, StartingPrice = 2000,
                 CurrentPrice = 2000, Status = ProductStatus.Active });
         await db.SaveChangesAsync();
-        var service = new ProductService(db, Current(db, 1));
+        var service = new ProductService(db, Current(db, 1), Settings());
         var result = await service.ListAsync(new ProductQueryDto
         { Status = "Active", Page = 1, PageSize = 1 }, CancellationToken.None);
         Assert.Equal(1, result.TotalCount);

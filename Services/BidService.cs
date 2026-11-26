@@ -16,7 +16,7 @@ public class BidService(
     {
         // Không dựa vào trạng thái client hiển thị vì phiên có thể vừa đóng/mở.
         // Lấy thời gian UTC một lần cho toàn bộ quyết định và BidTime của lượt này.
-        var user = await currentUser.RequireActiveAsync(ct);
+        var user = await currentUser.RequireMemberAsync(ct);
         var product = await db.Products.FirstOrDefaultAsync(p => p.Id == productId, ct)
             ?? throw new ApiException(404, "product_not_found", "Không tìm thấy sản phẩm.");
         var now = DateTime.UtcNow;
@@ -30,7 +30,7 @@ public class BidService(
         var increment = config.GetValue<decimal>("Auction:MinBidIncrement");
         if (increment < 1 || increment != decimal.Truncate(increment))
             throw new InvalidOperationException("Auction:MinBidIncrement phải là số nguyên VND dương.");
-        if (amount <= 0 || amount != decimal.Truncate(amount) || amount > 9_999_999_999_999_999m)
+        if (amount <= 0 || amount != decimal.Truncate(amount) || amount > 100_000_000_000m)
             throw new ApiException(400, "invalid_bid", "Giá đặt phải là số nguyên VND dương.");
 
         var hasBid = await db.Bids.AnyAsync(b => b.ProductId == productId, ct);
@@ -39,6 +39,10 @@ public class BidService(
         var minimum = hasBid ? product.CurrentPrice + increment : product.StartingPrice;
         if (amount < minimum)
             throw new ApiException(400, "bid_too_low", $"Giá tối thiểu hiện tại là {minimum} VND.");
+        // Giá phải nhảy đúng bội số của bước giá tính từ mức tối thiểu, ví dụ
+        // tối thiểu 101.000 + bước 1.000 thì chỉ nhận 101.000, 102.000, …
+        if ((amount - minimum) % increment != 0)
+            throw new ApiException(400, "bid_increment", $"Giá đặt phải tăng theo bước giá {increment:N0} VND.");
 
         // Tìm người đang giữ giá cao nhất TRƯỚC lượt này (không loại trừ ai) để gửi
         // thông báo bị vượt giá. Nếu chính người đang dẫn đầu tự nâng giá thì không
@@ -60,6 +64,7 @@ public class BidService(
             db.Notifications.Add(new Notification
             {
                 UserId = previousBidderId.Value,
+                ProductId = productId,
                 Title = "Giá đấu bị vượt!",
                 Message = $"Mức giá của bạn cho sản phẩm '{product.Name}' đã bị người khác vượt qua với giá {amount:N0} VNĐ.",
                 CreatedAt = now
@@ -70,6 +75,7 @@ public class BidService(
         db.Notifications.Add(new Notification
         {
             UserId = product.SellerId,
+            ProductId = productId,
             Title = "Lượt đặt giá mới",
             Message = $"Sản phẩm '{product.Name}' của bạn vừa có lượt đặt giá mới: {amount:N0} VNĐ.",
             CreatedAt = now

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-label="Đồng hồ">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6b4b28"/>
+      <stop offset="1" stop-color="#2f2114"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#g)"/>
+  <circle cx="120" cy="110" r="170" fill="#f0d49a" opacity=".10"/>
+  <circle cx="400" cy="310" r="165" fill="none" stroke="#f0d49a" stroke-width="12"/>
+  <circle cx="400" cy="310" r="138" fill="#f7ecd4" opacity=".92"/>
+  <g stroke="#4a3520" stroke-linecap="round">
+    <path d="M400 200v28M400 392v28M290 310h28M482 310h28" stroke-width="10" opacity=".75"/>
+    <path d="M400 310V225" stroke-width="9"/>
+    <path d="M400 310l62 44" stroke-width="7"/>
+  </g>
+  <circle cx="400" cy="310" r="11" fill="#4a3520"/>
+  <path d="M352 105h96M352 515h96" stroke="#f0d49a" stroke-width="18" stroke-linecap="round" opacity=".55"/>
+</svg>

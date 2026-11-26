@@ -11,4 +11,7 @@ publish_self/
 **/node_modules/
 **/dist/
 **/.npm-cache/
+artifacts/
+.freebuff/
+
 

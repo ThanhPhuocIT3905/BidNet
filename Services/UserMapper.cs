@@ -14,6 +14,11 @@ public static class UserMapper
         Email = user.Email,
         FullName = user.FullName,
         PhoneNumber = user.PhoneNumber,
+        AvatarUrl = user.AvatarUrl,
+        DateOfBirth = user.DateOfBirth,
+        Gender = user.Gender,
+        ContactAddress = user.ContactAddress,
+        UpdatedAt = user.UpdatedAt,
         Role = user.Role,
         IsActive = user.IsActive,
         CreatedAt = user.CreatedAt

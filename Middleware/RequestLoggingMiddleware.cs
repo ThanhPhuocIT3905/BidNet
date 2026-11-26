@@ -31,10 +31,9 @@ namespace BidNet.Middleware
                     : "anonymous";
 
                 _logger.LogInformation(
-                    "HTTP {Method} {Path}{Query} => {StatusCode} in {ElapsedMs}ms User={User} TraceId={TraceId}",
+                    "HTTP {Method} {Path} => {StatusCode} in {ElapsedMs}ms User={User} TraceId={TraceId}",
                     context.Request.Method,
                     context.Request.Path,
-                    context.Request.QueryString.HasValue ? context.Request.QueryString.Value : string.Empty,
                     statusCode,
                     stopwatch.ElapsedMilliseconds,
                     userName,

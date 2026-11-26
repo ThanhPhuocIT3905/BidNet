@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BidNet.Services;
 
-public class ProductService(AppDbContext db, CurrentUser currentUser) : IProductService
+public class ProductService(AppDbContext db, CurrentUser currentUser, IConfiguration config) : IProductService
 {
     // Danh sách công khai: lọc ở SQL rồi mới phân trang, tránh kéo cả bảng về RAM.
     public async Task<PagedResponseDto<ProductResponseDto>> ListAsync(ProductQueryDto filter, CancellationToken ct)
@@ -33,7 +33,19 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
             query = query.Where(p => p.CurrentPrice >= filter.MinPrice);
         if (filter.MaxPrice.HasValue)
             query = query.Where(p => p.CurrentPrice <= filter.MaxPrice);
-        return await PageAsync(query, page, size, ct);
+
+        // Sắp xếp ở SQL trước khi phân trang. Giá trị không nhận diện được quay về "mới nhất"
+        // để link cũ hoặc tham số sai không làm hỏng trang danh sách.
+        var ordered = (filter.Sort ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "ending_soon" => query.OrderBy(p => p.EndTime).ThenBy(p => p.Id),
+            "most_bids" => query.OrderByDescending(p => p.Bids.Count).ThenByDescending(p => p.CreatedAt),
+            "price_asc" => query.OrderBy(p => p.CurrentPrice).ThenBy(p => p.Id),
+            "price_desc" => query.OrderByDescending(p => p.CurrentPrice).ThenBy(p => p.Id),
+            "oldest" => query.OrderBy(p => p.CreatedAt).ThenBy(p => p.Id),
+            _ => query.OrderByDescending(p => p.CreatedAt).ThenByDescending(p => p.Id)
+        };
+        return await PageAsync(ordered, page, size, ct);
     }
 
     // Lấy danh sách sản phẩm do chính tài khoản trong token đăng bán.
@@ -41,7 +53,9 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
     {
         var user = await currentUser.RequireActiveAsync(ct);
         var args = PageArgs.Validate(page, pageSize);
-        return await PageAsync(db.Products.AsNoTracking().Where(p => p.SellerId == user.Id),
+        return await PageAsync(
+            db.Products.AsNoTracking().Where(p => p.SellerId == user.Id)
+                .OrderByDescending(p => p.CreatedAt).ThenByDescending(p => p.Id),
             args.Page, args.PageSize, ct);
     }
 
@@ -51,14 +65,21 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
         var product = await WithUsers(db.Products.AsNoTracking())
             .FirstOrDefaultAsync(p => p.Id == id, ct)
             ?? throw new ApiException(404, "product_not_found", "Không tìm thấy sản phẩm.");
-        return ProductMapper.ToResponse(product);
+        var response = ProductMapper.ToResponse(product);
+        var increment = config.GetValue<decimal>("Auction:MinBidIncrement");
+        if (increment < 1 || increment != decimal.Truncate(increment))
+            throw new InvalidOperationException("Auction:MinBidIncrement phải là số nguyên VND dương.");
+        response.MinBidIncrement = increment;
+        response.MinimumBid = await db.Bids.AnyAsync(b => b.ProductId == id, ct)
+            ? product.CurrentPrice + increment : product.StartingPrice;
+        return response;
     }
 
     public async Task<ProductResponseDto> CreateAsync(CreateProductDto request, CancellationToken ct)
     {
         // SellerId luôn lấy từ token; client không thể đăng bán hộ người khác.
         // Phiên mới ở Scheduled và CurrentPrice ban đầu bằng StartingPrice.
-        var user = await currentUser.RequireActiveAsync(ct);
+        var user = await currentUser.RequireMemberAsync(ct);
         Validate(request.Name, request.StartingPrice, request.StartTime, request.EndTime, request.ImageUrl);
         // Danh mục phải tồn tại; nếu chỉ gửi tên (dữ liệu cũ) thì cố gắng khớp
         // với bảng Categories để giữ nhất quán giữa CategoryId và tên danh mục.
@@ -87,16 +108,18 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
     {
         // Chỉ chủ sản phẩm được sửa trước giờ bắt đầu. Điều kiện "chưa có bid"
         // giữ nguyên cam kết với người đã đặt giá nếu dữ liệu trạng thái bị lệch.
-        var user = await currentUser.RequireActiveAsync(ct);
+        var user = await currentUser.RequireMemberAsync(ct);
         var product = await db.Products.Include(p => p.Seller)
             .FirstOrDefaultAsync(p => p.Id == id, ct)
             ?? throw new ApiException(404, "product_not_found", "Không tìm thấy sản phẩm.");
         if (product.SellerId != user.Id)
             throw new ApiException(403, "not_owner", "Bạn không phải người bán sản phẩm này.");
+        VersionGuard.Check(request.Version, product.RowVersion);
         if (product.Status != ProductStatus.Scheduled || product.StartTime <= DateTime.UtcNow ||
             await db.Bids.AnyAsync(b => b.ProductId == id, ct))
             throw new ApiException(409, "auction_started", "Không thể sửa phiên đã bắt đầu hoặc đã có giá.");
-        Validate(request.Name, request.StartingPrice, request.StartTime, request.EndTime, request.ImageUrl);
+        Validate(request.Name, request.StartingPrice, request.StartTime, request.EndTime,
+            request.ImageUrl == product.ImageUrl ? null : request.ImageUrl);
         var category = await ResolveCategoryAsync(request.CategoryId, request.Category, ct);
         product.Name = request.Name.Trim();
         product.Description = request.Description?.Trim();
@@ -130,7 +153,8 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
         if (!string.IsNullOrWhiteSpace(categoryName))
         {
             var name = categoryName.Trim();
-            return await db.Categories.FirstOrDefaultAsync(c => c.Name == name, ct);
+            return await db.Categories.FirstOrDefaultAsync(c => c.Name == name, ct)
+                ?? throw new ApiException(400, "category_not_found", "Danh mục không tồn tại.");
         }
         return null;
     }
@@ -139,12 +163,12 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
         query.Include(p => p.Seller).Include(p => p.Winner);
 
     private static async Task<PagedResponseDto<ProductResponseDto>> PageAsync(
-        IQueryable<Product> query, int page, int size, CancellationToken ct)
+        IOrderedQueryable<Product> query, int page, int size, CancellationToken ct)
     {
         // Đếm trước Skip/Take để TotalCount là tổng số bản ghi sau lọc.
-        // Id là tiêu chí phụ khi CreatedAt trùng nhau, giúp trang có thứ tự ổn định.
+        // Thứ tự do ListAsync/MineAsync quyết định, không sắp xếp lại ở đây.
         var count = await query.CountAsync(ct);
-        var products = await WithUsers(query).OrderByDescending(p => p.CreatedAt).ThenByDescending(p => p.Id)
+        var products = await WithUsers(query)
             .Skip((page - 1) * size).Take(size).ToListAsync(ct);
         return new PagedResponseDto<ProductResponseDto>
         {
@@ -161,7 +185,7 @@ public class ProductService(AppDbContext db, CurrentUser currentUser) : IProduct
         // UTC giúp so sánh thời điểm đúng khi các thành viên chạy khác múi giờ.
         if (string.IsNullOrWhiteSpace(name))
             throw new ApiException(400, "invalid_name", "Tên sản phẩm không được trống.");
-        if (price < 1000 || price != decimal.Truncate(price) || price > 9_999_999_999_999_999m)
+        if (price < 1000 || price != decimal.Truncate(price) || price > 100_000_000_000m)
             throw new ApiException(400, "invalid_price", "Giá khởi điểm phải là số nguyên VND từ 1.000.");
         if (start.Kind != DateTimeKind.Utc || end.Kind != DateTimeKind.Utc ||
             start <= DateTime.UtcNow || end <= start)

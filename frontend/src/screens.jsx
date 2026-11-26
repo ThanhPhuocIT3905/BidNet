@@ -1,31 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { api, json, money, date, getSession, parseApiDate } from "./api";
+import useRemote from "./useRemote";
+import { OrderHistory } from "./Workflows.jsx";
+import ProfilePage from "./ProfilePage.jsx";
+import { LoadingState, ErrorState } from "./UI.jsx";
 
-function useRemote(load, deps = []) {
-  const [data, setData] = useState(null),
-    [error, setError] = useState(""),
-    [loading, setLoading] = useState(true);
-  const reload = async () => {
-    setLoading(true);
-    try {
-      setData(await load());
-      setError("");
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  useEffect(() => {
-    reload();
-  }, deps);
-  return { data, error, loading, reload };
-}
-function Feedback({ loading, error }) {
+function Feedback({ loading, error, reload }) {
   return (
     <>
-      {error && <div className="notice error">{error}</div>}
-      {loading && <div className="loading">Đang tải dữ liệu…</div>}
+      {error && <ErrorState message={error} onRetry={reload} />}
+      {loading && <LoadingState />}
     </>
   );
 }
@@ -157,6 +141,7 @@ export function ProductForm({ id, go, notify, user }) {
           "Thời gian bắt đầu phải ở tương lai và thời gian kết thúc phải sau thời gian bắt đầu.",
         );
       const body = {
+        version: id ? product.data.version : undefined,
         name: v.name,
         description: v.description || null,
         startingPrice: Number(v.startingPrice),
@@ -266,7 +251,7 @@ export function ProductForm({ id, go, notify, user }) {
         <Field
           label="URL ảnh chính (tùy chọn)"
           name="imageUrl"
-          type="url"
+          type="text"
           value={x.imageUrl}
         />
         {error && <div className="notice error">{error}</div>}
@@ -334,14 +319,20 @@ export function Orders({ go }) {
 export function OrderDetail({ id, user, notify }) {
   const r = useRemote(() => api(`/api/Orders/${id}`), [id]);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   const mutate = async (method, path, body) => {
+    if (busy) return;
+    setBusy(true);
     setError("");
     try {
-      await json(method, path, body);
+      await json(method, path, { ...body, version: r.data.version });
       notify("Đã cập nhật đơn hàng.");
-      r.reload();
+      await r.reload();
     } catch (e) {
       setError(e.message);
+      await r.reload();
+    } finally {
+      setBusy(false);
     }
   };
   const o = r.data;
@@ -364,12 +355,18 @@ export function OrderDetail({ id, user, notify }) {
             Ngày tạo: {date(o.createdAt)}
           </p>
           <p>Địa chỉ: {o.shippingAddress || "Chưa cập nhật"}</p>
-          {user.id === o.buyerId && (
+          <p>Người nhận: {o.recipientName || "Chưa cập nhật"} · {o.recipientPhone || "Chưa có số điện thoại"}</p>
+          <p>Nhận tiền: {date(o.paidAt)} · Hoàn tất: {date(o.completedAt)}</p>
+          {o.cancellationReason && <p>Lý do hủy: {o.cancellationReason}</p>}
+          {user.role !== "Admin" && <a href={`#/contact?orderId=${id}`}>Yêu cầu hỗ trợ đơn hàng</a>}
+          {user.id === o.buyerId && ["Pending", "Paid"].includes(o.status) && (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 mutate("PATCH", `/api/Orders/${id}/shipping-address`, {
                   shippingAddress: values(e).shippingAddress,
+                  recipientName: values(e).recipientName,
+                  recipientPhone: values(e).recipientPhone,
                 });
               }}
             >
@@ -380,7 +377,9 @@ export function OrderDetail({ id, user, notify }) {
                 maxLength={500}
                 required
               />
-              <button className="btn dark">Lưu địa chỉ</button>
+               <Field label="Tên người nhận" name="recipientName" value={o.recipientName} maxLength={200} required />
+               <Field label="Điện thoại người nhận" name="recipientPhone" value={o.recipientPhone} maxLength={20} required />
+               <button className="btn dark" disabled={busy}>Lưu địa chỉ</button>
             </form>
           )}
           {(user.id === o.sellerId || user.role === "Admin") &&
@@ -390,6 +389,7 @@ export function OrderDetail({ id, user, notify }) {
                   e.preventDefault();
                   mutate("PATCH", `/api/Orders/${id}/status`, {
                     status: values(e).status,
+                    note: values(e).note,
                   });
                 }}
               >
@@ -398,13 +398,13 @@ export function OrderDetail({ id, user, notify }) {
                   <select id="orderStatus" name="status">
                     {(o.status === "Pending"
                       ? ["Paid", "Cancelled"]
-                      : ["Delivered", "Cancelled"]
+                      : ["Delivered"]
                     ).map((s) => (
                       <option key={s} value={s}>
                         {
                           {
-                            Paid: "Đã thanh toán",
-                            Delivered: "Đã giao",
+                            Paid: "Xác nhận đã nhận tiền",
+                            Delivered: "Xác nhận đã giao hàng",
                             Cancelled: "Đã hủy",
                           }[s]
                         }
@@ -412,23 +412,31 @@ export function OrderDetail({ id, user, notify }) {
                     ))}
                   </select>
                 </div>
-                <button className="btn secondary">Cập nhật trạng thái</button>
+                <p className="muted small">Chỉ xác nhận sau khi đã kiểm tra giao dịch hoặc giao nhận thực tế.</p>
+                <Field label="Ghi chú (bắt buộc khi hủy)" name="note" maxLength={500} />
+                <button className="btn secondary" disabled={busy}>Cập nhật trạng thái</button>
               </form>
             )}
           {error && <div className="notice error">{error}</div>}
+          <OrderHistory id={id} version={o.version} />
         </div>
       )}
     </>
   );
 }
 export function Notifications({ notify }) {
+  const [busy, setBusy] = useState(false);
   const r = useRemote(() => api("/api/Notifications/me"), []);
   const update = async (path) => {
+    if (busy) return;
+    setBusy(true);
     try {
       await api(path, { method: "PATCH" });
-      r.reload();
+      await r.reload();
     } catch (e) {
       notify(e.message);
+    } finally {
+      setBusy(false);
     }
   };
   return (
@@ -437,7 +445,7 @@ export function Notifications({ notify }) {
         <h1>Thông báo</h1>
         <button
           className="btn secondary"
-          disabled={!r.data?.some((n) => !n.isRead)}
+          disabled={busy || !r.data?.some((n) => !n.isRead)}
           onClick={() => update("/api/Notifications/read-all")}
         >
           Đọc tất cả
@@ -455,10 +463,12 @@ export function Notifications({ notify }) {
               <span className="small muted">{date(n.createdAt)}</span>
             </div>
             <p>{n.message}</p>
+            {(n.ticketId || n.orderId || n.productId) && <a className="btn secondary" href={n.ticketId ? `#/support/${n.ticketId}` : n.orderId ? `#/order/${n.orderId}` : `#/product/${n.productId}`}>Xem chi tiết</a>}
             {!n.isRead && (
               <button
                 className="btn secondary"
                 onClick={() => update(`/api/Notifications/${n.id}/read`)}
+                disabled={busy}
               >
                 Đánh dấu đã đọc
               </button>
@@ -472,64 +482,7 @@ export function Notifications({ notify }) {
     </>
   );
 }
-export function Profile({ go, onProfile, notify }) {
-  const r = useRemote(() => api("/api/users/me"), []);
-  const [error, setError] = useState("");
-  const submit = async (e) => {
-    e.preventDefault();
-    try {
-      const v = values(e);
-      const x = await json("PUT", "/api/users/me", {
-        fullName: v.fullName || null,
-        phoneNumber: v.phoneNumber || null,
-      });
-      onProfile(x);
-      r.reload();
-      notify("Đã lưu hồ sơ.");
-    } catch (x) {
-      setError(x.message);
-    }
-  };
-  return (
-    <>
-      <div className="section-head">
-        <h1>Hồ sơ cá nhân</h1>
-        <button className="btn secondary" onClick={() => go("/my-bids")}>
-          Lịch sử đặt giá
-        </button>
-      </div>
-      <Feedback {...r} />
-      {r.data && (
-        <div className="panel form-wrap">
-          <p>
-            Tên đăng nhập: <strong>{r.data.username}</strong>
-            <br />
-            Email: {r.data.email}
-            <br />
-            Vai trò: {r.data.role}
-          </p>
-          <form onSubmit={submit}>
-            <Field
-              label="Họ và tên"
-              name="fullName"
-              maxLength={200}
-              value={r.data.fullName}
-            />
-            <Field
-              label="Số điện thoại"
-              name="phoneNumber"
-              type="tel"
-              maxLength={20}
-              value={r.data.phoneNumber}
-            />
-            {error && <div className="notice error">{error}</div>}
-            <button className="btn dark">Lưu hồ sơ</button>
-          </form>
-        </div>
-      )}
-    </>
-  );
-}
+export function Profile(props) { return <ProfilePage {...props} />; }
 export function MyBids({ go }) {
   const [page, setPage] = useState(1),
     r = useRemote(

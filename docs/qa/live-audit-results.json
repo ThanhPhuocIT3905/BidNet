@@ -1,0 +1,248 @@
+[
+  {
+    "name": "seller creates scheduled auction",
+    "status": 201,
+    "passed": true
+  },
+  {
+    "name": "support requires login",
+    "status": 401,
+    "passed": true
+  },
+  {
+    "name": "support request persisted",
+    "status": 200,
+    "passed": true
+  },
+  {
+    "name": "ticket privacy",
+    "status": 404,
+    "passed": true
+  },
+  {
+    "name": "owner reads conversation",
+    "status": 200,
+    "passed": true
+  },
+  {
+    "name": "cannot resolve without response",
+    "status": 409,
+    "passed": true
+  },
+  {
+    "name": "admin replies",
+    "status": 204,
+    "passed": true
+  },
+  {
+    "name": "stale reply rejected",
+    "status": 409,
+    "passed": true
+  },
+  {
+    "name": "admin resolves",
+    "status": 204,
+    "passed": true
+  },
+  {
+    "name": "owner reopens with reply",
+    "status": 204,
+    "passed": true
+  },
+  {
+    "name": "member cannot read audit",
+    "status": 403,
+    "passed": true
+  },
+  {
+    "name": "admin reads audit",
+    "status": 200,
+    "passed": true
+  },
+  {
+    "name": "invalid support page",
+    "status": 400,
+    "passed": true
+  },
+  {
+    "name": "support empty message rejected",
+    "status": 400,
+    "passed": true
+  },
+  {
+    "name": "admin cannot create",
+    "status": 403,
+    "passed": true
+  },
+  {
+    "name": "admin cannot bid",
+    "status": 403,
+    "passed": true
+  },
+  {
+    "name": "anonymous cannot bid",
+    "status": 401,
+    "passed": true
+  },
+  {
+    "name": "seller cannot self bid",
+    "status": 403,
+    "passed": true
+  },
+  {
+    "name": "future auction rejects bid",
+    "status": 409,
+    "passed": true
+  },
+  {
+    "name": "other cannot edit",
+    "status": 403,
+    "passed": true
+  },
+  {
+    "name": "member cannot cancel",
+    "status": 403,
+    "passed": true
+  },
+  {
+    "name": "admin cannot disable self",
+    "status": 400,
+    "passed": true
+  },
+  {
+    "name": "in-use category cannot be deleted",
+    "status": 409,
+    "passed": true
+  },
+  {
+    "name": "invalid price range",
+    "status": 400,
+    "passed": true
+  },
+  {
+    "name": "invalid status",
+    "status": 400,
+    "passed": true
+  },
+  {
+    "name": "active auction cannot edit",
+    "status": 409,
+    "passed": true
+  },
+  {
+    "name": "active auction cannot replace photo",
+    "status": 409,
+    "passed": true
+  },
+  {
+    "name": "fractional bid rejected",
+    "status": 400,
+    "passed": true
+  },
+  {
+    "name": "two simultaneous equal bids: exactly one persisted",
+    "passed": true
+  },
+  {
+    "name": "repeated same bid rejected",
+    "status": 400,
+    "passed": true
+  },
+  {
+    "name": "expired auction rejects bid before worker",
+    "status": 409,
+    "passed": true
+  },
+  {
+    "name": "admin cannot cancel after deadline",
+    "status": 409,
+    "passed": true
+  },
+  {
+    "name": "admin order list",
+    "status": 200,
+    "passed": true
+  },
+  {
+    "name": "member cannot list all orders",
+    "status": 403,
+    "passed": true
+  },
+  {
+    "name": "unrelated history forbidden",
+    "status": 403,
+    "passed": true
+  },
+  {
+    "name": "worker closes auction and creates exactly one matching order",
+    "passed": true
+  },
+  {
+    "name": "unrelated user cannot read order",
+    "status": 403,
+    "passed": true
+  },
+  {
+    "name": "buyer cannot mark paid",
+    "status": 403,
+    "passed": true
+  },
+  {
+    "name": "seller cannot change buyer address",
+    "status": 403,
+    "passed": true
+  },
+  {
+    "name": "blank address rejected",
+    "status": 400,
+    "passed": true
+  },
+  {
+    "name": "buyer saves address",
+    "status": 200,
+    "passed": true
+  },
+  {
+    "name": "cannot skip paid step",
+    "status": 400,
+    "passed": true
+  },
+  {
+    "name": "concurrent order transitions: one writer wins",
+    "passed": true
+  },
+  {
+    "name": "seller confirms receipt of payment",
+    "status": 200,
+    "passed": true
+  },
+  {
+    "name": "paid order cannot be cancelled without refund flow",
+    "status": 400,
+    "passed": true
+  },
+  {
+    "name": "seller confirms delivery",
+    "status": 200,
+    "passed": true
+  },
+  {
+    "name": "retry delivery is idempotent",
+    "status": 200,
+    "passed": true
+  },
+  {
+    "name": "delivered address immutable",
+    "status": 409,
+    "passed": true
+  },
+  {
+    "name": "seller creates scheduled auction",
+    "status": 201,
+    "passed": true
+  },
+  {
+    "name": "auction with no bids closes without order or winner",
+    "passed": true
+  }
+]

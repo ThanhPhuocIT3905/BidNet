@@ -77,20 +77,26 @@ public class AuctionClosingService(
                 var orderExists = await db.Orders.AnyAsync(o => o.ProductId == id, ct);
                 if (!orderExists)
                 {
-                    db.Orders.Add(new Order
+                    var order = new Order
                     {
                         ProductId = id,
                         BuyerId = winningBid.UserId,
                         SellerId = product.SellerId,
                         FinalPrice = winningBid.Amount,
+                        ProductNameSnapshot = product.Name,
                         Status = OrderStatus.Pending,
                         CreatedAt = now
-                    });
+                    };
+                    order.Events.Add(new OrderEvent { Action = "Created", ToStatus = OrderStatus.Pending,
+                        Note = "Tạo đơn từ kết quả đấu giá.", CreatedAt = now });
+                    db.Orders.Add(order);
 
                     // Thông báo người thắng cuộc
                     db.Notifications.Add(new Notification
                     {
                         UserId = winningBid.UserId,
+                        Order = order,
+                        ProductId = id,
                         Title = "Chúc mừng bạn đã thắng đấu giá!",
                         Message = $"Bạn đã chiến thắng phiên đấu giá sản phẩm '{product.Name}' với mức giá {winningBid.Amount:N0} VNĐ. Vui lòng cập nhật địa chỉ nhận hàng.",
                         CreatedAt = now
@@ -100,6 +106,8 @@ public class AuctionClosingService(
                     db.Notifications.Add(new Notification
                     {
                         UserId = product.SellerId,
+                        Order = order,
+                        ProductId = id,
                         Title = "Phiên đấu giá thành công",
                         Message = $"Sản phẩm '{product.Name}' của bạn đã kết thúc thành công với giá {winningBid.Amount:N0} VNĐ. Đơn hàng mới đã được khởi tạo.",
                         CreatedAt = now

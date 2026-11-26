@@ -31,7 +31,8 @@ namespace BidNet.Repositories
 
         public async Task UpdateAsync(User user)
         {
-            _ctx.Users.Update(user);
+            // UserService loads a tracked user; only changed profile fields are saved.
+            // Marking the entire row Modified could overwrite a concurrent admin lock.
             await _ctx.SaveChangesAsync();
         }
 
@@ -65,10 +66,8 @@ namespace BidNet.Repositories
                 query = query.Where(u => u.Role == queryParams.Role);
             }
 
-            //if (queryParams.IsActive.HasValue)
-            //{
-            //    query = query.Where(u => u.IsActive == queryParams.IsActive.Value);
-            //}
+            if (queryParams.IsActive.HasValue)
+                query = query.Where(u => u.IsActive == queryParams.IsActive.Value);
 
             // 3. SORTING
             query = queryParams.SortBy?.ToLower() switch

@@ -44,14 +44,14 @@ export async function api(path, options = {}) {
     : await response.text();
   if (!response.ok) {
     if (
-      response.status === 401 &&
+      (response.status === 401 || (response.status === 403 && data?.code === "account_inactive")) &&
       token &&
       !path.startsWith("/api/Errors/") &&
       !path.startsWith("/api/auth/") &&
       getSession()?.accessToken === token
     ) {
       setSession(null);
-      window.dispatchEvent(new Event("bidnet:expired"));
+      window.dispatchEvent(new CustomEvent("bidnet:expired", { detail: data?.code === "account_inactive" ? "Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên." : null }));
     }
     const validation = data?.errors
       ? Object.values(data.errors).flat().join(" ")
@@ -64,6 +64,7 @@ export async function api(path, options = {}) {
         `Yêu cầu thất bại (${response.status})`,
     );
     failure.status = response.status;
+    failure.code = data?.code;
     throw failure;
   }
   return data;

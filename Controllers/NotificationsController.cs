@@ -29,6 +29,9 @@ public class NotificationsController(AppDbContext db, CurrentUser currentUser) :
                 Title = n.Title,
                 Message = n.Message,
                 IsRead = n.IsRead,
+                ProductId = n.ProductId,
+                OrderId = n.OrderId,
+                TicketId = n.TicketId,
                 CreatedAt = n.CreatedAt
             })
             .ToListAsync(ct);

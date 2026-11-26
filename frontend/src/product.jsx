@@ -1,29 +1,37 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { LotPhoto, priceLabel } from "./Lot.jsx";
 import { CancelAuction } from "./AdminWorkspace";
+import useRemote from "./useRemote";
+import { Modal, useConfirm } from "./UI.jsx";
+import Avatar from "./Avatar.jsx";
 import * as signalR from "@microsoft/signalr";
-import { API_BASE, api, json, getSession, money, date } from "./api";
+import { API_BASE, api, json, getSession, money, date, parseApiDate } from "./api";
+import {
+  AuctionCard,
+  Countdown,
+  FavoriteButton,
+  useApi,
+  useFavorites,
+  useTick,
+} from "./widgets.jsx";
 
-function useRemote(fn, deps = []) {
-  const [data, setData] = useState(null),
-    [error, setError] = useState(""),
-    [loading, setLoading] = useState(true);
-  const reload = async () => {
-    setLoading(true);
-    try {
-      setData(await fn());
-      setError("");
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  useEffect(() => {
-    reload();
-  }, deps);
-  return { data, error, loading, reload };
-}
+// Thông báo lỗi đặt giá theo mã lỗi API, khớp đặc tả nghiệp vụ.
+const BID_ERROR_MESSAGES = {
+  bid_too_low: "Giá đặt không hợp lệ. Vui lòng đặt giá cao hơn.",
+  bid_increment: "Giá đặt phải tăng theo bước giá quy định.",
+  bid_conflict: "Giá đã thay đổi. Vui lòng kiểm tra và đặt lại.",
+  auction_not_active: "Phiên đấu giá đã kết thúc. Bạn không thể đặt giá.",
+  seller_cannot_bid: "Bạn không thể đặt giá cho sản phẩm của chính mình.",
+};
+const bidErrorMessage = (failure) => {
+  if (failure?.status === 401) return "Vui lòng đăng nhập để tham gia đấu giá.";
+  if (BID_ERROR_MESSAGES[failure?.code]) return BID_ERROR_MESSAGES[failure.code];
+  // Không có status: fetch thất bại (mất mạng, backend không chạy) hoặc lỗi 5xx.
+  if (!failure?.status || failure.status >= 500)
+    return "Không thể gửi giá. Vui lòng thử lại.";
+  return failure.message || "Không thể gửi giá. Vui lòng thử lại.";
+};
+
 const Badge = ({ value }) => (
   <span className={`badge ${value}`}>
     {{
@@ -35,6 +43,12 @@ const Badge = ({ value }) => (
   </span>
 );
 export function Product({ id, user, admin, go, notify }) {
+  const confirm = useConfirm();
+  useTick();
+  const bidLock = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [selectedImage, selectImage] = useState(null);
+  const [mediaBusy, setMediaBusy] = useState(false);
   const [historyPage, setHistoryPage] = useState(1);
   const product = useRemote(() => api(`/api/products/${id}`), [id]),
     bids = useRemote(
@@ -43,7 +57,22 @@ export function Product({ id, user, admin, go, notify }) {
     ),
     images = useRemote(() => api(`/api/products/${id}/images`), [id]);
   const [error, setError] = useState(""),
+    [placedBid, setPlacedBid] = useState(null),
+    [bidFailure, setBidFailure] = useState(""),
     [connected, setConnected] = useState(false);
+  const { ids: favoriteIds, toggle: toggleFavorite } = useFavorites();
+  const share = async () => {
+    const url = location.href;
+    try {
+      if (navigator.share) await navigator.share({ title: item?.name || "BidNet", url });
+      else {
+        await navigator.clipboard.writeText(url);
+        notify("Đã sao chép liên kết phiên.");
+      }
+    } catch {
+      notify("Không thể chia sẻ tự động. Hãy sao chép địa chỉ trên trình duyệt.");
+    }
+  };
   useEffect(() => {
     if (!user) return;
     let live = true;
@@ -58,7 +87,11 @@ export function Product({ id, user, admin, go, notify }) {
     c.onreconnected(async () => {
       try {
         await c.invoke("JoinProduct", id);
-        if (live) setConnected(true);
+        if (live) {
+          setConnected(true);
+          product.reload();
+          bids.reload();
+        }
       } catch {
         if (live) setConnected(false);
       }
@@ -85,24 +118,38 @@ export function Product({ id, user, admin, go, notify }) {
     return () => clearInterval(timer);
   }, [id, historyPage]);
   const item = product.data;
+  const minBid = item?.minimumBid;
+  const increment = item?.minBidIncrement;
+  const canBid = item?.status === "Active" &&
+    Date.now() >= parseApiDate(item.startTime).getTime() &&
+    Date.now() < parseApiDate(item.endTime).getTime();
   const bid = async (e) => {
     e.preventDefault();
+    if (bidLock.current || !canBid || admin || minBid == null) return;
+    bidLock.current = true;
+    setSubmitting(true);
     const form = e.currentTarget;
     try {
       const amount = Number(new FormData(form).get("amount"));
-      await json("POST", `/api/products/${id}/bids`, { amount });
+      const result = await json("POST", `/api/products/${id}/bids`, { amount });
       form.reset();
-      notify("Đặt giá thành công.");
+      setPlacedBid({ amount: result?.amount ?? amount });
       product.reload();
       bids.reload();
       setError("");
     } catch (x) {
-      setError(x.message);
+      setBidFailure(bidErrorMessage(x));
       product.reload();
+      bids.reload();
+    } finally {
+      bidLock.current = false;
+      setSubmitting(false);
     }
   };
   const upload = async (e) => {
     e.preventDefault();
+    if (mediaBusy) return;
+    setMediaBusy(true);
     const form = e.currentTarget;
     try {
       await api(`/api/products/${id}/images`, {
@@ -115,60 +162,128 @@ export function Product({ id, user, admin, go, notify }) {
       notify("Đã tải ảnh lên.");
     } catch (x) {
       setError(x.message);
+    } finally {
+      setMediaBusy(false);
     }
   };
   const remove = async (imageId) => {
-    if (!confirm("Xóa ảnh này?")) return;
+    if (mediaBusy || !await confirm({ title: "Xóa ảnh sản phẩm", message: "Ảnh sẽ được gỡ khỏi phiên đấu giá.", action: "Xóa ảnh", danger: true })) return;
+    setMediaBusy(true);
     try {
       await api(`/api/product-images/${imageId}`, { method: "DELETE" });
       images.reload();
+      product.reload();
+      selectImage(null);
       notify("Đã xóa ảnh.");
     } catch (x) {
       setError(x.message);
+    } finally {
+      setMediaBusy(false);
     }
   };
   return (
     <>
+      {bidFailure && (
+        <Modal title="Đặt giá không thành công" onClose={() => setBidFailure("")}>
+          <div className="bid-success bid-alert">
+            <span className="bid-success-mark" aria-hidden="true">!</span>
+            <p className="bid-success-amount">{bidFailure}</p>
+          </div>
+          <div className="dialog-actions">
+            <button className="btn dark" autoFocus onClick={() => setBidFailure("")}>
+              Đóng
+            </button>
+          </div>
+        </Modal>
+      )}
+      {placedBid && (
+        <Modal title="Đặt giá thành công" onClose={() => setPlacedBid(null)}>
+          <div className="bid-success">
+            <span className="bid-success-mark" aria-hidden="true">✓</span>
+            <p className="bid-success-amount">
+              Giá <b>{money(placedBid.amount)}</b> đã được ghi nhận.
+            </p>
+            <p className="muted small">
+              Bạn đang dẫn đầu phiên đấu giá này. Nếu có người trả giá cao hơn,
+              hệ thống sẽ gửi thông báo cho bạn.
+            </p>
+            <dl className="bid-success-meta">
+              <div>
+                <dt>Giá hiện tại</dt>
+                <dd>{money(item?.currentPrice ?? placedBid.amount)}</dd>
+              </div>
+              <div>
+                <dt>Giá đặt tối thiểu tiếp theo</dt>
+                <dd>{minBid == null ? "—" : money(minBid)}</dd>
+              </div>
+            </dl>
+          </div>
+          <div className="dialog-actions">
+            <button className="btn dark" autoFocus onClick={() => setPlacedBid(null)}>
+              Đã hiểu
+            </button>
+          </div>
+        </Modal>
+      )}
       {product.error && <div className="notice error">{product.error}</div>}
       {product.loading && !item && (
         <div className="loading">Đang tải phiên…</div>
       )}
       {item && (
         <>
-          <div className="section-head">
+          <nav className="breadcrumb" aria-label="Đường dẫn">
+            <a href="#/">Trang chủ</a>
+            <span>/</span>
+            <a href="#/auctions">Đấu giá</a>
+            {item.category && (
+              <>
+                <span>/</span>
+                <a href={`#/auctions?category=${encodeURIComponent(item.category)}`}>
+                  {item.category}
+                </a>
+              </>
+            )}
+            <span>/</span>
+            <b>#{id}</b>
+          </nav>
+          <div className="section-head detail-head">
             <div>
-              <a className="detail-back" href="#/">
-                ← Khám phá
-              </a>
-              <div className="eyebrow">Phiên #{id}</div>
+              <div className="eyebrow">
+                {item.category || "Chưa phân loại"} · Phiên #{id}
+              </div>
               <h1>{item.name}</h1>
             </div>
-            <Badge value={item.status} />
+            <div className="detail-actions">
+              <FavoriteButton id={id} />
+              <button className="btn ghost" type="button" onClick={share}>
+                ↗ Chia sẻ
+              </button>
+              <Badge value={item.status} />
+            </div>
           </div>
-          <div className="split">
+          <div className="split product-layout">
             <div>
               <div className="detail-image">
                 <LotPhoto
                   item={{
                     ...item,
-                    imageUrl: item.imageUrl || images.data?.[0]?.url,
+                    imageUrl: selectedImage || item.imageUrl || images.data?.[0]?.url,
                   }}
                   priority
                 />
               </div>
+              {item.imageUrl?.startsWith("/images/products/") && <p className="small muted" style={{ marginTop: 8 }}>Ảnh tham khảo model từ nhà sản xuất hoặc nhà bán lẻ.</p>}
               <div className="thumbnails">
+                {item.imageUrl && <button type="button" className="gallery-thumb" aria-label="Xem ảnh chính" onClick={() => selectImage(item.imageUrl)}><img src={item.imageUrl} alt="Ảnh chính" /></button>}
                 {images.data?.map((image) => (
                   <div key={image.id}>
-                    <a
-                      href={`${API_BASE}/api/product-images/${image.id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
+                    <button type="button" className="gallery-thumb" onClick={() => selectImage(image.url)} aria-label={`Xem ${image.fileName}`}>
                       <img src={image.url} alt={image.fileName} />
-                    </a>
-                    {user?.id === item.sellerId && (
+                    </button>
+                    {!admin && user?.id === item.sellerId && item.status === "Scheduled" && Date.now() < parseApiDate(item.startTime).getTime() && (
                       <button
                         className="btn secondary"
+                        disabled={mediaBusy}
                         onClick={() => remove(image.id)}
                       >
                         Xóa
@@ -178,14 +293,79 @@ export function Product({ id, user, admin, go, notify }) {
                 ))}
               </div>
               <div className="panel">
-                <h2>Mô tả</h2>
-                <p>{item.description || "Chưa có mô tả."}</p>
-                <p className="muted">
-                  Danh mục: {item.category || "Chưa phân loại"} · Người bán:{" "}
-                  {item.sellerName}
+                <h2>Thông tin phiên đấu giá</h2>
+                <table className="spec-table">
+                  <tbody>
+                    <tr>
+                      <th>Mã phiên</th>
+                      <td>#{item.id}</td>
+                    </tr>
+                    <tr>
+                      <th>Danh mục</th>
+                      <td>{item.category || "Chưa phân loại"}</td>
+                    </tr>
+                    <tr>
+                      <th>Người bán</th>
+                      <td>{item.sellerName}</td>
+                    </tr>
+                    <tr>
+                      <th>Giá khởi điểm</th>
+                      <td>{money(item.startingPrice)}</td>
+                    </tr>
+                    <tr>
+                      <th>Bước giá tối thiểu</th>
+                      <td>{increment == null ? "Đang tải…" : money(increment)}</td>
+                    </tr>
+                    <tr>
+                      <th>Bắt đầu</th>
+                      <td>{date(item.startTime)}</td>
+                    </tr>
+                    <tr>
+                      <th>Kết thúc</th>
+                      <td>{date(item.endTime)}</td>
+                    </tr>
+                    <tr>
+                      <th>Trạng thái</th>
+                      <td>
+                        <Badge value={item.status} />
+                      </td>
+                    </tr>
+                    {item.status === "Completed" && (
+                      <tr>
+                        <th>Người thắng</th>
+                        <td>{item.winnerName || "Không có lượt giá hợp lệ"}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+                <h2>Mô tả sản phẩm</h2>
+                <p className="detail-description">
+                  {item.description || "Người bán chưa cung cấp mô tả cho sản phẩm này."}
+                </p>
+                <p className="muted small">
+                  Thông tin do người bán cung cấp. BidNet không xác minh tình trạng thực tế
+                  của sản phẩm; người mua nên kiểm tra trước khi thanh toán.
                 </p>
               </div>
-              {user?.id === item.sellerId && (
+              <div className="seller-card">
+                <Avatar user={{ username: item.sellerName, avatarUrl: item.sellerAvatarUrl }} />
+                <div>
+                  <small>Người bán</small>
+                  <strong>{item.sellerName}</strong>
+                  <span>Thành viên từ {item.sellerJoinedAt ? parseApiDate(item.sellerJoinedAt).toLocaleDateString("vi-VN") : "—"}</span>
+                </div>
+                <a
+                  className="btn secondary"
+                  href={
+                    item.category
+                      ? `#/auctions?category=${encodeURIComponent(item.category)}`
+                      : "#/auctions"
+                  }
+                >
+                  Phiên cùng danh mục
+                </a>
+              </div>
+              {!admin && user?.id === item.sellerId && item.status === "Scheduled" && Date.now() < parseApiDate(item.startTime).getTime() && (
                 <div className="panel">
                   <h2>Quản lý sản phẩm</h2>
                   {item.status === "Scheduled" && (
@@ -209,17 +389,38 @@ export function Product({ id, user, admin, go, notify }) {
                         required
                       />
                     </div>
-                    <button className="btn dark">Tải ảnh</button>
+                    <button className="btn dark" disabled={mediaBusy}>{mediaBusy ? "Đang tải…" : "Tải ảnh"}</button>
                   </form>
                 </div>
               )}
             </div>
             <aside>
-              <div className="panel">
+              <div className="panel bid-panel">
                 <div className="eyebrow">{priceLabel(item)}</div>
                 <div className="price">{money(item.currentPrice)}</div>
-                <p>Giá khởi điểm: {money(item.startingPrice)}</p>
-                <p className="muted">
+                <div className="bid-meta">
+                  <span>
+                    <small>Giá khởi điểm</small>
+                    <b>{money(item.startingPrice)}</b>
+                  </span>
+                  <span>
+                    <small>Bước giá</small>
+                    <b>{increment == null ? "—" : money(increment)}</b>
+                  </span>
+                  <span>
+                    <small>Lượt đặt</small>
+                    <b>{bids.data?.totalCount ?? "—"}</b>
+                  </span>
+                </div>
+                <div className="bid-clock">
+                  <small>
+                    {item.status === "Scheduled"
+                      ? "Phiên sẽ mở sau"
+                      : "Thời gian còn lại"}
+                  </small>
+                  <Countdown item={item} />
+                </div>
+                <p className="muted small">
                   Bắt đầu: {date(item.startTime)}
                   <br />
                   Kết thúc: {date(item.endTime)}
@@ -232,31 +433,61 @@ export function Product({ id, user, admin, go, notify }) {
                     Lý do hủy: {item.cancellationReason}
                   </div>
                 )}
-                {item.status === "Active" &&
+                {item.status === "Active" && !canBid && <p role="status">Phiên hiện không nhận giá. Đang chờ cập nhật trạng thái.</p>}
+                {admin && <p className="role-notice">Bạn đang xem với quyền quản trị. Tài khoản Admin không được đặt giá hoặc đăng bán.</p>}
+                {canBid && !admin &&
                   user?.id !== item.sellerId &&
                   (user ? (
-                    <form onSubmit={bid}>
+                    <form onSubmit={bid} className="bid-form">
                       <div className="field">
-                        <label htmlFor="amount">Giá đặt (VND)</label>
+                        <label htmlFor="amount">
+                          Giá đặt (VND)
+                          <small className="bid-hint">
+                            {minBid == null ? "Đang tải giá tối thiểu…" : `Tối thiểu ${money(minBid)}`}
+                          </small>
+                        </label>
                         <input
                           id="amount"
                           name="amount"
                           type="number"
-                          min="1"
+                          min={minBid}
+                          max={100000000000}
                           step="1"
-                          required
+                          placeholder={String(minBid)}
+                           required
+                           disabled={submitting || minBid == null}
                         />
                       </div>
-                      <button className="btn dark">Đặt giá</button>
+                      <div className="bid-quick">
+                        {[0, 1, 2].map((step) => (
+                          <button
+                            type="button"
+                             key={step}
+                             disabled={submitting || minBid == null || increment == null}
+                            onClick={() => {
+                              const input = document.getElementById("amount");
+                               if (input) input.value = String(minBid + step * increment);
+                            }}
+                          >
+                             {minBid == null ? "—" : money(minBid + step * increment)}
+                          </button>
+                        ))}
+                      </div>
+                      <button className="btn dark" disabled={submitting || minBid == null}>{submitting ? "Đang gửi…" : "Đặt giá"}</button>
                     </form>
                   ) : (
-                    <button className="btn" onClick={() => go("/login")}>
+                    <button className="btn" onClick={() => go(`/login?returnTo=${encodeURIComponent(`/product/${id}`)}`)}>
                       Đăng nhập để đặt giá
                     </button>
                   ))}
                 {connected && (
                   <p className="muted small">
                     Đang nhận cập nhật thời gian thực
+                  </p>
+                )}
+                {item.status === "Active" && user?.id === item.sellerId && (
+                  <p className="muted small">
+                    Bạn là người bán phiên này nên không thể tự đặt giá.
                   </p>
                 )}
                 {error && <div className="notice error">{error}</div>}
@@ -279,7 +510,7 @@ export function Product({ id, user, admin, go, notify }) {
                     </div>
                   ))
                 ) : (
-                  <p className="muted">Chưa có lượt giá.</p>
+                  <p className="muted">{bids.loading ? "Đang tải lịch sử…" : bids.error ? "Không tải được lịch sử đặt giá." : "Chưa có lượt giá."}</p>
                 )}
                 {bids.data?.totalCount > 20 && (
                   <div className="pagination">
@@ -301,8 +532,56 @@ export function Product({ id, user, admin, go, notify }) {
               </div>
             </aside>
           </div>
+          <SimilarAuctions
+            category={item.category}
+            currentId={item.id}
+            favorites={favoriteIds}
+            toggle={toggleFavorite}
+          />
         </>
       )}
     </>
+  );
+}
+
+function SimilarAuctions({ category, currentId, favorites, toggle }) {
+  const path = category
+    ? `/api/products?category=${encodeURIComponent(category)}&page=1&pageSize=8`
+    : "/api/products?page=1&pageSize=8";
+  const remote = useApi(path);
+  /* Chỉ gợi ý phiên đang mở: phiên đã kết thúc/hủy không còn đặt giá được. */
+  const items = (remote.data?.items || [])
+    .filter((item) => item.id !== currentId && item.status === "Active")
+    .slice(0, 4);
+  if (!items.length) return null;
+  return (
+    <section className="home-section similar-section">
+      <div className="home-section-head">
+        <div>
+          <h2>Phiên đang mở cùng danh mục</h2>
+          <p>Còn thời gian để theo dõi và đặt giá.</p>
+        </div>
+        <a
+          className="section-link"
+          href={
+            category
+              ? `#/auctions?category=${encodeURIComponent(category)}`
+              : "#/auctions"
+          }
+        >
+          Xem tất cả <span aria-hidden="true">→</span>
+        </a>
+      </div>
+      <div className="auction-grid">
+        {items.map((item) => (
+          <AuctionCard
+            key={item.id}
+            item={item}
+            favorite={favorites.includes(item.id)}
+            onFavorite={toggle}
+          />
+        ))}
+      </div>
+    </section>
   );
 }

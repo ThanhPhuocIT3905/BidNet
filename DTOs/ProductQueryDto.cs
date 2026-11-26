@@ -9,6 +9,11 @@ public class ProductQueryDto
     public string? Status { get; set; }
     public decimal? MinPrice { get; set; }
     public decimal? MaxPrice { get; set; }
+
+    // Sắp xếp danh sách công khai: newest | ending_soon | most_bids | price_asc | price_desc.
+    // Giá trị lạ dùng mặc định newest thay vì trả lỗi để URL cũ vẫn hoạt động.
+    public string? Sort { get; set; }
+
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 20;
 }

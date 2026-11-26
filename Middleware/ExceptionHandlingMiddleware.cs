@@ -69,6 +69,7 @@ namespace BidNet.Middleware
             var response = new ErrorResponse
             {
                 StatusCode = statusCode,
+                Code = (exception as ApiException)?.Code,
                 Message = message,
                 Detail = _env.IsDevelopment() ? exception.ToString() : null,
                 TraceId = context.TraceIdentifier,
@@ -87,7 +88,11 @@ namespace BidNet.Middleware
             {
                 AppException appEx => (appEx.StatusCode, appEx.Message),
                 ApiException apiEx => (apiEx.StatusCode, apiEx.Message),
-                ArgumentException or InvalidOperationException =>
+                Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException =>
+                    (409, "Dữ liệu vừa thay đổi. Hãy tải lại trước khi thao tác."),
+                Microsoft.EntityFrameworkCore.DbUpdateException { InnerException: Microsoft.Data.SqlClient.SqlException { Number: 2601 or 2627 } } =>
+                    (409, "Dữ liệu đã tồn tại hoặc vừa được xử lý. Hãy tải lại."),
+                ArgumentException =>
                     (StatusCodes.Status400BadRequest, exception.Message),
                 KeyNotFoundException =>
                     (StatusCodes.Status404NotFound, exception.Message),

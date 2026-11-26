@@ -38,6 +38,8 @@ public class AuthService : IAuthService
     {
         var username = request.Username.Trim();
         var email = request.Email.Trim().ToLowerInvariant();
+        if (!System.Text.RegularExpressions.Regex.IsMatch(username, @"\A[a-zA-Z0-9_.-]{3,50}\z"))
+            throw new ApiException(400, "invalid_username", "Tên đăng nhập gồm 3–50 chữ cái, chữ số, dấu chấm, gạch ngang hoặc gạch dưới.");
 
         // Kiểm tra trước qua Repository để trả 409 dễ hiểu
         if (await _authRepo.ExistsByUsernameOrEmailAsync(username, email, ct))
@@ -88,6 +90,21 @@ public class AuthService : IAuthService
             AccessToken = tokenString,
             User = UserMapper.ToResponse(user)
         };
+    }
+
+    public async Task ChangePasswordAsync(int userId, ChangePasswordDto request, CancellationToken ct)
+    {
+        var user = await _authRepo.GetByIdAsync(userId, ct)
+            ?? throw new ApiException(404, "user_not_found", "Không tìm thấy tài khoản.");
+        if (!VerifyPassword(request.CurrentPassword, user.PasswordSalt, user.PasswordHash))
+            throw new ApiException(400, "invalid_current_password", "Mật khẩu hiện tại không đúng.");
+        if (request.CurrentPassword == request.NewPassword)
+            throw new ApiException(400, "same_password", "Mật khẩu mới phải khác mật khẩu hiện tại.");
+        var salt = RandomNumberGenerator.GetBytes(16);
+        user.PasswordSalt = salt;
+        user.PasswordHash = HashPassword(request.NewPassword, salt);
+        user.UpdatedAt = DateTime.UtcNow;
+        await _authRepo.UpdateUserAsync(user, ct);
     }
 
     // Tạo JWT Token hỗ trợ cả cấu hình "JwtSettings" theo thầy và "Jwt" theo BidNet

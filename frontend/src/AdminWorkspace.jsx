@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from "react";
-import { api, json, query, money, date } from "./api";
-import { OrderDetail } from "./screens";
+import { api, json, query, money, date, parseApiDate } from "./api";
+import { OrderDetail, Notifications } from "./screens";
 import { AdminCategories, Diagnostics } from "./admin";
+import { AdminOrders, AuditLogs, SupportWorkspace } from "./Workflows.jsx";
+import { Modal, PageHeader, EmptyState, LoadingState, ErrorState, useConfirm } from "./UI.jsx";
+import Avatar from "./Avatar.jsx";
 
 const menu = [
   ["/admin", "Tổng quan"],
   ["/admin/users", "Tài khoản"],
   ["/admin/auctions", "Phiên đấu giá"],
   ["/admin/categories", "Danh mục"],
-  ["/admin/orders", "Tra cứu đơn"],
+  ["/admin/orders", "Đơn hàng"],
+  ["/admin/support", "Yêu cầu hỗ trợ"],
+  ["/admin/audit-logs", "Nhật ký quản trị"],
+  ["/admin/notifications", "Thông báo & hỗ trợ"],
   ["/admin/diagnostics", "Kiểm tra API"],
 ];
 const statusNames = {
@@ -43,11 +49,9 @@ function useResult(path) {
 function Result({ result, children }) {
   if (result.error)
     return (
-      <p role="alert" className="notice error">
-        {result.error} <button onClick={result.reload}>Thử lại</button>
-      </p>
+      <ErrorState message={result.error} onRetry={result.reload} />
     );
-  if (result.data === undefined) return <p role="status">Đang tải dữ liệu…</p>;
+  if (result.data === undefined) return <LoadingState />;
   return children(result.data);
 }
 
@@ -55,9 +59,12 @@ function Overview() {
   const users = useResult("/api/admin/users?pageSize=1");
   const auctions = useResult("/api/products?pageSize=1");
   const categories = useResult("/api/Categories");
+  const active = useResult("/api/products?status=Active&pageSize=1");
+  const scheduled = useResult("/api/products?status=Scheduled&pageSize=1");
+  const recent = useResult("/api/products?status=Active&sort=ending_soon&pageSize=5");
   return (
     <>
-      <h1>Tổng quan quản trị</h1>
+      <PageHeader eyebrow="Vận hành sàn" title="Tổng quan quản trị" description="Theo dõi phiên đang mở và đi thẳng tới công việc cần xử lý."><a className="btn dark" href="#/admin/auctions">Quản lý phiên →</a></PageHeader>
       <div className="admin-metrics">
         {[
           [users, "Tài khoản", "/admin/users"],
@@ -73,6 +80,8 @@ function Overview() {
           </section>
         ))}
       </div>
+      <div className="dashboard-columns"><section className="workspace-section"><div className="workspace-section-head"><div><h2>Phiên sắp kết thúc</h2><p>5 phiên đang mở có thời hạn gần nhất.</p></div><a href="#/admin/auctions">Tất cả phiên →</a></div><Result result={recent}>{data => data.items.length ? <div className="dashboard-auctions">{data.items.map(item => <a key={item.id} href={`#/product/${item.id}`}><span className="record-id">#{item.id}</span><div><strong>{item.name}</strong><small>{date(item.endTime)}</small></div><b>{money(item.currentPrice)}</b><span aria-hidden="true">↗</span></a>)}</div> : <EmptyState title="Chưa có phiên đang mở" description="Các phiên đang diễn ra sẽ xuất hiện tại đây." />}</Result></section>
+      <section className="workspace-section"><div className="workspace-section-head"><h2>Tình trạng vận hành</h2></div><div className="operation-summary"><div><span>Đang diễn ra</span><Result result={active}>{data => <strong>{data.totalCount}</strong>}</Result></div><div><span>Sắp diễn ra</span><Result result={scheduled}>{data => <strong>{data.totalCount}</strong>}</Result></div></div><a className="workspace-task" href="#/admin/notifications"><b>Thông báo & yêu cầu hỗ trợ</b><span>Xem yêu cầu từ thành viên →</span></a><a className="workspace-task" href="#/admin/orders"><b>Tra cứu giao dịch</b><span>Kiểm tra đơn bằng mã đơn hàng →</span></a><p className="workspace-note">Quản trị viên giám sát hoạt động của sàn; không tham gia đăng bán hoặc đặt giá.</p></section></div>
     </>
   );
 }
@@ -97,6 +106,7 @@ function Pager({ page, total, size, onPage }) {
 }
 
 function Accounts({ user, notify }) {
+  const confirm = useConfirm();
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({ sortBy: "username" });
   const [pending, setPending] = useState(false);
@@ -105,12 +115,7 @@ function Accounts({ user, notify }) {
   );
   async function toggle(account) {
     if (
-      !window.confirm(
-        (account.isActive ? "Khóa" : "Mở khóa") +
-          " tài khoản " +
-          account.username +
-          "?",
-      )
+      !await confirm({ title: `${account.isActive ? "Khóa" : "Mở khóa"} tài khoản`, message: `${account.username} ${account.isActive ? "sẽ không thể thực hiện thao tác cần đăng nhập. Lịch sử giao dịch được giữ lại." : "sẽ được phép đăng nhập và sử dụng lại tài khoản."}`, action: account.isActive ? "Khóa tài khoản" : "Mở khóa", danger: account.isActive })
     )
       return;
     setPending(true);
@@ -128,7 +133,8 @@ function Accounts({ user, notify }) {
   }
   return (
     <>
-      <h1>Tài khoản người dùng</h1>
+      <PageHeader eyebrow="Thành viên & quyền truy cập" title="Tài khoản người dùng" description="Tra cứu vai trò, tình trạng tài khoản và quản lý quyền truy cập bằng khóa/mở khóa." />
+      <div className="permission-note"><b>Admin</b><span>Quản trị hệ thống</span><b>User</b><span>Mua và bán qua đấu giá</span><small>Vai trò được hệ thống cấp; màn hình này không thay đổi vai trò.</small></div>
       <form
         className="admin-filters"
         onSubmit={(e) => {
@@ -141,6 +147,7 @@ function Accounts({ user, notify }) {
           Tìm kiếm
           <input name="searchTerm" placeholder="Tên đăng nhập hoặc email" />
         </label>
+        <label>Hoạt động<select name="isActive"><option value="">Tất cả</option><option value="true">Hoạt động</option><option value="false">Đã khóa</option></select></label>
         <label>
           Vai trò
           <select name="role">
@@ -185,13 +192,13 @@ function Accounts({ user, notify }) {
                     {data.items.map((a) => (
                       <tr key={a.id}>
                         <td>
-                          <b>{a.username}</b>
+                          <span className="account-cell"><Avatar user={a} /><span><b>{a.username}</b>
                           <br />
-                          {a.fullName}
+                          {a.fullName || "Chưa có họ tên"}</span></span>
                         </td>
                         <td>{a.email}</td>
-                        <td>{a.role}</td>
-                        <td>{a.isActive ? "Hoạt động" : "Đã khóa"}</td>
+                        <td><span className={`role-label ${a.role}`}>{a.role}</span></td>
+                        <td><span className={`badge ${a.isActive ? "Active" : "Cancelled"}`}>{a.isActive ? "Hoạt động" : "Đã khóa"}</span></td>
                         <td>
                           {a.id === user.id ? (
                             "Tài khoản của bạn"
@@ -211,7 +218,7 @@ function Accounts({ user, notify }) {
                 </table>
               </div>
             ) : (
-              <p className="empty">Không tìm thấy tài khoản.</p>
+              <EmptyState title="Không tìm thấy tài khoản" description="Thử thay từ khóa hoặc chọn tất cả vai trò." />
             )}
             <Pager
               page={page}
@@ -230,7 +237,7 @@ export function CancelAuction({ item, onDone, notify }) {
   const [open, setOpen] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  if (!["Scheduled", "Active"].includes(item.status)) return null;
+  if (!["Scheduled", "Active"].includes(item.status) || parseApiDate(item.endTime) <= new Date()) return null;
   if (!open)
     return (
       <button className="btn secondary" onClick={() => setOpen(true)}>
@@ -260,15 +267,15 @@ export function CancelAuction({ item, onDone, notify }) {
     }
   }
   return (
-    <form className="cancel-form" onSubmit={submit}>
+    <Modal title={`Hủy phiên #${item.id}`} busy={busy} onClose={() => { setError(""); setOpen(false); }}><p className="muted">{item.name}. Lý do sẽ được lưu cùng phiên và gửi tới những người liên quan.</p><form className="cancel-form" onSubmit={submit}>
       <label>
         Lý do hủy phiên #{item.id}
-        <textarea name="reason" required maxLength={500} />
+        <textarea name="reason" required maxLength={500} autoFocus disabled={busy} placeholder="Nhập lý do cụ thể…" />
       </label>
-      {error && <p role="alert">{error}</p>}
-      <div className="actions">
+      {error && <p className="notice error" role="alert">{error}</p>}
+      <div className="dialog-actions">
         <button className="btn danger" disabled={busy}>
-          Xác nhận hủy
+          {busy ? "Đang xử lý…" : "Xác nhận hủy"}
         </button>
         <button
           type="button"
@@ -282,7 +289,7 @@ export function CancelAuction({ item, onDone, notify }) {
           Quay lại
         </button>
       </div>
-    </form>
+    </form></Modal>
   );
 }
 
@@ -294,7 +301,7 @@ function Auctions({ notify }) {
   );
   return (
     <>
-      <h1>Quản lý phiên đấu giá</h1>
+      <PageHeader eyebrow="Danh mục phiên" title="Quản lý phiên đấu giá" description="Theo dõi giá, thời hạn và trạng thái. Chọn một phiên để xem chi tiết hoặc xử lý." />
       <form
         className="admin-filters"
         onSubmit={(e) => {
@@ -368,7 +375,7 @@ function Auctions({ notify }) {
                 </table>
               </div>
             ) : (
-              <p className="empty">Không tìm thấy phiên.</p>
+              <EmptyState title="Không tìm thấy phiên" description="Thử thay tên sản phẩm hoặc trạng thái đang lọc." />
             )}
             <Pager
               page={page}
@@ -383,60 +390,48 @@ function Auctions({ notify }) {
   );
 }
 
-function OrderLookup(props) {
-  const [id, setId] = useState(null);
-  return (
-    <>
-      <h1>Tra cứu đơn hàng</h1>
-      <form
-        className="admin-filters"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setId(Number(new FormData(e.currentTarget).get("orderId")));
-        }}
-      >
-        <label>
-          Mã đơn hàng
-          <input name="orderId" type="number" min="1" step="1" required />
-        </label>
-        <button className="btn">Tra cứu</button>
-      </form>
-      {id && <OrderDetail key={id} id={id} {...props} />}
-    </>
-  );
-}
-
 export default function AdminWorkspace({ route, ...props }) {
+  const path = route.split("?")[0];
+  const orderMatch = path.match(/^\/admin\/orders\/(\d+)$/);
+  const orderId = orderMatch ? Number(orderMatch[1]) : null;
+  const selectedPath = path === "/admin/products" ? "/admin/auctions" : orderId ? "/admin/orders" : path;
   const identity = useResult("/api/users/me");
   const views = {
     "/admin": Overview,
     "/admin/users": Accounts,
     "/admin/auctions": Auctions,
+    /* Alias cũ: /admin/products từng trả về trang trống. */
+    "/admin/products": Auctions,
     "/admin/categories": AdminCategories,
-    "/admin/orders": OrderLookup,
+    "/admin/orders": AdminOrders,
+    "/admin/support": SupportWorkspace,
+    "/admin/audit-logs": AuditLogs,
+    "/admin/notifications": Notifications,
     "/admin/diagnostics": Diagnostics,
   };
-  const View = views[route];
+  const View = views[path];
   return (
     <div className="admin-shell">
       <aside className="admin-nav">
-        <strong>Quản trị BidNet</strong>
+        <span className="sidebar-caption">Không gian quản trị</span>
         <nav aria-label="Quản trị">
-          {menu.map(([path, label]) => (
+          {menu.map(([path, label], index) => (
             <a
               key={path}
               href={"#" + path}
-              aria-current={route === path ? "page" : undefined}
+              aria-current={selectedPath === path ? "page" : undefined}
             >
-              {label}
+              <span className="nav-marker" aria-hidden="true">{["◫", "◎", "◇", "▦", "▤", "◉", "⌘"][index]}</span>{label}
             </a>
           ))}
         </nav>
+        <div className="sidebar-foot"><span className="role-label Admin">Admin</span><p>Giám sát phiên, thành viên và giao dịch.</p><a href="#/guides/quy-tac-dau-gia">Quy tắc đấu giá ↗</a></div>
       </aside>
       <section className="admin-body">
         <Result result={identity}>{account => {
           if (account.role !== "Admin" || !account.isActive) return <p role="alert">Tài khoản không có quyền quản trị.</p>;
-          return View ? <View {...props} user={account} /> : <p>Không tìm thấy trang quản trị.</p>;
+          if (orderId) return <><div className="actions admin-detail-actions"><a className="btn secondary" href="#/admin/orders">← Danh sách đơn</a></div><OrderDetail key={route} id={orderId} {...props} user={account} /></>;
+          return View ? <View key={selectedPath} {...props} user={account} /> : <EmptyState title="Không tìm thấy trang quản trị" description="Chọn một mục trong điều hướng hoặc quay về tổng quan."><a className="btn" href="#/admin">Về tổng quan</a></EmptyState>;
         }}</Result>
       </section>
     </div>

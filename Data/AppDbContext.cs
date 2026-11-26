@@ -17,11 +17,47 @@ namespace BidNet.Data
         public DbSet<Category> Categories => Set<Category>();
         public DbSet<Order> Orders => Set<Order>();
         public DbSet<Notification> Notifications => Set<Notification>();
+        public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
+        public DbSet<SupportMessage> SupportMessages => Set<SupportMessage>();
+        public DbSet<OrderEvent> OrderEvents => Set<OrderEvent>();
+        public DbSet<AdminAuditLog> AdminAuditLogs => Set<AdminAuditLog>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             // Fluent API đặt ràng buộc thật ở SQL Server, không chỉ kiểm tra ở C#.
             base.OnModelCreating(modelBuilder);
+            modelBuilder.Entity<User>().ToTable(t => t.HasCheckConstraint("CK_Users_Gender", "[Gender] IS NULL OR [Gender] IN ('Male','Female','Other','PreferNotToSay')"));
+            modelBuilder.Entity<SupportTicket>().HasOne(t => t.Requester).WithMany().HasForeignKey(t => t.RequesterId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<SupportTicket>().HasOne(t => t.Product).WithMany().HasForeignKey(t => t.ProductId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<SupportTicket>().HasOne(t => t.Order).WithMany().HasForeignKey(t => t.OrderId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<SupportTicket>().HasIndex(t => new { t.RequesterId, t.UpdatedAt });
+            modelBuilder.Entity<SupportTicket>().HasIndex(t => new { t.Status, t.UpdatedAt });
+            modelBuilder.Entity<SupportMessage>().HasOne(m => m.Ticket).WithMany(t => t.Messages).HasForeignKey(m => m.TicketId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<SupportMessage>().HasOne(m => m.Author).WithMany().HasForeignKey(m => m.AuthorId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<SupportMessage>().HasIndex(m => new { m.TicketId, m.CreatedAt, m.Id });
+            modelBuilder.Entity<OrderEvent>().HasOne(e => e.Order).WithMany(o => o.Events).HasForeignKey(e => e.OrderId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<OrderEvent>().HasOne(e => e.Actor).WithMany().HasForeignKey(e => e.ActorId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<OrderEvent>().HasIndex(e => new { e.OrderId, e.CreatedAt, e.Id });
+            modelBuilder.Entity<AdminAuditLog>().HasOne(e => e.Actor).WithMany().HasForeignKey(e => e.ActorId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<AdminAuditLog>().HasIndex(e => new { e.EntityType, e.EntityId, e.CreatedAt });
+            modelBuilder.Entity<AdminAuditLog>().HasIndex(e => new { e.CreatedAt, e.Id });
+            modelBuilder.Entity<Order>().HasIndex(o => new { o.Status, o.CreatedAt });
+            modelBuilder.Entity<Notification>().HasOne<Product>().WithMany().HasForeignKey(n => n.ProductId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<Notification>().HasOne(n => n.Order).WithMany().HasForeignKey(n => n.OrderId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<Notification>().HasOne(n => n.Ticket).WithMany().HasForeignKey(n => n.TicketId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<SupportTicket>().ToTable(t => t.HasCheckConstraint("CK_SupportTickets_Status", "[Status] IN (0,1,2)"));
+            modelBuilder.Entity<Order>().ToTable(t => {
+                t.HasCheckConstraint("CK_Orders_Status", "[Status] IN (0,1,2,3)");
+                t.HasCheckConstraint("CK_Orders_Price", "[FinalPrice] > 0 AND [FinalPrice] = FLOOR([FinalPrice])");
+                t.HasCheckConstraint("CK_Orders_Parties", "[BuyerId] <> [SellerId]");
+            });
+            modelBuilder.Entity<Product>().ToTable(t => {
+                t.HasCheckConstraint("CK_Products_Status", "[Status] IN (0,1,2,3)");
+                t.HasCheckConstraint("CK_Products_Time", "[EndTime] > [StartTime]");
+                t.HasCheckConstraint("CK_Products_Prices", "[StartingPrice] >= 1000 AND [CurrentPrice] >= [StartingPrice] AND [StartingPrice] = FLOOR([StartingPrice]) AND [CurrentPrice] = FLOOR([CurrentPrice])");
+            });
+            modelBuilder.Entity<Bid>().ToTable(t => t.HasCheckConstraint("CK_Bids_Amount", "[Amount] > 0 AND [Amount] = FLOOR([Amount])"));
+            modelBuilder.Entity<User>().ToTable(t => t.HasCheckConstraint("CK_Users_Role", "[Role] IN ('User','Admin')"));
 
             // Hai unique index bảo vệ dữ liệu ngay cả khi nhiều request đăng ký đồng thời.
             modelBuilder.Entity<User>()

@@ -33,12 +33,21 @@ public class Order
     // Địa chỉ nhận hàng của người mua
     [MaxLength(500)]
     public string? ShippingAddress { get; set; }
+    [MaxLength(200)] public string? RecipientName { get; set; }
+    [MaxLength(20)] public string? RecipientPhone { get; set; }
+    [MaxLength(200)] public string? ProductNameSnapshot { get; set; }
+    [MaxLength(500)] public string? CancellationReason { get; set; }
+    public DateTime? PaidAt { get; set; }
+    public ICollection<OrderEvent> Events { get; set; } = new List<OrderEvent>();
 
     // Trạng thái đơn hàng: Chờ xử lý -> Đã thanh toán -> Đã giao hàng -> Đã hủy
     public OrderStatus Status { get; set; } = OrderStatus.Pending;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? CompletedAt { get; set; }
+
+    [Timestamp]
+    public byte[] RowVersion { get; set; } = [];
 }
 
 public enum OrderStatus

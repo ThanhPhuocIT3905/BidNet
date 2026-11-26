@@ -27,6 +27,9 @@ public class AuthRepository : IAuthRepository
             .FirstOrDefaultAsync(u => u.Username == login || u.Email == lower, ct);
     }
 
+    public Task<User?> GetByIdAsync(int id, CancellationToken ct = default) =>
+        _context.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
+
     public async Task<bool> ExistsByUsernameOrEmailAsync(string username, string email, CancellationToken ct = default)
     {
         return await _context.Users
@@ -36,6 +39,12 @@ public class AuthRepository : IAuthRepository
     public async Task AddUserAsync(User user, CancellationToken ct = default)
     {
         _context.Users.Add(user);
+        await _context.SaveChangesAsync(ct);
+    }
+
+    public async Task UpdateUserAsync(User user, CancellationToken ct = default)
+    {
+        if (_context.Entry(user).State == EntityState.Detached) _context.Users.Update(user);
         await _context.SaveChangesAsync(ct);
     }
 }

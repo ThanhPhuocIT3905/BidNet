@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-label="Nghệ thuật và đồ sưu tầm">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5b3556"/>
+      <stop offset="1" stop-color="#2c1a2b"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#g)"/>
+  <circle cx="670" cy="150" r="160" fill="#e7b2d2" opacity=".10"/>
+  <rect x="195" y="120" width="410" height="360" rx="6" fill="none" stroke="#f2dcc0" stroke-width="16"/>
+  <rect x="230" y="155" width="340" height="290" fill="#f2dcc0" opacity=".12"/>
+  <circle cx="470" cy="235" r="42" fill="#f4d9a1" opacity=".85"/>
+  <path d="M245 420l95-130 62 78 55-62 88 114z" fill="#e9c7d8" opacity=".62"/>
+  <path d="M245 420h340" stroke="#e9c7d8" stroke-width="8" opacity=".8"/>
+</svg>

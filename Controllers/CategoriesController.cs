@@ -58,7 +58,7 @@ public class CategoriesController(AppDbContext db, CurrentUser currentUser) : Co
     [HttpPost]
     public async Task<ActionResult<CategoryResponseDto>> Create([FromBody] CategoryCreateDto dto, CancellationToken ct)
     {
-        await currentUser.RequireActiveAsync(ct);
+        var admin = await currentUser.RequireAdminAsync(ct);
         if (string.IsNullOrWhiteSpace(dto.Name))
             throw new BadRequestException("Tên danh mục không được để trống.");
         // Kiểm tra xem tên danh mục đã tồn tại chưa
@@ -73,8 +73,12 @@ public class CategoriesController(AppDbContext db, CurrentUser currentUser) : Co
             CreatedAt = DateTime.UtcNow
         };
 
+        await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(ct) : null;
         db.Categories.Add(category);
         await db.SaveChangesAsync(ct);
+        db.AdminAuditLogs.Add(new AdminAuditLog { ActorId = admin.Id, Action = "CategoryCreated", EntityType = "Category", EntityId = category.Id, Note = category.Name });
+        await db.SaveChangesAsync(ct);
+        if (transaction is not null) await transaction.CommitAsync(ct);
 
         return CreatedAtAction(nameof(GetById), new { id = category.Id }, new CategoryResponseDto
         {
@@ -91,7 +95,7 @@ public class CategoriesController(AppDbContext db, CurrentUser currentUser) : Co
     [HttpPut("{id:int}")]
     public async Task<ActionResult<CategoryResponseDto>> Update(int id, [FromBody] CategoryUpdateDto dto, CancellationToken ct)
     {
-        await currentUser.RequireActiveAsync(ct);
+        var admin = await currentUser.RequireAdminAsync(ct);
         if (string.IsNullOrWhiteSpace(dto.Name))
             throw new BadRequestException("Tên danh mục không được để trống.");
         var category = await db.Categories.FindAsync([id], ct);
@@ -103,8 +107,13 @@ public class CategoriesController(AppDbContext db, CurrentUser currentUser) : Co
         if (duplicate)
             throw new BadRequestException($"Tên danh mục '{dto.Name}' đã được sử dụng.");
 
+        var oldName = category.Name;
         category.Name = dto.Name.Trim();
         category.Description = dto.Description?.Trim();
+
+        var products = await db.Products.Where(p => p.CategoryId == id).ToListAsync(ct);
+        foreach (var product in products) product.Category = category.Name;
+        db.AdminAuditLogs.Add(new AdminAuditLog { ActorId = admin.Id, Action = "CategoryUpdated", EntityType = "Category", EntityId = id, Note = $"{oldName} → {category.Name}" });
 
         await db.SaveChangesAsync(ct);
 
@@ -123,12 +132,15 @@ public class CategoriesController(AppDbContext db, CurrentUser currentUser) : Co
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
-        await currentUser.RequireActiveAsync(ct);
+        var admin = await currentUser.RequireAdminAsync(ct);
         var category = await db.Categories.FindAsync([id], ct);
         if (category == null)
             throw new NotFoundException($"Không tìm thấy danh mục có ID {id}.");
 
+        if (await db.Products.AnyAsync(p => p.CategoryId == id, ct))
+            throw new ApiException(409, "category_in_use", "Danh mục đang có sản phẩm. Hãy chuyển sản phẩm sang danh mục khác trước khi xóa.");
         db.Categories.Remove(category);
+        db.AdminAuditLogs.Add(new AdminAuditLog { ActorId = admin.Id, Action = "CategoryDeleted", EntityType = "Category", EntityId = id, Note = category.Name });
         await db.SaveChangesAsync(ct);
 
         return NoContent();

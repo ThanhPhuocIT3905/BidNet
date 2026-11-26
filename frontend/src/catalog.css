@@ -4,7 +4,7 @@
   --paper: #faf9f5;
   --line: #d9ded6;
   --quiet: #56655c;
-  --display: Georgia, Cambria, "Times New Roman", serif;
+  --display: Cambria, Georgia, "Times New Roman", serif;
   color: var(--ink);
   background: var(--paper);
 }

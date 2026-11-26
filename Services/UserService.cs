@@ -17,6 +17,17 @@ public class UserService(CurrentUser currentUser, IUserRepository userRepo) : IU
     {
         var user = await currentUser.RequireActiveAsync(ct);
         user.FullName = request.FullName?.Trim();
+        if (request.DateOfBirth is { } dob)
+        {
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            if (dob > today)
+                throw new ApiException(400, "invalid_birth_date", "Ngày sinh không được ở tương lai.");
+            if (dob > today.AddYears(-18))
+                throw new ApiException(400, "age_restriction", "Bạn phải đủ 18 tuổi để tham gia đấu giá.");
+        }
+        user.DateOfBirth = request.DateOfBirth;
+        user.Gender = string.IsNullOrWhiteSpace(request.Gender) ? null : request.Gender;
+        user.ContactAddress = string.IsNullOrWhiteSpace(request.ContactAddress) ? null : request.ContactAddress.Trim();
         user.PhoneNumber = request.PhoneNumber?.Trim();
         user.UpdatedAt = DateTime.UtcNow;
         await userRepo.UpdateAsync(user);
