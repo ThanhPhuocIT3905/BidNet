@@ -521,23 +521,24 @@ export function ProductForm({ id, go, notify, user }) {
   const [categoryId, setCategoryId] = useState("");
   const [condition, setCondition] = useState("Đã qua sử dụng (đẹp 99%)");
   const [description, setDescription] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
+  const [imageFiles, setImageFiles] = useState([]);
+  const imageFilesRef = useRef([]);
+  const [savedImageUrl, setSavedImageUrl] = useState("");
+  const [persistedProductId, setPersistedProductId] = useState(null);
   const [startingPrice, setStartingPrice] = useState("1000000");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const sampleImages = [
-    { name: "Xe đạp Trek FX 2 Disc", url: "/images/products/trek-fx2-disc.webp" },
-    { name: "Đồng hồ Seiko Presage", url: "/images/products/seiko-srpb43.webp" },
-    { name: "Apple Watch Series 8", url: "/images/products/apple-watch-series-8.webp" },
-    { name: "iPhone 15 Pro Max", url: "/images/products/iphone-15-pro-max.webp" },
-    { name: "MacBook Air M3 15 inch", url: "/images/products/macbook-air-m3.webp" },
-    { name: "Tai nghe Sony WH-1000XM5", url: "/images/products/sony-wh-1000xm5.webp" },
-    { name: "Nồi chiên Philips HD9252", url: "/images/products/philips-hd9252.webp" },
-    { name: "Máy ảnh Fujifilm X-T30 II", url: "/images/products/fujifilm-xt30-ii.webp" },
-  ];
+  useEffect(() => {
+    imageFilesRef.current = imageFiles;
+  }, [imageFiles]);
+
+  useEffect(
+    () => () => imageFilesRef.current.forEach(({ previewUrl }) => URL.revokeObjectURL(previewUrl)),
+    [],
+  );
 
   const local = (x) =>
     x
@@ -555,7 +556,7 @@ export function ProductForm({ id, go, notify, user }) {
       setName(p.name || "");
       setCategoryId(p.categoryId ? String(p.categoryId) : "");
       setDescription(p.description || "");
-      setImageUrl(p.imageUrl || "");
+      setSavedImageUrl(p.imageUrl || "");
       setStartingPrice(String(p.startingPrice || 1000000));
       setStartTime(local(p.startTime));
       setEndTime(local(p.endTime));
@@ -609,6 +610,42 @@ export function ProductForm({ id, go, notify, user }) {
     }
   };
 
+  const handleImageSelection = (e) => {
+    const selected = Array.from(e.currentTarget.files || []);
+    e.currentTarget.value = "";
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    const valid = [];
+    const rejected = [];
+
+    selected.forEach((file, index) => {
+      if (!allowedTypes.includes(file.type)) {
+        rejected.push(`${file.name}: chỉ chấp nhận JPEG, PNG, WebP hoặc GIF`);
+      } else if (file.size === 0) {
+        rejected.push(`${file.name}: tệp ảnh rỗng`);
+      } else if (file.size > 5 * 1024 * 1024) {
+        rejected.push(`${file.name}: dung lượng vượt quá 5 MB`);
+      } else {
+        valid.push({
+          key: `${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
+          file,
+          previewUrl: URL.createObjectURL(file),
+        });
+      }
+    });
+
+    if (rejected.length) setError(rejected.join(". "));
+    else setError("");
+    if (valid.length) setImageFiles((current) => [...current, ...valid]);
+  };
+
+  const removeSelectedImage = (key) => {
+    setImageFiles((current) => {
+      const selected = current.find((image) => image.key === key);
+      if (selected) URL.revokeObjectURL(selected.previewUrl);
+      return current.filter((image) => image.key !== key);
+    });
+  };
+
   const submit = async (e, publish = true) => {
     e?.preventDefault();
     setBusy(true);
@@ -622,25 +659,63 @@ export function ProductForm({ id, go, notify, user }) {
       const fullDesc = description.trim()
         ? `[Tình trạng: ${condition}]\n${description.trim()}`
         : `[Tình trạng: ${condition}]`;
+      let targetId = id || persistedProductId;
+      let currentProduct = targetId ? await api(`/api/products/${targetId}`) : null;
+      if (publish && imageFiles.length === 0 && !currentProduct?.imageUrl) {
+        throw new Error("Vui lòng tải ít nhất một ảnh từ thiết bị trước khi đăng sản phẩm.");
+      }
       const body = {
-        version: id ? product.data.version : undefined,
         name: name.trim(),
         description: fullDesc,
         startingPrice: Number(startingPrice),
         startTime: start.toISOString(),
         endTime: end.toISOString(),
         categoryId: categoryId ? Number(categoryId) : null,
-        imageUrl: imageUrl.trim() || null,
         publish,
       };
-      const saved = await json(
-        id ? "PUT" : "POST",
-        id ? `/api/products/${id}` : "/api/products",
-        body,
-      );
+
+      const creating = !targetId;
+      if (creating) {
+        currentProduct = await json("POST", "/api/products", {
+          ...body,
+          imageUrl: null,
+          publish: false,
+        });
+        targetId = currentProduct.id;
+        setPersistedProductId(targetId);
+      }
+
+      for (const image of [...imageFiles].reverse()) {
+        const formData = new FormData();
+        formData.append("file", image.file);
+        try {
+          await api(`/api/products/${targetId}/images`, {
+            method: "POST",
+            body: formData,
+          });
+        } catch (uploadError) {
+          const prefix = !id
+            ? "Sản phẩm đã được lưu ở trạng thái bản nháp."
+            : "Không thể tải ảnh lên.";
+          throw new Error(`${prefix} ${image.file.name}: ${uploadError.message}`);
+        }
+        URL.revokeObjectURL(image.previewUrl);
+        setImageFiles((current) => current.filter((item) => item.key !== image.key));
+      }
+
+      currentProduct = await api(`/api/products/${targetId}`);
+      setSavedImageUrl(currentProduct.imageUrl || "");
+      let saved = currentProduct;
+      if (id || !creating || publish) {
+        saved = await json("PUT", `/api/products/${targetId}`, {
+          ...body,
+          version: currentProduct.version,
+          imageUrl: currentProduct.imageUrl,
+        });
+      }
       const notice = publish
         ? id ? "Đã lưu và công bố phiên đấu giá." : "Đã đăng sản phẩm lên sàn."
-        : id ? "Đã lưu sản phẩm ở trạng thái bản nháp." : "Đã lưu sản phẩm ở trạng thái bản nháp.";
+        : "Đã lưu sản phẩm ở trạng thái bản nháp.";
       notify ? notify(notice) : alert(notice);
       go(`/product/${saved.id}`);
     } catch (x) {
@@ -786,59 +861,60 @@ export function ProductForm({ id, go, notify, user }) {
             </p>
 
             <div className="field">
-              <label htmlFor="pimg">URL ảnh đại diện chính</label>
+              <label htmlFor="pimg">Chọn ảnh từ thiết bị</label>
               <input
                 id="pimg"
-                type="url"
-                placeholder="https://res.cloudinary.com/... hoặc /images/products/..."
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                multiple
+                disabled={busy}
+                onChange={handleImageSelection}
               />
-            </div>
-
-            <div className="sample-images-section">
-              <label className="small muted block" style={{ marginBottom: 6 }}>
-                Gợi ý ảnh mẫu chất lượng cao (bấm để chọn nhanh):
-              </label>
-              <div className="sample-img-pills">
-                {sampleImages.map((s, idx) => (
-                  <button
-                    type="button"
-                    key={idx}
-                    className={`sample-pill ${imageUrl === s.url ? "active" : ""}`}
-                    onClick={() => setImageUrl(s.url)}
-                  >
-                    {s.name}
-                  </button>
-                ))}
-              </div>
+              <small className="muted">
+                JPEG, PNG, WebP hoặc GIF · tối đa 5 MB mỗi ảnh. Ảnh sẽ được tải lên khi bạn lưu sản phẩm.
+              </small>
             </div>
 
             <div className="image-preview-box">
-              <div className="preview-label">Xem trước hình ảnh:</div>
-              <div className="preview-frame">
-                {imageUrl ? (
-                  <img
-                    src={imageUrl}
-                    alt="Preview"
-                    onError={(e) => {
-                      e.currentTarget.onerror = null;
-                      e.currentTarget.src = "/images/products/fujifilm-xt30-ii.webp";
-                    }}
-                  />
-                ) : (
+              <div className="preview-label">Xem trước ảnh sản phẩm</div>
+              <div className="product-upload-preview-grid">
+                {savedImageUrl && (
+                  <div className="product-upload-preview">
+                    <img src={savedImageUrl} alt="Ảnh sản phẩm hiện tại" />
+                    <span>Ảnh hiện tại</span>
+                  </div>
+                )}
+                {imageFiles.map((image, index) => (
+                  <div className="product-upload-preview" key={image.key}>
+                    <img src={image.previewUrl} alt={`Ảnh sản phẩm ${index + 1}`} />
+                    <span title={image.file.name}>
+                      {index === 0 ? "Ảnh đại diện · " : ""}
+                      {image.file.name}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn secondary"
+                      disabled={busy}
+                      aria-label={`Bỏ ảnh ${image.file.name}`}
+                      onClick={() => removeSelectedImage(image.key)}
+                    >
+                      Bỏ ảnh
+                    </button>
+                  </div>
+                ))}
+                {!savedImageUrl && imageFiles.length === 0 && (
                   <div className="preview-placeholder">
-                    <span>Chưa có ảnh (sẽ hiển thị biểu tượng mặc định)</span>
+                    <span>Chưa chọn ảnh. Ảnh đầu tiên sẽ làm ảnh đại diện chính.</span>
                   </div>
                 )}
               </div>
             </div>
 
             <div className="wizard-actions">
-              <button type="button" className="btn secondary" onClick={() => setStep(1)}>
+              <button type="button" className="btn secondary" disabled={busy} onClick={() => setStep(1)}>
                 ← Quay lại bước 1
               </button>
-              <button type="submit" className="btn dark">
+              <button type="submit" className="btn dark" disabled={busy}>
                 Tiếp tục: Thiết lập đấu giá →
               </button>
             </div>
@@ -935,14 +1011,14 @@ export function ProductForm({ id, go, notify, user }) {
               <div className="wizard-preview-col">
                 <div className="card preview-card-box">
                   <div className="card-image">
-                    <img
-                      src={imageUrl || "/images/products/fujifilm-xt30-ii.webp"}
-                      alt={name}
-                      onError={(e) => {
-                        e.currentTarget.onerror = null;
-                        e.currentTarget.src = "/images/products/fujifilm-xt30-ii.webp";
-                      }}
-                    />
+                    {imageFiles[0]?.previewUrl || savedImageUrl ? (
+                      <img
+                        src={imageFiles[0]?.previewUrl || savedImageUrl}
+                        alt={name}
+                      />
+                    ) : (
+                      <div className="preview-placeholder">Chưa chọn ảnh sản phẩm</div>
+                    )}
                     <span className="seller-badge-pos">
                       <Badge value="Scheduled" />
                     </span>

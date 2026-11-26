@@ -35,6 +35,20 @@ public class LiveAuctionService(
         ScheduledEndAt = e.ScheduledEndAt,
         RegistrationOpen = e.RegistrationOpen,
         BuyerPremiumRate = e.BuyerPremiumRate,
+        OperationMode = e.OperationMode.ToString(),
+        DefaultLotDurationSeconds = e.DefaultLotDurationSeconds,
+        AutoStartEvent = e.AutoStartEvent,
+        AutoOpenFirstLot = e.AutoOpenFirstLot,
+        AutoCloseLots = e.AutoCloseLots,
+        AutoOpenNextLot = e.AutoOpenNextLot,
+        AutoCompleteEvent = e.AutoCompleteEvent,
+        InterLotDelaySeconds = e.InterLotDelaySeconds,
+        AutoExtensionEnabled = e.AutoExtensionEnabled,
+        ExtensionTriggerSeconds = e.ExtensionTriggerSeconds,
+        ExtensionSeconds = e.ExtensionSeconds,
+        MaxExtensions = e.MaxExtensions,
+        AllowLateLotAddition = e.AllowLateLotAddition,
+        NextLotOpenAt = e.NextLotOpenAt,
         LotCount = lotCount,
         SoldCount = soldCount,
         CurrentLotId = e.CurrentLotId,
@@ -70,6 +84,10 @@ public class LiveAuctionService(
             NextBid = minimum,
             HammerPrice = lot.HammerPrice,
             Status = lot.Status.ToString(),
+            OperationMode = (lot.OperationModeOverride ?? lot.Event?.OperationMode ?? LiveOperationMode.Manual).ToString(),
+            OperationModeOverride = lot.OperationModeOverride?.ToString(),
+            DurationSeconds = lot.DurationSeconds ?? lot.Event?.DefaultLotDurationSeconds ?? 300,
+            DurationSecondsOverride = lot.DurationSeconds,
             CallingStage = lot.CallingStage.ToString(),
             WarningAvailableAt = lot.CallingStage == LiveCallingStage.Once && lot.LastWarningAt is DateTime lastWarningAt
                 ? lastWarningAt.AddSeconds(WarningIntervalSeconds)
@@ -81,7 +99,12 @@ public class LiveAuctionService(
             MyStatus = myStatus,
             BidCount = lot.BidCount,
             OpenedAt = lot.OpenedAt,
+            OriginalEndAt = lot.OriginalEndAt,
+            CurrentEndAt = lot.CurrentEndAt,
+            RemainingSecondsOnPause = lot.RemainingSecondsOnPause,
+            ExtensionCount = lot.ExtensionCount,
             ClosedAt = lot.ClosedAt,
+            CloseMethod = lot.CloseMethod?.ToString(),
             ReserveMet = lot.ReservePrice is null || lot.CurrentPrice >= lot.ReservePrice
         };
     }
@@ -92,6 +115,7 @@ public class LiveAuctionService(
         .Include(e => e.Lots).ThenInclude(l => l.Seller)
         .Include(e => e.Lots).ThenInclude(l => l.Winner)
         .Include(e => e.Lots).ThenInclude(l => l.LeadingBidder)
+        .Include(e => e.Lots).ThenInclude(l => l.ClosedBy)
         .Include(e => e.Lots).ThenInclude(l => l.LiveAuctionRequest)
         .Include(e => e.Lots).ThenInclude(l => l.Bids);
 
@@ -278,6 +302,9 @@ public class LiveAuctionService(
         if (lot.Event.CurrentLotId != lot.Id || lot.Status != LiveLotStatus.Open ||
             lot.Event.Status != LiveEventStatus.Live)
             throw new ApiException(409, "lot_not_open", "Lô này chưa mở hoặc đã kết thúc.");
+        var bidReceivedAt = DateTime.UtcNow;
+        if (lot.CurrentEndAt is DateTime deadline && deadline <= bidReceivedAt)
+            throw new ApiException(409, "bidding_deadline_passed", "Đã hết thời gian đặt giá cho lô này.");
         if (lot.SellerId == user.Id)
             throw new ApiException(403, "seller_cannot_bid", "Bạn không thể đặt giá cho sản phẩm của chính mình.");
         var registration = await db.LiveRegistrations.AsNoTracking()
@@ -296,7 +323,13 @@ public class LiveAuctionService(
             throw new ApiException(409, "already_leading", "Bạn đang dẫn đầu lô này, không cần đặt giá thêm.");
 
         var previousLeaderId = lot.LeadingBidderId;
-        var now = DateTime.UtcNow;
+        var now = bidReceivedAt;
+        var operationMode = lot.OperationModeOverride ?? lot.Event.OperationMode;
+        var extended = lot.CurrentEndAt is DateTime currentEndAt &&
+            operationMode != LiveOperationMode.Manual &&
+            lot.Event.AutoExtensionEnabled &&
+            lot.ExtensionCount < lot.Event.MaxExtensions &&
+            (currentEndAt - now).TotalSeconds <= lot.Event.ExtensionTriggerSeconds;
         var bid = new LiveBid { LotId = lot.Id, UserId = user.Id, Amount = amount, BidTime = now };
         db.LiveBids.Add(bid);
         lot.LeadingBidderId = user.Id;
@@ -305,6 +338,11 @@ public class LiveAuctionService(
         // Lượt giá mới đặt lại giai đoạn gọi giá theo quy tắc công bố.
         lot.CallingStage = LiveCallingStage.None;
         lot.LastWarningAt = null;
+        if (extended)
+        {
+            lot.CurrentEndAt = lot.CurrentEndAt!.Value.AddSeconds(lot.Event.ExtensionSeconds);
+            lot.ExtensionCount++;
+        }
 
         if (previousLeaderId is int previousId && previousId != user.Id)
         {
@@ -343,8 +381,15 @@ public class LiveAuctionService(
             nextBid = amount + lot.BidIncrement, bidCount = lot.BidCount,
             leadingBidderCode = Mask(user.Username),
             bid = new { amount, bidderCode = Mask(user.Username), at = now },
+            currentEndAt = lot.CurrentEndAt,
             serverTime = now
         }, ct);
+        if (extended)
+            await Broadcast(lot.EventId, "LotExtended", new
+            {
+                eventId = lot.EventId, lotId = lot.Id, currentEndAt = lot.CurrentEndAt,
+                extensionCount = lot.ExtensionCount, serverTime = now
+            }, ct);
         return dto;
     }
 
@@ -413,6 +458,88 @@ public class LiveAuctionService(
         return await GetAsync(id, ct);
     }
 
+    public async Task<LiveEventDto> UpdateAutomationSettingsAsync(
+        int id, UpdateLiveAuctionSettingsDto request, CancellationToken ct)
+    {
+        await currentUser.RequireAdminAsync(ct);
+        var entity = await db.LiveEvents.Include(e => e.Lots)
+            .FirstOrDefaultAsync(e => e.Id == id, ct)
+            ?? throw new ApiException(404, "event_not_found", "Không tìm thấy sự kiện.");
+        if (entity.Status is LiveEventStatus.Live or LiveEventStatus.Paused or
+            LiveEventStatus.Completed or LiveEventStatus.Cancelled ||
+            entity.Lots.Any(l => l.BidCount > 0 || l.Status is LiveLotStatus.Open or LiveLotStatus.AwaitingConfirmation))
+            throw new ApiException(409, "settings_locked", "Cấu hình được khóa sau khi phiên bắt đầu hoặc đã có lượt đặt giá.");
+        if (!Enum.TryParse<LiveOperationMode>(request.OperationMode, true, out var operationMode) ||
+            !Enum.IsDefined(operationMode))
+            throw new ApiException(400, "invalid_operation_mode", "Chế độ điều hành không hợp lệ.");
+        if (operationMode == LiveOperationMode.Manual &&
+            (request.AutoStartEvent || request.AutoOpenFirstLot || request.AutoCloseLots || request.AutoExtensionEnabled))
+            throw new ApiException(400, "manual_mode_automation", "Chế độ thủ công không thể bật tự mở, tự chốt hoặc tự gia hạn.");
+        if (request.AutoCloseLots && operationMode != LiveOperationMode.Automatic)
+            throw new ApiException(400, "auto_close_mode", "Tự chốt chỉ khả dụng ở chế độ tự động.");
+        if (request.AutoExtensionEnabled &&
+            (request.ExtensionTriggerSeconds >= request.DefaultLotDurationSeconds || request.MaxExtensions < 1))
+            throw new ApiException(400, "invalid_extension", "Quy tắc gia hạn phải có giới hạn dương và khoảng kích hoạt ngắn hơn thời lượng lô.");
+        if (request.AutoExtensionEnabled && entity.Lots.Any(l =>
+            (l.OperationModeOverride ?? operationMode) != LiveOperationMode.Manual &&
+            (l.DurationSeconds ?? request.DefaultLotDurationSeconds) <= request.ExtensionTriggerSeconds))
+            throw new ApiException(400, "invalid_extension", "Thời gian kích hoạt gia hạn phải ngắn hơn thời lượng của từng lô được tính giờ.");
+
+        entity.OperationMode = operationMode;
+        entity.DefaultLotDurationSeconds = request.DefaultLotDurationSeconds;
+        entity.AutoStartEvent = request.AutoStartEvent;
+        entity.AutoOpenFirstLot = request.AutoOpenFirstLot;
+        entity.AutoCloseLots = request.AutoCloseLots;
+        entity.AutoOpenNextLot = request.AutoOpenNextLot;
+        entity.AutoCompleteEvent = request.AutoCompleteEvent;
+        entity.InterLotDelaySeconds = request.InterLotDelaySeconds;
+        entity.AutoExtensionEnabled = request.AutoExtensionEnabled;
+        entity.ExtensionTriggerSeconds = request.ExtensionTriggerSeconds;
+        entity.ExtensionSeconds = request.ExtensionSeconds;
+        entity.MaxExtensions = request.MaxExtensions;
+        entity.AllowLateLotAddition = request.AllowLateLotAddition;
+        entity.UpdatedAt = DateTime.UtcNow;
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ApiException(409, "settings_changed", "Sự kiện vừa thay đổi. Hãy tải lại cấu hình.");
+        }
+        return await GetAsync(id, ct);
+    }
+
+    public async Task<LiveLotDto> UpdateLotSettingsAsync(
+        int lotId, UpdateLiveLotSettingsDto request, CancellationToken ct)
+    {
+        await currentUser.RequireAdminAsync(ct);
+        var lot = await db.LiveLots.Include(l => l.Event).Include(l => l.Seller)
+            .FirstOrDefaultAsync(l => l.Id == lotId, ct)
+            ?? throw new ApiException(404, "lot_not_found", "Không tìm thấy lô.");
+        if (lot.Event.Status is not (LiveEventStatus.Draft or LiveEventStatus.Published) ||
+            lot.Status != LiveLotStatus.Pending || lot.BidCount > 0)
+            throw new ApiException(409, "lot_settings_locked", "Chỉ chỉnh cấu hình lô đang chờ mở trước khi phiên bắt đầu.");
+        LiveOperationMode? modeOverride = null;
+        if (!string.IsNullOrWhiteSpace(request.OperationModeOverride))
+        {
+            if (!Enum.TryParse<LiveOperationMode>(request.OperationModeOverride, true, out var parsed) ||
+                !Enum.IsDefined(parsed))
+                throw new ApiException(400, "invalid_operation_mode", "Chế độ điều hành riêng của lô không hợp lệ.");
+            modeOverride = parsed;
+        }
+        var effectiveMode = modeOverride ?? lot.Event.OperationMode;
+        var effectiveDuration = request.DurationSeconds ?? lot.Event.DefaultLotDurationSeconds;
+        if (lot.Event.AutoExtensionEnabled && effectiveMode != LiveOperationMode.Manual &&
+            effectiveDuration <= lot.Event.ExtensionTriggerSeconds)
+            throw new ApiException(400, "invalid_extension", "Thời lượng lô phải dài hơn khoảng kích hoạt gia hạn.");
+        lot.DurationSeconds = request.DurationSeconds;
+        lot.OperationModeOverride = modeOverride;
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ApiException(409, "lot_settings_changed", "Lô vừa thay đổi. Hãy tải lại cấu hình.");
+        }
+        return LotDto(lot, null);
+    }
+
     public async Task<LiveEventDto> PublishAsync(int id, CancellationToken ct)
     {
         await currentUser.RequireAdminAsync(ct);
@@ -439,8 +566,12 @@ public class LiveAuctionService(
         var admin = await currentUser.RequireAdminAsync(ct);
         var entity = await db.LiveEvents.FirstOrDefaultAsync(e => e.Id == eventId, ct)
             ?? throw new ApiException(404, "event_not_found", "Không tìm thấy sự kiện.");
-        if (entity.Status is not (LiveEventStatus.Draft or LiveEventStatus.Published))
-            throw new ApiException(409, "event_locked", "Chỉ sự kiện nháp hoặc đã công bố mới nhận thêm lô.");
+        if (entity.Status is not (
+            LiveEventStatus.Draft or LiveEventStatus.Published or
+            LiveEventStatus.Live or LiveEventStatus.Paused))
+            throw new ApiException(409, "event_locked", "Sự kiện đã kết thúc nên không thể nhận thêm lô.");
+        if ((entity.Status is LiveEventStatus.Live or LiveEventStatus.Paused) && !entity.AllowLateLotAddition)
+            throw new ApiException(409, "late_lot_disabled", "Sự kiện chưa bật quyền bổ sung lô sau khi bắt đầu.");
 
         var liveRequest = await db.LiveAuctionRequests
             .Include(r => r.Product).ThenInclude(p => p.Seller)
@@ -492,6 +623,7 @@ public class LiveAuctionService(
             CurrentPrice = starting,
             ReservePrice = liveRequest.ProposedReservePrice,
             BidIncrement = increment,
+            DurationSeconds = request.DurationSeconds,
             Status = LiveLotStatus.Pending
         };
         liveRequest.Status = LiveAuctionRequestStatus.Scheduled;
@@ -509,7 +641,7 @@ public class LiveAuctionService(
         }
         await Broadcast(eventId, "LotsChanged", new { eventId }, ct);
         return LotDto(await db.LiveLots.AsNoTracking().Include(l => l.Seller).Include(l => l.Bids)
-            .Include(l => l.LiveAuctionRequest)
+            .Include(l => l.LiveAuctionRequest).Include(l => l.Event)
             .FirstAsync(l => l.Id == lot.Id, ct), null);
     }
 
@@ -534,6 +666,11 @@ public class LiveAuctionService(
     public async Task<LiveSnapshotDto> StartLotAsync(int lotId, CancellationToken ct)
     {
         await currentUser.RequireAdminAsync(ct);
+        return await StartLotCoreAsync(lotId, ct);
+    }
+
+    private async Task<LiveSnapshotDto> StartLotCoreAsync(int lotId, CancellationToken ct)
+    {
         var lot = await db.LiveLots.Include(l => l.Event).Include(l => l.LiveAuctionRequest)
             .FirstOrDefaultAsync(l => l.Id == lotId, ct)
             ?? throw new ApiException(404, "lot_not_found", "Không tìm thấy lô.");
@@ -542,12 +679,23 @@ public class LiveAuctionService(
             throw new ApiException(409, "event_not_ready", "Sự kiện chưa sẵn sàng để mở lô.");
         if (lot.Status != LiveLotStatus.Pending)
             throw new ApiException(409, "invalid_lot_status", "Lô này không ở trạng thái chờ mở.");
-        if (await db.LiveLots.AnyAsync(l => l.EventId == entity.Id && l.Status == LiveLotStatus.Open, ct))
+        if (entity.CurrentLotId is not null || await db.LiveLots.AnyAsync(l =>
+            l.EventId == entity.Id &&
+            (l.Status == LiveLotStatus.Open || l.Status == LiveLotStatus.AwaitingConfirmation), ct))
             throw new ApiException(409, "lot_already_open", "Hãy chốt lô đang mở trước khi mở lô khác.");
         var now = DateTime.UtcNow;
         lot.Status = LiveLotStatus.Open;
         lot.CurrentPrice = lot.StartingPrice;
         lot.OpenedAt = now;
+        lot.OriginalEndAt = null;
+        lot.CurrentEndAt = null;
+        lot.RemainingSecondsOnPause = null;
+        lot.ExtensionCount = 0;
+        if ((lot.OperationModeOverride ?? entity.OperationMode) != LiveOperationMode.Manual)
+        {
+            lot.OriginalEndAt = now.AddSeconds(lot.DurationSeconds ?? entity.DefaultLotDurationSeconds);
+            lot.CurrentEndAt = lot.OriginalEndAt;
+        }
         lot.CallingStage = LiveCallingStage.None;
         lot.LastWarningAt = null;
         if (lot.LiveAuctionRequest is not null)
@@ -558,12 +706,20 @@ public class LiveAuctionService(
         entity.Status = LiveEventStatus.Live;
         entity.StartedAt ??= now;
         entity.CurrentLotId = lot.Id;
+        entity.NextLotOpenAt = null;
+        entity.PausedAt = null;
         entity.UpdatedAt = now;
-        await db.SaveChangesAsync(ct);
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ApiException(409, "lot_conflict", "Lô hoặc sự kiện vừa thay đổi. Hãy tải lại trước khi mở.");
+        }
         await Broadcast(entity.Id, "LotOpened", new
         {
             eventId = entity.Id, lotId = lot.Id, lotNumber = lot.LotNumber,
             lot = new { lot.Title, lot.StartingPrice, lot.CurrentPrice, lot.BidIncrement },
+            operationMode = (lot.OperationModeOverride ?? entity.OperationMode).ToString(),
+            currentEndAt = lot.CurrentEndAt,
             serverTime = now
         }, ct);
         return await SnapshotAsync(entity.Id, ct);
@@ -628,15 +784,43 @@ public class LiveAuctionService(
 
     public async Task<LiveSnapshotDto> CloseLotAsync(int lotId, bool forceUnsold, CancellationToken ct)
     {
-        await currentUser.RequireAdminAsync(ct);
-        var lot = await db.LiveLots.Include(l => l.Event).FirstOrDefaultAsync(l => l.Id == lotId, ct)
+        var admin = await currentUser.RequireAdminAsync(ct);
+        return await CloseLotCoreAsync(lotId, forceUnsold, admin.Id, automated: false, hybridConfirmation: false, ct);
+    }
+
+    public async Task<LiveSnapshotDto> ConfirmLotResultAsync(int lotId, CancellationToken ct)
+    {
+        var admin = await currentUser.RequireAdminAsync(ct);
+        return await CloseLotCoreAsync(lotId, forceUnsold: false, admin.Id, automated: false, hybridConfirmation: true, ct);
+    }
+
+    private async Task<LiveSnapshotDto> CloseLotCoreAsync(
+        int lotId, bool forceUnsold, int? closedById, bool automated, bool hybridConfirmation, CancellationToken ct)
+    {
+        var lot = await db.LiveLots.Include(l => l.Event).Include(l => l.LiveAuctionRequest)
+            .FirstOrDefaultAsync(l => l.Id == lotId, ct)
             ?? throw new ApiException(404, "lot_not_found", "Không tìm thấy lô.");
-        if (lot.Status != LiveLotStatus.Open)
-            throw new ApiException(409, "lot_not_open", "Lô này chưa mở hoặc đã chốt.");
+        if (hybridConfirmation
+            ? lot.Status != LiveLotStatus.AwaitingConfirmation
+            : lot.Status != LiveLotStatus.Open)
+            throw new ApiException(409, "lot_not_open", "Lô chưa đến bước xác nhận kết quả hoặc đã được xử lý.");
         if (lot.Event.Status != LiveEventStatus.Live || lot.Event.CurrentLotId != lot.Id)
             throw new ApiException(409, "event_not_live", "Chỉ có thể chốt lô hiện tại của sự kiện đang diễn ra.");
 
         var now = DateTime.UtcNow;
+        var operationMode = lot.OperationModeOverride ?? lot.Event.OperationMode;
+        if (!hybridConfirmation && lot.CurrentEndAt is DateTime endAt && endAt > now)
+        {
+            if (automated)
+                throw new ApiException(409, "deadline_not_reached", "Thời hạn lô chưa kết thúc.");
+            if (operationMode != LiveOperationMode.Manual)
+                throw new ApiException(409, "early_close_not_allowed", "Lô có đồng hồ không thể chốt trước hạn.");
+        }
+        if (!automated && !hybridConfirmation && operationMode == LiveOperationMode.Hybrid)
+            throw new ApiException(409, "hybrid_confirmation_required", "Lô bán tự động phải chờ hết giờ rồi xác nhận kết quả.");
+        if (!automated && !hybridConfirmation && operationMode == LiveOperationMode.Automatic && lot.Event.AutoCloseLots)
+            throw new ApiException(409, "automatic_close_enabled", "Hệ thống sẽ tự chốt kết quả khi hết giờ.");
+
         var winning = await db.LiveBids.AsNoTracking()
             .Where(b => b.LotId == lot.Id)
             .OrderByDescending(b => b.Amount).ThenBy(b => b.BidTime).ThenBy(b => b.Id)
@@ -645,14 +829,21 @@ public class LiveAuctionService(
         if (forceUnsold && meetsReserve)
             throw new ApiException(409, "unsold_not_allowed",
                 "Không thể đánh dấu không bán được khi đã có giá hợp lệ đạt giá dự trữ. Hãy tạm dừng và xử lý sự cố.");
-        if (!forceUnsold && meetsReserve && lot.CallingStage != LiveCallingStage.Twice)
+        if (!automated && !hybridConfirmation && operationMode == LiveOperationMode.Manual &&
+            !forceUnsold && meetsReserve && lot.CallingStage != LiveCallingStage.Twice)
             throw new ApiException(409, "warning_required",
                 "Cần gửi đủ hai cảnh báo chốt trước khi xác nhận bán.");
 
         var product = await db.Products.FirstOrDefaultAsync(p => p.Id == lot.ProductId, ct);
         lot.ClosedAt = now;
+        lot.ClosedById = automated ? null : closedById;
+        lot.CloseMethod = automated ? LiveLotCloseMethod.Automatic
+            : hybridConfirmation ? LiveLotCloseMethod.HybridConfirmed
+            : LiveLotCloseMethod.Manual;
         lot.CallingStage = LiveCallingStage.None;
         lot.LastWarningAt = null;
+        lot.CurrentEndAt = null;
+        lot.RemainingSecondsOnPause = null;
         lot.Event.CurrentLotId = null;
         lot.Event.UpdatedAt = now;
         if (lot.LiveAuctionRequest is not null)
@@ -736,6 +927,25 @@ public class LiveAuctionService(
             });
         }
 
+        lot.Event.NextLotOpenAt = null;
+        var terminalLotStatuses = new[]
+        {
+            LiveLotStatus.Sold, LiveLotStatus.Unsold, LiveLotStatus.Skipped, LiveLotStatus.Withdrawn
+        };
+        var hasPendingLot = await db.LiveLots.AnyAsync(l =>
+            l.EventId == lot.EventId && l.Id != lot.Id && l.Status == LiveLotStatus.Pending, ct);
+        var hasUnprocessedLots = await db.LiveLots.AnyAsync(l =>
+            l.EventId == lot.EventId && l.Id != lot.Id && !terminalLotStatuses.Contains(l.Status), ct);
+        if (lot.Event.AutoOpenNextLot && hasPendingLot)
+        {
+            lot.Event.NextLotOpenAt = now.AddSeconds(lot.Event.InterLotDelaySeconds);
+        }
+        else if (lot.Event.AutoCompleteEvent && !hasUnprocessedLots)
+        {
+            lot.Event.Status = LiveEventStatus.Completed;
+            lot.Event.EndedAt = now;
+        }
+
         try { await db.SaveChangesAsync(ct); }
         catch (DbUpdateConcurrencyException)
         {
@@ -751,7 +961,131 @@ public class LiveAuctionService(
             hammerPrice = lot.HammerPrice,
             serverTime = now
         }, ct);
+        if (lot.Event.Status == LiveEventStatus.Completed)
+            await Broadcast(lot.EventId, "EventCompleted", new
+            {
+                eventId = lot.EventId, status = lot.Event.Status.ToString(), serverTime = now
+            }, ct);
         return await SnapshotAsync(lot.EventId, ct);
+    }
+
+    public async Task ProcessAutomationTickAsync(CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        var dueStarts = db.LiveEvents.AsNoTracking()
+            .Where(e => e.Status == LiveEventStatus.Published && e.AutoStartEvent && e.ScheduledStartAt <= now)
+            .Select(e => e.Id);
+        var dueTransitions = db.LiveEvents.AsNoTracking()
+            .Where(e => e.Status == LiveEventStatus.Live && e.NextLotOpenAt != null && e.NextLotOpenAt <= now)
+            .Select(e => e.Id);
+        var dueClosures = db.LiveLots.AsNoTracking()
+            .Where(l => l.Status == LiveLotStatus.Open && l.CurrentEndAt != null && l.CurrentEndAt <= now)
+            .Select(l => l.EventId);
+        var dueIds = await dueStarts.Concat(dueTransitions).Concat(dueClosures)
+            .Distinct().Take(50).ToListAsync(ct);
+
+        foreach (var eventId in dueIds)
+        {
+            db.ChangeTracker.Clear();
+            try { await ProcessAutomationEventAsync(eventId, ct); }
+            catch (DbUpdateConcurrencyException)
+            {
+                db.ChangeTracker.Clear();
+                logger.LogInformation("Bỏ qua tác vụ Live {EventId} vì phiên vừa được cập nhật đồng thời.", eventId);
+            }
+            catch (ApiException ex) when (ex.StatusCode == 409)
+            {
+                db.ChangeTracker.Clear();
+                logger.LogInformation("Tác vụ Live {EventId} đã được xử lý trước đó: {Code}", eventId, ex.Code);
+            }
+        }
+    }
+
+    private async Task ProcessAutomationEventAsync(int eventId, CancellationToken ct)
+    {
+        var entity = await db.LiveEvents.Include(e => e.Lots)
+            .FirstOrDefaultAsync(e => e.Id == eventId, ct);
+        if (entity is null) return;
+        var now = DateTime.UtcNow;
+
+        if (entity.Status == LiveEventStatus.Published &&
+            entity.AutoStartEvent && entity.ScheduledStartAt <= now)
+        {
+            entity.Status = LiveEventStatus.Live;
+            entity.StartedAt ??= now;
+            entity.UpdatedAt = now;
+            await db.SaveChangesAsync(ct);
+            await Broadcast(eventId, "AutomationStarted", new
+            {
+                eventId, serverTime = now
+            }, ct);
+
+            if (entity.AutoOpenFirstLot)
+            {
+                var firstLot = entity.Lots.Where(l => l.Status == LiveLotStatus.Pending)
+                    .OrderBy(l => l.SequenceNumber).FirstOrDefault();
+                if (firstLot is not null)
+                    await StartLotCoreAsync(firstLot.Id, ct);
+            }
+            return;
+        }
+
+        if (entity.Status != LiveEventStatus.Live) return;
+        if (entity.CurrentLotId is int currentLotId)
+        {
+            var current = entity.Lots.FirstOrDefault(l => l.Id == currentLotId);
+            if (current?.Status == LiveLotStatus.Open &&
+                current.CurrentEndAt is DateTime deadline && deadline <= now)
+            {
+                var mode = current.OperationModeOverride ?? entity.OperationMode;
+                if (mode == LiveOperationMode.Hybrid)
+                {
+                    current.Status = LiveLotStatus.AwaitingConfirmation;
+                    current.CallingStage = LiveCallingStage.None;
+                    current.LastWarningAt = null;
+                    await db.SaveChangesAsync(ct);
+                    await Broadcast(eventId, "LotAwaitingConfirmation", new
+                    {
+                        eventId, lotId = current.Id, lotNumber = current.LotNumber,
+                        currentEndAt = current.CurrentEndAt, serverTime = now
+                    }, ct);
+                }
+                else if (mode == LiveOperationMode.Automatic && entity.AutoCloseLots)
+                {
+                    await CloseLotCoreAsync(current.Id, false, null, automated: true,
+                        hybridConfirmation: false, ct);
+                }
+            }
+            return;
+        }
+
+        if (entity.NextLotOpenAt is DateTime nextOpenAt && nextOpenAt <= now && entity.AutoOpenNextLot)
+        {
+            var nextLot = entity.Lots.Where(l => l.Status == LiveLotStatus.Pending)
+                .OrderBy(l => l.SequenceNumber).FirstOrDefault();
+            if (nextLot is not null)
+            {
+                await StartLotCoreAsync(nextLot.Id, ct);
+                return;
+            }
+            entity.NextLotOpenAt = null;
+            if (entity.AutoCompleteEvent && entity.Lots.All(l =>
+                l.Status is LiveLotStatus.Sold or LiveLotStatus.Unsold or LiveLotStatus.Skipped or LiveLotStatus.Withdrawn))
+            {
+                entity.Status = LiveEventStatus.Completed;
+                entity.EndedAt = now;
+                entity.UpdatedAt = now;
+                await db.SaveChangesAsync(ct);
+                await Broadcast(eventId, "EventCompleted", new
+                {
+                    eventId, status = entity.Status.ToString(), serverTime = now
+                }, ct);
+            }
+            else
+            {
+                await db.SaveChangesAsync(ct);
+            }
+        }
     }
 
     public async Task SkipLotAsync(int lotId, CancellationToken ct)
@@ -777,23 +1111,44 @@ public class LiveAuctionService(
         await currentUser.RequireAdminAsync(ct);
         var entity = await db.LiveEvents.FirstOrDefaultAsync(e => e.Id == eventId, ct)
             ?? throw new ApiException(404, "event_not_found", "Không tìm thấy sự kiện.");
+        var now = DateTime.UtcNow;
         if (resume)
         {
             if (entity.Status != LiveEventStatus.Paused)
                 throw new ApiException(409, "invalid_status", "Sự kiện không ở trạng thái tạm dừng.");
+            var pausedDuration = now - (entity.PausedAt ?? now);
+            if (entity.CurrentLotId is int currentLotId)
+            {
+                var lot = await db.LiveLots.FirstOrDefaultAsync(l => l.Id == currentLotId, ct);
+                if (lot?.RemainingSecondsOnPause is int remainingSeconds)
+                    lot.CurrentEndAt = now.AddSeconds(remainingSeconds);
+                if (lot is not null) lot.RemainingSecondsOnPause = null;
+            }
+            if (entity.NextLotOpenAt is DateTime nextLotOpenAt)
+                entity.NextLotOpenAt = nextLotOpenAt + pausedDuration;
             entity.Status = LiveEventStatus.Live;
+            entity.PausedAt = null;
         }
         else
         {
             if (entity.Status != LiveEventStatus.Live)
                 throw new ApiException(409, "invalid_status", "Chỉ tạm dừng được sự kiện đang diễn ra.");
             entity.Status = LiveEventStatus.Paused;
+            entity.PausedAt = now;
+            if (entity.CurrentLotId is int currentLotId)
+            {
+                var lot = await db.LiveLots.FirstOrDefaultAsync(l => l.Id == currentLotId, ct);
+                if (lot?.CurrentEndAt is DateTime currentEndAt)
+                    lot.RemainingSecondsOnPause = Math.Max(0, (int)Math.Ceiling((currentEndAt - now).TotalSeconds));
+            }
         }
-        entity.UpdatedAt = DateTime.UtcNow;
+        entity.UpdatedAt = now;
         await db.SaveChangesAsync(ct);
         await Broadcast(eventId, resume ? "EventResumed" : "EventPaused", new
         {
-            eventId, status = entity.Status.ToString(), serverTime = DateTime.UtcNow
+            eventId, status = entity.Status.ToString(), currentEndAt = entity.CurrentLotId is int id
+                ? await db.LiveLots.Where(l => l.Id == id).Select(l => l.CurrentEndAt).FirstOrDefaultAsync(ct)
+                : null, serverTime = now
         }, ct);
         return await SnapshotAsync(eventId, ct);
     }
@@ -858,8 +1213,9 @@ public class LiveAuctionService(
             logger.LogWarning(ex, "Không gửi được {Method} cho sự kiện live {EventId}", method, eventId);
         }
 
-        if (method is "BidAccepted" or "LotOpened" or "LotSold" or "LotUnsold" or
-            "EventPaused" or "EventResumed" or "EventCompleted" or "LotsChanged")
+        if (method is "BidAccepted" or "LotOpened" or "LotExtended" or "LotAwaitingConfirmation" or
+            "LotSold" or "LotUnsold" or "AutomationStarted" or "EventPaused" or "EventResumed" or
+            "EventCompleted" or "LotsChanged")
             await BroadcastCatalogChanged(eventId, method, ct);
     }
 

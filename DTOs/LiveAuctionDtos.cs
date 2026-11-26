@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using BidNet.Models;
 
 namespace BidNet.DTOs;
 
@@ -23,6 +24,38 @@ public class AddLiveLotDto
 {
     [Range(1, int.MaxValue, ErrorMessage = "Yêu cầu đấu giá trực tiếp không hợp lệ.")]
     public int LiveAuctionRequestId { get; set; }
+    [Range(60, 604800, ErrorMessage = "Thời lượng lô phải từ 1 phút đến 7 ngày.")]
+    public int? DurationSeconds { get; set; }
+}
+
+public class UpdateLiveAuctionSettingsDto
+{
+    [Required]
+    public string OperationMode { get; set; } = nameof(LiveOperationMode.Manual);
+    [Range(60, 604800)]
+    public int DefaultLotDurationSeconds { get; set; } = 300;
+    public bool AutoStartEvent { get; set; }
+    public bool AutoOpenFirstLot { get; set; }
+    public bool AutoCloseLots { get; set; }
+    public bool AutoOpenNextLot { get; set; }
+    public bool AutoCompleteEvent { get; set; }
+    [Range(0, 3600)]
+    public int InterLotDelaySeconds { get; set; } = 30;
+    public bool AutoExtensionEnabled { get; set; }
+    [Range(1, 3600)]
+    public int ExtensionTriggerSeconds { get; set; } = 15;
+    [Range(1, 3600)]
+    public int ExtensionSeconds { get; set; } = 30;
+    [Range(0, 100)]
+    public int MaxExtensions { get; set; } = 3;
+    public bool AllowLateLotAddition { get; set; }
+}
+
+public class UpdateLiveLotSettingsDto
+{
+    [Range(60, 604800)]
+    public int? DurationSeconds { get; set; }
+    public string? OperationModeOverride { get; set; }
 }
 
 public class CreateLiveAuctionRequestDto
@@ -136,6 +169,20 @@ public class LiveEventSummaryDto
     public DateTime? ScheduledEndAt { get; set; }
     public bool RegistrationOpen { get; set; }
     public decimal BuyerPremiumRate { get; set; }
+    public string OperationMode { get; set; } = nameof(LiveOperationMode.Manual);
+    public int DefaultLotDurationSeconds { get; set; }
+    public bool AutoStartEvent { get; set; }
+    public bool AutoOpenFirstLot { get; set; }
+    public bool AutoCloseLots { get; set; }
+    public bool AutoOpenNextLot { get; set; }
+    public bool AutoCompleteEvent { get; set; }
+    public int InterLotDelaySeconds { get; set; }
+    public bool AutoExtensionEnabled { get; set; }
+    public int ExtensionTriggerSeconds { get; set; }
+    public int ExtensionSeconds { get; set; }
+    public int MaxExtensions { get; set; }
+    public bool AllowLateLotAddition { get; set; }
+    public DateTime? NextLotOpenAt { get; set; }
     public int LotCount { get; set; }
     public int SoldCount { get; set; }
     public int? CurrentLotId { get; set; }
@@ -168,6 +215,10 @@ public class LiveLotDto
     public decimal NextBid { get; set; }
     public decimal? HammerPrice { get; set; }
     public string Status { get; set; } = string.Empty;
+    public string OperationMode { get; set; } = nameof(LiveOperationMode.Manual);
+    public string? OperationModeOverride { get; set; }
+    public int DurationSeconds { get; set; }
+    public int? DurationSecondsOverride { get; set; }
     public string CallingStage { get; set; } = string.Empty;
     public DateTime? WarningAvailableAt { get; set; }
     public string SellerName { get; set; } = string.Empty;
@@ -177,7 +228,12 @@ public class LiveLotDto
     public string? MyStatus { get; set; }
     public int BidCount { get; set; }
     public DateTime? OpenedAt { get; set; }
+    public DateTime? OriginalEndAt { get; set; }
+    public DateTime? CurrentEndAt { get; set; }
+    public int? RemainingSecondsOnPause { get; set; }
+    public int ExtensionCount { get; set; }
     public DateTime? ClosedAt { get; set; }
+    public string? CloseMethod { get; set; }
     public bool ReserveMet { get; set; }
 }
 

@@ -178,6 +178,7 @@ namespace BidNet.Data
                 .HasFilter("[Status] IN (0, 1, 2, 3) AND [LiveAuctionRequestId] IS NOT NULL");
             modelBuilder.Entity<LiveLot>().HasIndex(l => new { l.EventId, l.SequenceNumber }).IsUnique();
             modelBuilder.Entity<LiveLot>().HasIndex(l => new { l.Status, l.EventId });
+            modelBuilder.Entity<LiveLot>().HasIndex(l => new { l.Status, l.CurrentEndAt });
             modelBuilder.Entity<LiveLot>().HasOne(l => l.Product).WithMany()
                 .HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<LiveLot>().HasOne(l => l.Seller).WithMany()
@@ -186,6 +187,8 @@ namespace BidNet.Data
                 .HasForeignKey(l => l.LeadingBidderId).OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<LiveLot>().HasOne(l => l.Winner).WithMany()
                 .HasForeignKey(l => l.WinnerId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<LiveLot>().HasOne(l => l.ClosedBy).WithMany()
+                .HasForeignKey(l => l.ClosedById).OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<LiveLot>().HasOne(l => l.AddedBy).WithMany()
                 .HasForeignKey(l => l.AddedById).OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<LiveLot>().HasOne(l => l.LiveAuctionRequest).WithMany(r => r.Lots)
@@ -217,7 +220,15 @@ namespace BidNet.Data
             modelBuilder.Entity<LiveRegistration>().ToTable(t =>
                 t.HasCheckConstraint("CK_LiveRegistrations_Status", "[Status] IN (0,1,2,3,4)"));
             modelBuilder.Entity<LiveLot>().ToTable(t =>
-                t.HasCheckConstraint("CK_LiveLots_Status", "[Status] IN (0,1,2,3,4,5,6)"));
+            {
+                t.HasCheckConstraint("CK_LiveLots_Status", "[Status] IN (0,1,2,3,4,5,6,7)");
+                t.HasCheckConstraint("CK_LiveLots_DurationSeconds", "[DurationSeconds] IS NULL OR [DurationSeconds] BETWEEN 60 AND 604800");
+            });
+            modelBuilder.Entity<LiveEvent>().ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_LiveEvents_DurationSeconds", "[DefaultLotDurationSeconds] BETWEEN 60 AND 604800");
+                t.HasCheckConstraint("CK_LiveEvents_InterLotDelaySeconds", "[InterLotDelaySeconds] BETWEEN 0 AND 3600");
+            });
 
             // ── 4. Cấu hình bảng Notifications ───────────────────────────────────────
             // Tăng tốc truy vấn danh sách thông báo theo từng người dùng

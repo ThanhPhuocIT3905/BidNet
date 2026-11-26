@@ -196,6 +196,7 @@ try
     builder.Services.AddSingleton(new Cloudinary(cloudinaryAccount) { Api = { Secure = true } });
     builder.Services.AddScoped<IProductImageService, ProductImageService>();
     builder.Services.AddHostedService<AuctionClosingService>();
+    builder.Services.AddHostedService<LiveAuctionAutomationWorker>();
 
     var app = builder.Build();
 

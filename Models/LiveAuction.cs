@@ -38,6 +38,22 @@ public class LiveEvent
     [Column(TypeName = "decimal(5,4)")]
     public decimal BuyerPremiumRate { get; set; }
 
+    public LiveOperationMode OperationMode { get; set; } = LiveOperationMode.Manual;
+    public int DefaultLotDurationSeconds { get; set; } = 300;
+    public bool AutoStartEvent { get; set; }
+    public bool AutoOpenFirstLot { get; set; }
+    public bool AutoCloseLots { get; set; }
+    public bool AutoOpenNextLot { get; set; }
+    public bool AutoCompleteEvent { get; set; }
+    public int InterLotDelaySeconds { get; set; } = 30;
+    public bool AutoExtensionEnabled { get; set; }
+    public int ExtensionTriggerSeconds { get; set; } = 15;
+    public int ExtensionSeconds { get; set; } = 30;
+    public int MaxExtensions { get; set; } = 3;
+    public bool AllowLateLotAddition { get; set; }
+    public DateTime? NextLotOpenAt { get; set; }
+    public DateTime? PausedAt { get; set; }
+
     public int? CurrentLotId { get; set; }
 
     public int CreatedById { get; set; }
@@ -52,6 +68,13 @@ public class LiveEvent
 
     public virtual ICollection<LiveLot> Lots { get; set; } = new List<LiveLot>();
     public virtual ICollection<LiveRegistration> Registrations { get; set; } = new List<LiveRegistration>();
+}
+
+public enum LiveOperationMode
+{
+    Manual = 0,
+    Automatic = 1,
+    Hybrid = 2
 }
 
 public enum LiveEventStatus
@@ -113,6 +136,8 @@ public class LiveLot
     public decimal BidIncrement { get; set; } = 1000;
 
     public LiveLotStatus Status { get; set; } = LiveLotStatus.Pending;
+    public LiveOperationMode? OperationModeOverride { get; set; }
+    public int? DurationSeconds { get; set; }
     public LiveCallingStage CallingStage { get; set; } = LiveCallingStage.None;
     public DateTime? LastWarningAt { get; set; }
 
@@ -129,7 +154,15 @@ public class LiveLot
 
     public int BidCount { get; set; }
     public DateTime? OpenedAt { get; set; }
+    public DateTime? OriginalEndAt { get; set; }
+    public DateTime? CurrentEndAt { get; set; }
+    public int? RemainingSecondsOnPause { get; set; }
+    public int ExtensionCount { get; set; }
     public DateTime? ClosedAt { get; set; }
+    public int? ClosedById { get; set; }
+    [ForeignKey(nameof(ClosedById))]
+    public virtual User? ClosedBy { get; set; }
+    public LiveLotCloseMethod? CloseMethod { get; set; }
 
     [MaxLength(500)]
     public string? WithdrawReason { get; set; }
@@ -150,7 +183,15 @@ public enum LiveLotStatus
     Sold = 3,
     Unsold = 4,
     Skipped = 5,
-    Withdrawn = 6
+    Withdrawn = 6,
+    AwaitingConfirmation = 7
+}
+
+public enum LiveLotCloseMethod
+{
+    Manual = 0,
+    Automatic = 1,
+    HybridConfirmed = 2
 }
 
 public enum LiveCallingStage

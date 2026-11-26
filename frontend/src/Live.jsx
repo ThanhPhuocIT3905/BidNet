@@ -21,6 +21,12 @@ const lotStatusText = {
   Unsold: "Không bán được",
   Skipped: "Bỏ qua",
   Withdrawn: "Đã rút",
+  AwaitingConfirmation: "Chờ xác nhận kết quả",
+};
+const operationModeText = {
+  Manual: "Thủ công",
+  Automatic: "Tự động",
+  Hybrid: "Bán tự động",
 };
 const myStatusText = {
   Leading: "Bạn đang dẫn đầu",
@@ -28,6 +34,24 @@ const myStatusText = {
   Won: "Bạn đã thắng lô này",
 };
 const activityIcon = { bid: "₫", open: "▶", warning: "!", sold: "✓", unsold: "×", announcement: "◎" };
+const canAddLiveEventLots = (status, allowLateAddition = false) =>
+  status === "Draft" || status === "Published" ||
+  (["Live", "Paused"].includes(status) && allowLateAddition);
+const formatCountdown = (seconds) => {
+  const safe = Math.max(0, Math.floor(seconds));
+  const days = Math.floor(safe / 86400);
+  const hours = Math.floor((safe % 86400) / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const remainder = safe % 60;
+  return `${days ? `${days}d ` : ""}${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+};
+const formatDuration = (seconds) => seconds >= 86400 && seconds % 86400 === 0
+  ? `${seconds / 86400} ngày`
+  : seconds >= 3600 && seconds % 3600 === 0
+    ? `${seconds / 3600} giờ`
+    : seconds % 60 === 0
+      ? `${seconds / 60} phút`
+      : `${seconds} giây`;
 
 export function openLiveRoom(id, go, notify) {
   const base = `${location.href.split("#")[0]}#/live-room/${id}`;
@@ -258,6 +282,8 @@ export function LiveRoomPage({ id, user, go, notify, openAuth }) {
   const [won, setWon] = useState(null);
   const [lightbox, setLightbox] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
+  const [now, setNow] = useState(Date.now());
+  const [serverOffset, setServerOffset] = useState(0);
   const reloadRef = useRef(snap.reload);
   reloadRef.current = snap.reload;
 
@@ -266,10 +292,27 @@ export function LiveRoomPage({ id, user, go, notify, openAuth }) {
   const activeLot = event?.lots.find((lot) => lot.id === event.currentLotId) || null;
   const selected = event?.lots.find((lot) => lot.id === selectedId) || activeLot || event?.lots[0] || null;
   const isCurrent = selected && activeLot && selected.id === activeLot.id;
+  const deadline = activeLot?.currentEndAt ? new Date(parseApiDate(activeLot.currentEndAt) || activeLot.currentEndAt).getTime() : null;
+  const remainingSeconds = deadline == null ? null
+    : event?.status === "Paused" && activeLot?.remainingSecondsOnPause != null
+      ? activeLot.remainingSecondsOnPause
+      : Math.max(0, Math.ceil((deadline - now - serverOffset) / 1000));
   const canBid = Boolean(
     user && isCurrent && activeLot?.status === "Open" && event?.status === "Live" &&
-    data?.myRegistrationStatus === "Approved",
+    data?.myRegistrationStatus === "Approved" && (remainingSeconds == null || remainingSeconds > 0),
   );
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (data?.serverTime) {
+      const serverTime = new Date(parseApiDate(data.serverTime) || data.serverTime).getTime();
+      setServerOffset(serverTime - Date.now());
+    }
+  }, [data?.serverTime]);
 
   useEffect(() => {
     const timer = setInterval(() => reloadRef.current(), 15000);
@@ -339,6 +382,15 @@ export function LiveRoomPage({ id, user, go, notify, openAuth }) {
       refresh();
       notify(payload.stage === "Twice" ? "Cảnh báo chốt lần 2." : "Người điều hành thông báo sắp chốt lô.");
     });
+    connection.on("LotExtended", () => {
+      refresh();
+      notify("Thời gian lô được gia hạn theo quy tắc đã công bố.");
+    });
+    connection.on("LotAwaitingConfirmation", () => {
+      refresh();
+      notify("Đã hết giờ; lô đang chờ Auctioneer xác nhận kết quả.");
+    });
+    connection.on("AutomationStarted", refresh);
     connection.on("LotSold", (payload) => {
       refresh();
       if (payload?.winnerId && payload.winnerId === user.id) {
@@ -432,7 +484,7 @@ export function LiveRoomPage({ id, user, go, notify, openAuth }) {
         <a className="brand" href="#/" aria-label="Auctora">Auc<span>tora</span> <small>LIVE</small></a>
         <div className="live-room-title">
           <strong>{event.title}</strong>
-          <span>{event.code} · {eventStatusText[event.status]}</span>
+          <span>{event.code} · {eventStatusText[event.status]}{event.operationMode !== "Manual" ? ` · Chế độ ${operationModeText[event.operationMode] || event.operationMode}` : ""}</span>
         </div>
         <div className="live-room-tools">
           <span className={`live-connection ${connectState}`} title="Trạng thái kết nối realtime">
@@ -456,6 +508,9 @@ export function LiveRoomPage({ id, user, go, notify, openAuth }) {
       )}
       {activeLot?.callingStage && activeLot.callingStage !== "None" && activeLot.status === "Open" && (
         <div className="live-banner warning" role="status"><b>Cảnh báo sắp chốt</b><span>Người điều hành đã gọi giá lần {activeLot.callingStage === "Twice" ? "2" : "1"} cho lô đang mở.</span></div>
+      )}
+      {activeLot?.status === "AwaitingConfirmation" && (
+        <div className="live-banner warning" role="status"><b>Đang xác nhận kết quả</b><span>Đã hết thời gian đặt giá. Auctioneer đang xác nhận kết quả do hệ thống tính.</span></div>
       )}
 
       <div className="live-room-grid">
@@ -500,6 +555,16 @@ export function LiveRoomPage({ id, user, go, notify, openAuth }) {
                 </div>
                 <span className={`badge ${selected.status}`}>{lotStatusText[selected.status]}</span>
               </div>
+              {isCurrent && remainingSeconds != null && (
+                <div className={`live-room-countdown${remainingSeconds === 0 ? " expired" : ""}`} role="timer" aria-label="Thời gian đấu giá còn lại">
+                  <div><small>{event.status === "Paused" ? "THỜI GIAN CÒN LẠI · TẠM DỪNG" : "THỜI GIAN CÒN LẠI"}</small><strong>{formatCountdown(remainingSeconds)}</strong></div>
+                  <span>{activeLot.status === "AwaitingConfirmation"
+                    ? "Đang chờ Auctioneer xác nhận kết quả."
+                    : remainingSeconds === 0
+                      ? "Đã hết giờ; hệ thống đang xử lý kết quả theo dữ liệu máy chủ."
+                      : "Thời điểm đóng được đồng bộ từ Backend."}</span>
+                </div>
+              )}
               <div className="live-lot-image">
                 {photos.length ? (
                   <Magnifier item={{ name: selected.title, id: selected.lotNumber }} src={photos[0].url} onOpen={() => setLightbox(true)} />
@@ -1140,7 +1205,7 @@ export function AdminLiveRequests({ notify }) {
         </>
       )}
       {selected && (
-        <Modal title={`Xét duyệt ${selected.requestCode}`} onClose={() => setSelected(null)} busy={busy}>
+        <Modal title={`Xét duyệt ${selected.requestCode}`} onClose={() => setSelected(null)} busy={busy} className="live-request-review-dialog">
           <div className="live-request-review-grid">
             <section className="live-request-review-card">
               {selected.productImageUrl && <img src={selected.productImageUrl} alt="" />}
@@ -1152,7 +1217,7 @@ export function AdminLiveRequests({ notify }) {
             </section>
           </div>
           <div className="live-request-current-status"><RequestStatus status={selected.status} />{selected.preferredEventTitle && <span>Sự kiện mong muốn: {selected.preferredEventTitle}</span>}</div>
-          <div className="form-grid">
+          <div className="live-request-price-grid">
             <div className="field"><label htmlFor="adminStartingPrice">Giá khởi điểm đề xuất</label><MoneyInput id="adminStartingPrice" value={startingPrice} onChange={setStartingPrice} disabled={!["Reviewing", "PendingReview"].includes(selected.status)} required /></div>
             <div className="field"><label htmlFor="adminBidIncrement">Bước giá</label><MoneyInput id="adminBidIncrement" value={bidIncrement} onChange={setBidIncrement} disabled={!["Reviewing", "PendingReview"].includes(selected.status)} required /></div>
             <div className="field"><label htmlFor="adminReservePrice">Giá dự trữ</label><MoneyInput id="adminReservePrice" value={reservePrice} onChange={setReservePrice} disabled={!["Reviewing", "PendingReview"].includes(selected.status)} /></div>
@@ -1161,16 +1226,19 @@ export function AdminLiveRequests({ notify }) {
           {["Reviewing", "PendingReview"].includes(selected.status) && <>
             <div className="field"><label htmlFor="liveAdminNote">Ghi chú xét duyệt</label><textarea id="liveAdminNote" maxLength={1000} value={adminNote} onChange={(e) => setAdminNote(e.target.value)} placeholder="Ghi chú sẽ được gửi cho người bán…" /></div>
             <div className="field"><label htmlFor="liveRequestMessage">Nội dung yêu cầu bổ sung / lý do từ chối</label><textarea id="liveRequestMessage" maxLength={1000} value={message} onChange={(e) => setMessage(e.target.value)} /></div>
-            <div className="live-review-actions">
-              <button className="btn secondary" disabled={busy || !message.trim()} onClick={() => applyAction("revision")}>Yêu cầu bổ sung</button>
-              <button className="btn danger" disabled={busy || !message.trim()} onClick={() => applyAction("reject")}>Từ chối</button>
-              <button className="btn dark" disabled={busy} onClick={() => applyAction("approve")}>Phê duyệt / gửi điều kiện</button>
+            <div className="live-review-footer">
+              <small className="muted">Nếu thay đổi giá hoặc bước giá, người bán cần xác nhận trước khi sản phẩm vào kho Live.</small>
+              {error && <div className="notice error" role="alert">{error}</div>}
+              <div className="live-review-actions">
+                <button className="btn secondary" disabled={busy || !message.trim()} onClick={() => applyAction("revision")}>Yêu cầu bổ sung</button>
+                <button className="btn danger" disabled={busy || !message.trim()} onClick={() => applyAction("reject")}>Từ chối</button>
+                <button className="btn dark" disabled={busy} onClick={() => applyAction("approve")}>Phê duyệt / gửi điều kiện</button>
+              </div>
             </div>
-            <small className="muted">Nếu bạn thay đổi giá hoặc bước giá, yêu cầu sẽ chuyển sang chờ người bán xác nhận trước khi vào kho.</small>
           </>}
           {selected.status === "AwaitingSellerConfirmation" && <div className="notice warning">Đang chờ người bán xác nhận điều kiện mới. Sản phẩm chưa xuất hiện trong kho.</div>}
           {selected.status === "Approved" && <div className="notice success">Đã duyệt, người bán đã đồng ý. Sản phẩm đủ điều kiện để xếp lịch.</div>}
-          {error && <div className="notice error" role="alert">{error}</div>}
+          {error && !["Reviewing", "PendingReview"].includes(selected.status) && <div className="notice error" role="alert">{error}</div>}
         </Modal>
       )}
     </div>
@@ -1597,33 +1665,270 @@ export function AdminLiveEvents({ notify, user }) {
   );
 }
 
+function LiveAddLotDialog({ eventId, eventStatus, onClose, onAdded, notify }) {
+  const [search, setSearch] = useState("");
+  const [selectedRequestId, setSelectedRequestId] = useState("");
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [addError, setAddError] = useState("");
+  const [refresh, setRefresh] = useState(0);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setProducts([]);
+    setLoadError("");
+    const timer = window.setTimeout(() => {
+      api(`/api/admin/live-inventory${search ? `?q=${encodeURIComponent(search)}` : ""}`)
+        .then((data) => alive && setProducts(data))
+        .catch((error) => alive && setLoadError(error.message))
+        .finally(() => alive && setLoading(false));
+    }, 200);
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
+  }, [eventId, search, refresh]);
+
+  const addLot = async (submitEvent) => {
+    submitEvent.preventDefault();
+    if (!selectedRequestId || busy) return;
+    setBusy(true);
+    setAddError("");
+    try {
+      await json("POST", `/api/admin/live/events/${eventId}/lots`, {
+        liveAuctionRequestId: Number(selectedRequestId),
+      });
+      notify?.("Đã thêm sản phẩm vào cuối danh sách lô.");
+      onClose();
+      onAdded?.();
+    } catch (error) {
+      setAddError(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="Thêm sản phẩm vào phiên Live" onClose={onClose} busy={busy} className="live-add-lot-dialog">
+      <p className="live-add-lot-intro">
+        {["Live", "Paused"].includes(eventStatus)
+          ? "Sản phẩm sẽ được xếp cuối hàng đợi; lô đang diễn ra không bị gián đoạn."
+          : "Chọn sản phẩm có yêu cầu đã được duyệt, người bán đã xác nhận và chưa xếp lịch."}
+      </p>
+      <input type="search" placeholder="Tìm sản phẩm…" value={search} onChange={(e) => {
+        setSearch(e.target.value);
+        setSelectedRequestId("");
+        setAddError("");
+      }} aria-label="Tìm sản phẩm đủ điều kiện" />
+      {loading && <p className="muted" role="status">Đang tải kho sản phẩm đã duyệt…</p>}
+      {loadError && <div className="notice error" role="alert">{loadError}<button type="button" className="link-btn" onClick={() => setRefresh((value) => value + 1)}>Thử lại</button></div>}
+      {!loading && !loadError && products.length === 0 && (
+        <EmptyState title="Chưa có sản phẩm đủ điều kiện" description="Cần yêu cầu đã được duyệt, người bán đã xác nhận và sản phẩm chưa nằm trong lô khác.">
+          <a className="btn secondary" href="#/admin/live-requests">Đi đến yêu cầu từ người bán</a>
+        </EmptyState>
+      )}
+      <form onSubmit={addLot}>
+        <div className="live-product-options">
+          {products.map((product) => (
+            <label key={product.requestId} className={`live-product-option live-inventory-option ${String(product.requestId) === selectedRequestId ? "selected" : ""}`}>
+              <input type="radio" name="liveRequest" value={product.requestId} checked={String(product.requestId) === selectedRequestId} onChange={(e) => setSelectedRequestId(e.target.value)} />
+              {product.imageUrl ? <img src={product.imageUrl} alt="" /> : <span className="live-product-placeholder">Ảnh</span>}
+              <span><b>{product.name}</b><small>{product.sellerName} · User #{product.sellerId}</small><small>{product.requestCode} · {product.category || "Chưa phân loại"}</small><small>Khởi điểm {money(product.startingPrice)} · Bước {money(product.bidIncrement)} · Dự trữ {product.reservePrice == null ? "—" : money(product.reservePrice)}</small></span>
+            </label>
+          ))}
+        </div>
+        {addError && <div className="notice error" role="alert">{addError}</div>}
+        <div className="dialog-actions">
+          <button type="button" className="btn secondary" disabled={busy} onClick={onClose}>Hủy</button>
+          <button className="btn dark" disabled={busy || !selectedRequestId || loading || Boolean(loadError) || !products.some((product) => String(product.requestId) === selectedRequestId)}>{busy ? "Đang thêm…" : "Thêm vào danh sách lô"}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function LiveAutomationSettings({ event, onSaved }) {
+  const [settings, setSettings] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const canEdit = ["Draft", "Published"].includes(event.status) &&
+    event.lots.every((lot) => lot.bidCount === 0 && !["Open", "AwaitingConfirmation"].includes(lot.status));
+
+  useEffect(() => {
+    setSettings({
+      operationMode: event.operationMode || "Manual",
+      defaultLotDurationSeconds: event.defaultLotDurationSeconds || 300,
+      autoStartEvent: Boolean(event.autoStartEvent),
+      autoOpenFirstLot: Boolean(event.autoOpenFirstLot),
+      autoCloseLots: Boolean(event.autoCloseLots),
+      autoOpenNextLot: Boolean(event.autoOpenNextLot),
+      autoCompleteEvent: Boolean(event.autoCompleteEvent),
+      interLotDelaySeconds: event.interLotDelaySeconds ?? 30,
+      autoExtensionEnabled: Boolean(event.autoExtensionEnabled),
+      extensionTriggerSeconds: event.extensionTriggerSeconds || 15,
+      extensionSeconds: event.extensionSeconds || 30,
+      maxExtensions: event.maxExtensions ?? 3,
+      allowLateLotAddition: Boolean(event.allowLateLotAddition),
+    });
+    setError("");
+  }, [event]);
+
+  const change = (key, value) => setSettings((current) => ({ ...current, [key]: value }));
+  const selectMode = (mode) => setSettings((current) => ({
+    ...current,
+    operationMode: mode,
+    autoStartEvent: mode === "Manual" ? false : current.autoStartEvent,
+    autoOpenFirstLot: mode === "Manual" ? false : current.autoOpenFirstLot,
+    autoCloseLots: mode === "Automatic" ? current.autoCloseLots : false,
+    autoExtensionEnabled: mode === "Manual" ? false : current.autoExtensionEnabled,
+  }));
+  const save = async (submitEvent) => {
+    submitEvent.preventDefault();
+    if (!settings || busy || !canEdit) return;
+    setBusy(true);
+    setError("");
+    try {
+      await json("PUT", `/api/admin/live/events/${event.id}/settings`, settings);
+      onSaved?.();
+    } catch (saveError) {
+      setError(saveError.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!settings) return <section className="panel"><LoadingState label="Đang tải cấu hình điều hành…" /></section>;
+
+  const timedMode = settings.operationMode !== "Manual";
+  return (
+    <section className="panel live-automation-settings">
+      <div className="live-automation-head">
+        <div><h2>Cấu hình điều hành</h2><p className="muted small">Thời hạn đấu giá và kết quả do Backend kiểm soát.</p></div>
+        <span className={`badge ${timedMode ? "Open" : "Pending"}`}>{operationModeText[settings.operationMode]}</span>
+      </div>
+      {!canEdit && <div className="notice">Cấu hình được khóa khi phiên đã bắt đầu hoặc đã có lượt đặt giá.</div>}
+      <form onSubmit={save} className="live-automation-form">
+        <div className="live-automation-fields">
+          <label className="field"><span>Chế độ điều hành</span>
+            <select value={settings.operationMode} disabled={!canEdit || busy} onChange={(e) => selectMode(e.target.value)}>
+              <option value="Manual">Thủ công</option>
+              <option value="Automatic">Tự động</option>
+              <option value="Hybrid">Bán tự động</option>
+            </select>
+          </label>
+          <label className="field"><span>Thời lượng mặc định mỗi lô (giây)</span>
+            <input type="number" min="60" max="604800" step="1" value={settings.defaultLotDurationSeconds}
+              disabled={!canEdit || busy} onChange={(e) => change("defaultLotDurationSeconds", Number(e.target.value))} />
+            <small>60 giây đến 7 ngày; lô có thể đặt thời lượng riêng.</small>
+          </label>
+          <label className="field"><span>Nghỉ giữa các lô (giây)</span>
+            <input type="number" min="0" max="3600" step="1" value={settings.interLotDelaySeconds}
+              disabled={!canEdit || busy} onChange={(e) => change("interLotDelaySeconds", Number(e.target.value))} />
+          </label>
+        </div>
+        <div className="live-automation-toggles">
+          {[
+            ["autoStartEvent", "Tự bắt đầu sự kiện theo lịch"],
+            ["autoOpenFirstLot", "Tự mở lô đầu tiên"],
+            ["autoCloseLots", "Tự chốt kết quả khi hết giờ"],
+            ["autoOpenNextLot", "Tự mở lô tiếp theo sau thời gian nghỉ"],
+            ["autoCompleteEvent", "Tự kết thúc khi mọi lô đã xử lý"],
+            ["autoExtensionEnabled", "Gia hạn lượt giá hợp lệ trong thời gian cuối"],
+            ["allowLateLotAddition", "Cho phép bổ sung lô khi sự kiện đang LIVE"],
+          ].map(([key, label]) => (
+            <label key={key} className="live-setting-toggle">
+              <input type="checkbox" checked={settings[key]}
+                disabled={!canEdit || busy || (key !== "allowLateLotAddition" && key !== "autoOpenNextLot" && !timedMode) || (key === "autoCloseLots" && settings.operationMode !== "Automatic")}
+                onChange={(e) => change(key, e.target.checked)} />
+              <span>{label}</span>
+            </label>
+          ))}
+        </div>
+        {settings.autoExtensionEnabled && (
+          <div className="live-automation-fields extension">
+            <label className="field"><span>Kích hoạt gia hạn khi còn (giây)</span>
+              <input type="number" min="1" max="3600" value={settings.extensionTriggerSeconds} disabled={!canEdit || busy}
+                onChange={(e) => change("extensionTriggerSeconds", Number(e.target.value))} />
+            </label>
+            <label className="field"><span>Gia hạn thêm (giây)</span>
+              <input type="number" min="1" max="3600" value={settings.extensionSeconds} disabled={!canEdit || busy}
+                onChange={(e) => change("extensionSeconds", Number(e.target.value))} />
+            </label>
+            <label className="field"><span>Số lần gia hạn tối đa</span>
+              <input type="number" min="1" max="100" value={settings.maxExtensions} disabled={!canEdit || busy}
+                onChange={(e) => change("maxExtensions", Number(e.target.value))} />
+            </label>
+          </div>
+        )}
+        {error && <div className="notice error" role="alert">{error}</div>}
+        <div className="live-automation-footer">
+          <p className="muted small">Người thắng do Backend xác định từ lượt giá hợp lệ cao nhất và giá dự trữ. Không thể thay đổi thủ công.</p>
+          <button className="btn dark" disabled={!canEdit || busy}>{busy ? "Đang lưu…" : "Lưu cấu hình"}</button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
+function LiveLotSettingsDialog({ event, lot, onClose, onSaved }) {
+  const [duration, setDuration] = useState(lot.durationSecondsOverride?.toString() || "");
+  const [mode, setMode] = useState(lot.operationModeOverride || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const save = async (submitEvent) => {
+    submitEvent.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await json("PUT", `/api/admin/live/lots/${lot.id}/settings`, {
+        durationSeconds: duration ? Number(duration) : null,
+        operationModeOverride: mode || null,
+      });
+      onSaved?.();
+      onClose();
+    } catch (saveError) {
+      setError(saveError.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal title={`Cấu hình lô ${String(lot.lotNumber).padStart(3, "0")}`} onClose={onClose} busy={busy} className="live-lot-settings-dialog">
+      <form className="live-lot-settings-form" onSubmit={save}>
+        <p><strong>{lot.title}</strong><small> Mặc định sự kiện: {operationModeText[event.operationMode]} · {event.defaultLotDurationSeconds} giây.</small></p>
+        <label className="field"><span>Thời lượng riêng (giây)</span>
+          <input type="number" min="60" max="604800" step="1" value={duration} disabled={busy}
+            onChange={(e) => setDuration(e.target.value)} placeholder="Để trống để dùng mặc định sự kiện" />
+        </label>
+        <label className="field"><span>Chế độ riêng</span>
+          <select value={mode} disabled={busy} onChange={(e) => setMode(e.target.value)}>
+            <option value="">Kế thừa cấu hình sự kiện</option>
+            <option value="Manual">Thủ công</option>
+            <option value="Automatic">Tự động</option>
+            <option value="Hybrid">Bán tự động</option>
+          </select>
+        </label>
+        {error && <div className="notice error" role="alert">{error}</div>}
+        <div className="dialog-actions">
+          <button type="button" className="btn secondary" disabled={busy} onClick={onClose}>Hủy</button>
+          <button className="btn dark" disabled={busy}>{busy ? "Đang lưu…" : "Lưu cấu hình lô"}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 export function AdminLiveEventDetail({ id, notify }) {
   const event = useRemote(() => api(`/api/admin/live/events/${id}`), [id]);
   const registrations = useRemote(() => api(`/api/admin/live/events/${id}/registrations`), [id]);
   const [addOpen, setAddOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [selectedRequestId, setSelectedRequestId] = useState("");
-  const [products, setProducts] = useState([]);
-  const [productsLoading, setProductsLoading] = useState(false);
-  const [productsError, setProductsError] = useState("");
-  const [inventoryRefresh, setInventoryRefresh] = useState(0);
+  const [configLot, setConfigLot] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const confirm = useConfirm();
-
-  useEffect(() => {
-    if (!addOpen) return;
-    let alive = true;
-    const timer = window.setTimeout(() => {
-      setProductsLoading(true);
-      setProductsError("");
-      api(`/api/admin/live-inventory${search ? `?q=${encodeURIComponent(search)}` : ""}`)
-        .then((data) => alive && setProducts(data))
-        .catch((e) => alive && setProductsError(e.message))
-        .finally(() => alive && setProductsLoading(false));
-    }, 200);
-    return () => { alive = false; window.clearTimeout(timer); };
-  }, [addOpen, search, inventoryRefresh]);
 
   const publish = async () => {
     const accepted = await confirm({
@@ -1637,32 +1942,19 @@ export function AdminLiveEventDetail({ id, notify }) {
     catch (e) { setError(e.message); }
     finally { setBusy(false); }
   };
-  const addLot = async (submitEvent) => {
-    submitEvent.preventDefault();
-    setBusy(true); setError("");
-    try {
-      await json("POST", `/api/admin/live/events/${id}/lots`, {
-        liveAuctionRequestId: Number(selectedRequestId),
-      });
-      notify("Đã thêm lô vào sự kiện.");
-      setAddOpen(false);
-      setSelectedRequestId("");
-      event.reload();
-    } catch (e) { setError(e.message); }
-    finally { setBusy(false); }
-  };
   const remove = async (lot) => {
     if (!await confirm({ title: "Xóa lô khỏi sự kiện", message: `Lô ${String(lot.lotNumber).padStart(3, "0")} · ${lot.title} sẽ bị gỡ khỏi danh sách.`, action: "Xóa lô", danger: true })) return;
     try { await api(`/api/admin/live/lots/${lot.id}`, { method: "DELETE" }); event.reload(); notify("Đã xóa lô."); }
     catch (e) { notify(e.message); }
   };
   const e = event.data;
+  const canAddProducts = e && canAddLiveEventLots(e.status, e.allowLateLotAddition);
   return (
     <>
       {event.error && <ErrorState message={event.error} onRetry={event.reload} />}
       {event.loading && <LoadingState />}
       {e && (
-        <>
+        <div className="admin-live-event-detail">
           <PageHeader eyebrow={`${e.code} · ${eventStatusText[e.status]}`} title={e.title} description={e.description}>
             <a className="btn secondary" href="#/admin/live">← Danh sách</a>
             {e.status !== "Draft" && <a className="btn dark" href={`#/admin/live/${id}/control`}>Mở console điều hành</a>}
@@ -1676,22 +1968,34 @@ export function AdminLiveEventDetail({ id, notify }) {
           {error && <div className="notice error" role="alert">{error}</div>}
           <div className="actions admin-detail-actions">
             {e.status === "Draft" && <button className="btn" disabled={busy} onClick={publish}>Công bố sự kiện</button>}
-            {["Draft", "Published"].includes(e.status) && <button className="btn secondary" onClick={() => { setAddOpen(true); setError(""); setSelectedRequestId(""); }}>+ Thêm lô</button>}
+            {canAddProducts && <button className="btn secondary" disabled={busy} onClick={() => {
+              setAddOpen(true);
+              setError("");
+            }}>+ Thêm sản phẩm</button>}
             <a className="btn ghost" href={`#/live-room/${id}`} target="_blank" rel="noreferrer">Xem phòng ↗</a>
+            {!canAddProducts && ["Live", "Paused"].includes(e.status) && <span className="muted small">Bật quyền bổ sung lô trong cấu hình điều hành để thêm sản phẩm.</span>}
+            {!canAddProducts && ["Completed", "Cancelled"].includes(e.status) && <span className="muted small">Sự kiện đã kết thúc; không thể thêm sản phẩm.</span>}
           </div>
+          <LiveAutomationSettings event={e} onSaved={() => {
+            event.reload();
+            notify("Đã lưu cấu hình điều hành.");
+          }} />
           <div className="panel table-wrap">
             <h2>Danh sách lô</h2>
             <table className="table">
-              <thead><tr><th>Lô</th><th>Sản phẩm</th><th>Khởi điểm</th><th>Hiện tại</th><th>Trạng thái</th><th /></tr></thead>
+              <thead><tr><th>Lô</th><th>Sản phẩm</th><th>Người bán</th><th>Khởi điểm</th><th>Giá hiện tại / chốt</th><th>Thời lượng</th><th>Chế độ</th><th>Trạng thái / kết quả</th><th /></tr></thead>
               <tbody>
                 {e.lots.map((lot) => (
                   <tr key={lot.id}>
                     <td>#{String(lot.lotNumber).padStart(3, "0")}</td>
-                    <td>{lot.title}<small className="muted"> · {lot.sellerName}</small></td>
+                    <td className="live-event-product-cell">{lot.imageUrl && <img src={lot.imageUrl} alt="" loading="lazy" />}<span>{lot.title}</span></td>
+                    <td>{lot.sellerName}</td>
                     <td>{money(lot.startingPrice)}</td>
-                    <td>{money(lot.currentPrice)}</td>
-                    <td><span className={`badge ${lot.status}`}>{lotStatusText[lot.status]}</span></td>
-                    <td>{lot.status === "Pending" && <button className="link-btn" onClick={() => remove(lot)}>Xóa</button>}</td>
+                    <td>{money(lot.status === "Sold" ? lot.hammerPrice : lot.currentPrice)}</td>
+                    <td>{lot.durationSeconds >= 86400 ? `${Math.floor(lot.durationSeconds / 86400)} ngày` : lot.durationSeconds >= 3600 ? `${Math.floor(lot.durationSeconds / 3600)} giờ` : `${Math.floor(lot.durationSeconds / 60)} phút`}</td>
+                    <td>{operationModeText[lot.operationMode] || lot.operationMode}</td>
+                    <td><span className={`badge ${lot.status}`}>{lotStatusText[lot.status]}</span>{lot.status === "Sold" && <small className="muted live-lot-result">{lot.winnerName || "—"} · {lot.closeMethod === "Automatic" ? "Tự động" : lot.closeMethod === "HybridConfirmed" ? "Đã xác nhận" : "Thủ công"}</small>}</td>
+                    <td className="live-event-row-actions">{lot.status === "Pending" && <><button className="link-btn" onClick={() => setConfigLot(lot)}>Cấu hình</button><button className="link-btn danger-text" onClick={() => remove(lot)}>Xóa</button></>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1709,37 +2013,24 @@ export function AdminLiveEventDetail({ id, notify }) {
               </table>
             ) : <p className="muted">Chưa có người đăng ký.</p>}
           </div>
-        </>
+        </div>
       )}
-      {addOpen && (
-        <Modal title="Thêm lô đấu giá trực tiếp" onClose={() => setAddOpen(false)} busy={busy}>
-          <p className="muted">Chỉ lấy hồ sơ đã được duyệt, người bán đã đồng ý và chưa xếp lịch vào sự kiện khác.</p>
-          <input type="search" placeholder="Tìm sản phẩm…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Tìm sản phẩm" />
-          {productsLoading && <p className="muted" role="status">Đang tải kho sản phẩm đã duyệt…</p>}
-          {productsError && <div className="notice error" role="alert">{productsError}<button type="button" className="link-btn" onClick={() => setInventoryRefresh((value) => value + 1)}>Thử lại</button></div>}
-          {!productsLoading && !productsError && products.length === 0 && (
-            <EmptyState title="Chưa có sản phẩm đủ điều kiện" description="Yêu cầu cần được Admin duyệt và người bán phải xác nhận các điều kiện trước khi xếp lô.">
-              <a className="btn secondary" href="#/admin/live-requests">Đi đến yêu cầu từ người bán</a>
-            </EmptyState>
-          )}
-          <form onSubmit={addLot}>
-            <div className="live-product-options">
-              {products.map((product) => (
-                <label key={product.requestId} className={`live-product-option live-inventory-option ${String(product.requestId) === selectedRequestId ? "selected" : ""}`}>
-                  <input type="radio" name="liveRequest" value={product.requestId} checked={String(product.requestId) === selectedRequestId} onChange={(e) => setSelectedRequestId(e.target.value)} />
-                  {product.imageUrl ? <img src={product.imageUrl} alt="" /> : <span className="live-product-placeholder">Ảnh</span>}
-                  <span><b>{product.name}</b><small>{product.sellerName} · User #{product.sellerId}</small><small>{product.requestCode} · {product.category || "Chưa phân loại"}</small><small>Khởi điểm {money(product.startingPrice)} · Bước {money(product.bidIncrement)} · Dự trữ {product.reservePrice == null ? "—" : money(product.reservePrice)}</small></span>
-                </label>
-              ))}
-            </div>
-            {error && <div className="notice error" role="alert">{error}</div>}
-            <div className="dialog-actions">
-              <button type="button" className="btn secondary" onClick={() => setAddOpen(false)}>Hủy</button>
-              <button className="btn dark" disabled={busy || !selectedRequestId || productsLoading}>{busy ? "Đang thêm…" : "Thêm lô đã duyệt"}</button>
-            </div>
-          </form>
-        </Modal>
-      )}
+      {addOpen && canAddProducts && <LiveAddLotDialog
+        eventId={id}
+        eventStatus={e.status}
+        onClose={() => setAddOpen(false)}
+        onAdded={event.reload}
+        notify={notify}
+      />}
+      {configLot && <LiveLotSettingsDialog
+        event={e}
+        lot={configLot}
+        onClose={() => setConfigLot(null)}
+        onSaved={() => {
+          event.reload();
+          notify("Đã cập nhật cấu hình lô.");
+        }}
+      />}
     </>
   );
 }
@@ -1749,15 +2040,33 @@ export function AdminLiveConsole({ id, notify }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [addLotOpen, setAddLotOpen] = useState(false);
   const [connected, setConnected] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [serverOffset, setServerOffset] = useState(0);
   const reloadRef = useRef(snap.reload);
   reloadRef.current = snap.reload;
   const data = snap.data;
   const event = data?.event;
+  const canAddProducts = canAddLiveEventLots(event?.status, event?.allowLateLotAddition);
+  const queueStatus = !event
+    ? "Đang tải trạng thái phiên."
+    : canAddProducts
+      ? "Lô mới được xếp cuối hàng đợi."
+      : ["Live", "Paused"].includes(event.status)
+        ? "Chưa bật quyền bổ sung lô sau khi phiên bắt đầu."
+        : "Sự kiện đã kết thúc; không nhận thêm lô.";
   const current = event?.lots.find((lot) => lot.id === event.currentLotId) || null;
   const next = event?.lots.find((lot) => lot.status === "Pending") || null;
+  const currentMode = current?.operationMode || event?.operationMode || "Manual";
   const canControlLot = event?.status === "Live" && current?.status === "Open";
+  const currentDeadline = current?.currentEndAt
+    ? new Date(parseApiDate(current.currentEndAt) || current.currentEndAt).getTime()
+    : null;
+  const remainingSeconds = currentDeadline == null ? null
+    : event?.status === "Paused" && current?.remainingSecondsOnPause != null
+      ? current.remainingSecondsOnPause
+      : Math.max(0, Math.ceil((currentDeadline - now - serverOffset) / 1000));
   const allLotsFinal = event?.lots.every((lot) => ["Sold", "Unsold", "Skipped", "Withdrawn"].includes(lot.status)) ?? false;
   const warningAvailableAt = current?.warningAvailableAt ? new Date(current.warningAvailableAt).getTime() : 0;
   const warningWait = Math.max(0, Math.ceil((warningAvailableAt - now) / 1000));
@@ -1768,6 +2077,13 @@ export function AdminLiveConsole({ id, notify }) {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (data?.serverTime) {
+      const serverTime = new Date(parseApiDate(data.serverTime) || data.serverTime).getTime();
+      setServerOffset(serverTime - Date.now());
+    }
+  }, [data?.serverTime]);
 
   useEffect(() => {
     let alive = true;
@@ -1802,7 +2118,7 @@ export function AdminLiveConsole({ id, notify }) {
         scheduleConnect();
       }
     };
-    ["BidAccepted", "LotOpened", "FairWarning", "LotSold", "LotUnsold", "EventPaused", "EventResumed", "EventCompleted", "LotsChanged"]
+    ["BidAccepted", "LotOpened", "LotExtended", "LotAwaitingConfirmation", "FairWarning", "LotSold", "LotUnsold", "AutomationStarted", "EventPaused", "EventResumed", "EventCompleted", "LotsChanged"]
       .forEach((name) => connection.on(name, refresh));
     connection.onreconnecting(() => alive && setConnected(false));
     connection.onreconnected(() => connect());
@@ -1849,7 +2165,8 @@ export function AdminLiveConsole({ id, notify }) {
 
   return (
     <div className="live-console">
-      <PageHeader eyebrow="Auctora Live Control" title={event?.title || "Console điều hành"} description={`${event?.code || ""} · ${connected ? "Đã kết nối realtime" : "Đang kết nối lại realtime"}; mọi thay đổi được đồng bộ với phòng đấu giá.`}>
+      <PageHeader eyebrow="Điều hành phiên Live" title={event?.title || "Console điều hành"} description={`${event?.code || ""} · ${event ? `Chế độ ${operationModeText[event.operationMode] || event.operationMode}` : ""} · ${connected ? "Đã kết nối realtime" : "Đang kết nối lại"}; ${queueStatus}`}>
+        {canAddProducts && <button className="btn dark" disabled={busy} onClick={() => setAddLotOpen(true)}>+ Thêm sản phẩm</button>}
         <a className="btn secondary" href={`#/admin/live/${id}`}>← Quản lý sự kiện</a>
         <a className="btn ghost" href={`#/live-room/${id}`} target="_blank" rel="noreferrer">Mở phòng ↗</a>
       </PageHeader>
@@ -1872,15 +2189,36 @@ export function AdminLiveConsole({ id, notify }) {
                   <div className="live-console-lot">
                     <span className="eyebrow">Lô {String(current.lotNumber).padStart(3, "0")}</span>
                     <strong>{current.title}</strong>
-                    <p>{money(current.currentPrice)} · {current.bidCount} lượt · cảnh báo: {current.callingStage}</p>
+                    <p>{money(current.currentPrice)} · {current.bidCount} lượt · {operationModeText[currentMode] || currentMode}</p>
+                    {currentDeadline != null && (
+                      <div className={`live-console-countdown${remainingSeconds === 0 ? " expired" : ""}`}>
+                        <small>{event.status === "Paused" ? "ĐỒNG HỒ TẠM DỪNG" : "THỜI GIAN CÒN LẠI"}</small>
+                        <strong>{formatCountdown(remainingSeconds ?? 0)}</strong>
+                        {current.status === "AwaitingConfirmation" && <span>Chờ Auctioneer xác nhận kết quả do hệ thống tính.</span>}
+                      </div>
+                    )}
                   </div>
-                  <div className="live-console-actions">
-                    <button className="btn secondary" disabled={busy || !canControlLot || current.callingStage === "Twice" || warningWait > 0} title={!canControlLot ? "Chỉ điều khiển lô khi sự kiện đang diễn ra" : warningWait > 0 ? `Có thể cảnh báo lần 2 sau ${warningWait} giây` : undefined} onClick={() => action(`/api/admin/live/lots/${current.id}/warning`)}>
-                      {warningWait > 0 ? `Chờ ${warningWait} giây` : current.callingStage === "Twice" ? "Đã cảnh báo 2 lần" : "Cảnh báo chốt"}
-                    </button>
-                    <button className="btn" disabled={busy || !canControlLot || Boolean(needsSecondWarning)} title={!canControlLot ? "Chỉ điều khiển lô khi sự kiện đang diễn ra" : needsSecondWarning ? "Cần gửi đủ hai cảnh báo trước khi chốt bán" : undefined} onClick={() => action(`/api/admin/live/lots/${current.id}/close`)}>Chốt bán</button>
-                    <button className="btn danger" disabled={busy || !canControlLot || Boolean(hasSaleableBid)} title={!canControlLot ? "Chỉ điều khiển lô khi sự kiện đang diễn ra" : hasSaleableBid ? "Không thể đánh dấu không bán khi đã đạt giá dự trữ" : undefined} onClick={() => { if (confirm("Chốt lô này là không bán được?")) action(`/api/admin/live/lots/${current.id}/close?forceUnsold=true`); }}>Không bán được</button>
-                  </div>
+                  {currentMode === "Manual" && (
+                    <div className="live-console-actions">
+                      <button className="btn secondary" disabled={busy || !canControlLot || current.callingStage === "Twice" || warningWait > 0} title={!canControlLot ? "Chỉ điều khiển lô khi sự kiện đang diễn ra" : warningWait > 0 ? `Có thể cảnh báo lần 2 sau ${warningWait} giây` : undefined} onClick={() => action(`/api/admin/live/lots/${current.id}/warning`)}>
+                        {warningWait > 0 ? `Chờ ${warningWait} giây` : current.callingStage === "Twice" ? "Đã cảnh báo 2 lần" : "Cảnh báo chốt"}
+                      </button>
+                      <button className="btn" disabled={busy || !canControlLot || Boolean(needsSecondWarning)} title={!canControlLot ? "Chỉ điều khiển lô khi sự kiện đang diễn ra" : needsSecondWarning ? "Cần gửi đủ hai cảnh báo trước khi chốt bán" : undefined} onClick={() => action(`/api/admin/live/lots/${current.id}/close`)}>Chốt bán</button>
+                      <button className="btn danger" disabled={busy || !canControlLot || Boolean(hasSaleableBid)} title={!canControlLot ? "Chỉ điều khiển lô khi sự kiện đang diễn ra" : hasSaleableBid ? "Không thể đánh dấu không bán khi đã đạt giá dự trữ" : undefined} onClick={() => { if (confirm("Chốt lô này là không bán được?")) action(`/api/admin/live/lots/${current.id}/close?forceUnsold=true`); }}>Không bán được</button>
+                    </div>
+                  )}
+                  {currentMode === "Automatic" && current.status === "Open" && event.autoCloseLots && (
+                    <p className="muted small">Hệ thống sẽ tự khóa giá và chốt kết quả khi đồng hồ máy chủ về 00:00:00.</p>
+                  )}
+                  {currentMode === "Automatic" && current.status === "Open" && !event.autoCloseLots && (
+                    <button className="btn" disabled={busy || !canControlLot || remainingSeconds == null || remainingSeconds > 0} onClick={() => action(`/api/admin/live/lots/${current.id}/close`)}>Chốt kết quả</button>
+                  )}
+                  {currentMode === "Hybrid" && current.status === "Open" && (
+                    <p className="muted small">Khi hết giờ, hệ thống khóa giá và đưa kết quả dự kiến cho Auctioneer xác nhận.</p>
+                  )}
+                  {current.status === "AwaitingConfirmation" && (
+                    <button className="btn dark" disabled={busy} onClick={() => action(`/api/admin/live/lots/${current.id}/confirm-result`)}>Xác nhận kết quả do hệ thống tính</button>
+                  )}
                 </>
               ) : (
                 <p className="muted">Chưa có lô đang mở.</p>
@@ -1941,6 +2279,13 @@ export function AdminLiveConsole({ id, notify }) {
               ))}</tbody>
             </table>
           </section>
+          {addLotOpen && canAddProducts && <LiveAddLotDialog
+            eventId={id}
+            eventStatus={event.status}
+            onClose={() => setAddLotOpen(false)}
+            onAdded={snap.reload}
+            notify={notify}
+          />}
         </>
       )}
     </div>

@@ -206,8 +206,8 @@ export default function AdminSupportCenter({ user, notify }) {
     <div className="admin-support-center">
       <PageHeader
         eyebrow="Chăm sóc khách hàng"
-        title="Auctora Support Center"
-        description="Quản lý yêu cầu hỗ trợ, trò chuyện trực tuyến realtime và gợi ý phản hồi AI Copilot."
+        title="Trung tâm hỗ trợ Auctora"
+        description="Tiếp nhận yêu cầu, trao đổi trực tiếp và theo dõi tiến độ xử lý."
       >
         <span className={`bn-realtime-pill ${hubConnected ? "online" : ""}`}>
           <span className="bn-status-dot" />

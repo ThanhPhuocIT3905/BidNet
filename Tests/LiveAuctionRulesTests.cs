@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using BidNet.Data;
+using BidNet.DTOs;
 using BidNet.Hubs;
 using BidNet.Models;
 using BidNet.Services;
@@ -27,6 +28,14 @@ public class LiveAuctionRulesTests
         return new CurrentUser(new HttpContextAccessor { HttpContext = context }, db);
     }
 
+    private static CurrentUser CurrentUserFor(AppDbContext db, int id)
+    {
+        var context = new DefaultHttpContext();
+        context.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, id.ToString())], "Test"));
+        return new CurrentUser(new HttpContextAccessor { HttpContext = context }, db);
+    }
+
     private static IConfiguration Settings() => new ConfigurationBuilder()
         .AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -48,8 +57,12 @@ public class LiveAuctionRulesTests
     private static LiveAuctionService Service(AppDbContext db) =>
         new(db, Admin(db), Settings(), Hub(), NullLogger<LiveAuctionService>.Instance);
 
+    private static LiveAuctionService Service(AppDbContext db, CurrentUser currentUser) =>
+        new(db, currentUser, Settings(), Hub(), NullLogger<LiveAuctionService>.Instance);
+
     private static async Task SeedEvent(AppDbContext db, LiveLotStatus lotStatus = LiveLotStatus.Open,
-        bool withSaleableBid = false, int? currentLotId = 20)
+        bool withSaleableBid = false, int? currentLotId = 20,
+        LiveEventStatus eventStatus = LiveEventStatus.Live)
     {
         var admin = new User { Id = 1, Username = "admin", Email = "admin@example.com", Role = "Admin" };
         var seller = new User { Id = 2, Username = "seller", Email = "seller@example.com" };
@@ -62,7 +75,8 @@ public class LiveAuctionRulesTests
         var liveEvent = new LiveEvent
         {
             Id = 10, Code = "LIVE-10", Title = "Test event", CreatedById = admin.Id,
-            CreatedBy = admin, Status = LiveEventStatus.Live, CurrentLotId = currentLotId
+            CreatedBy = admin, Status = eventStatus, CurrentLotId = currentLotId,
+            AllowLateLotAddition = true
         };
         var lot = new LiveLot
         {
@@ -150,5 +164,167 @@ public class LiveAuctionRulesTests
 
         Assert.Equal("lots_pending", error.Code);
         Assert.Equal(LiveEventStatus.Live, (await db.LiveEvents.SingleAsync()).Status);
+    }
+
+    [Theory]
+    [InlineData(LiveEventStatus.Live)]
+    [InlineData(LiveEventStatus.Paused)]
+    public async Task AddLot_AppendsApprovedProductWithoutChangingCurrentLot(LiveEventStatus eventStatus)
+    {
+        await using var db = NewDatabase();
+        await SeedEvent(db, eventStatus: eventStatus);
+
+        var seller = new User
+        {
+            Id = 4,
+            Username = "live-seller",
+            Email = "live-seller@example.com",
+            Role = "User"
+        };
+        var product = new Product
+        {
+            Id = 31,
+            Name = "Vintage watch",
+            Seller = seller,
+            SellerId = seller.Id,
+            StartingPrice = 5_000,
+            CurrentPrice = 5_000,
+            StartTime = DateTime.UtcNow.AddDays(1),
+            EndTime = DateTime.UtcNow.AddDays(2),
+            Status = ProductStatus.Scheduled,
+            AuctionType = ProductAuctionType.Live
+        };
+        var request = new LiveAuctionRequest
+        {
+            Id = 50,
+            RequestCode = "LVR-50",
+            Product = product,
+            ProductId = product.Id,
+            Seller = seller,
+            SellerId = seller.Id,
+            Status = LiveAuctionRequestStatus.Approved,
+            ProposedStartingPrice = 5_000,
+            ProposedBidIncrement = 1_000,
+            ProposedReservePrice = 8_000,
+            SellerConfirmedAt = DateTime.UtcNow,
+            TermsVersion = 1,
+            AcceptedTermsVersion = 1
+        };
+        db.Users.Add(seller);
+        db.Products.Add(product);
+        db.LiveAuctionRequests.Add(request);
+        await db.SaveChangesAsync();
+
+        var added = await Service(db).AddLotAsync(10,
+            new AddLiveLotDto { LiveAuctionRequestId = request.Id }, CancellationToken.None);
+
+        Assert.Equal(2, added.LotNumber);
+        Assert.Equal("Vintage watch", added.Title);
+        Assert.Equal(nameof(LiveLotStatus.Pending), added.Status);
+        Assert.Equal(20, (await db.LiveEvents.SingleAsync()).CurrentLotId);
+        Assert.Equal(LiveAuctionRequestStatus.Scheduled, request.Status);
+        Assert.Equal(10, request.ScheduledEventId);
+    }
+
+    [Theory]
+    [InlineData(LiveEventStatus.Completed)]
+    [InlineData(LiveEventStatus.Cancelled)]
+    public async Task AddLot_RejectsEndedEvents(LiveEventStatus eventStatus)
+    {
+        await using var db = NewDatabase();
+        await SeedEvent(db, eventStatus: eventStatus);
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            Service(db).AddLotAsync(10, new AddLiveLotDto { LiveAuctionRequestId = 999 },
+                CancellationToken.None));
+
+        Assert.Equal("event_locked", error.Code);
+    }
+
+    [Fact]
+    public async Task PlaceBid_RejectsBidsAfterPersistedDeadline()
+    {
+        await using var db = NewDatabase();
+        await SeedEvent(db, withSaleableBid: true);
+        var lot = await db.LiveLots.SingleAsync();
+        lot.CurrentEndAt = DateTime.UtcNow.AddSeconds(-1);
+        await db.SaveChangesAsync();
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            Service(db, CurrentUserFor(db, 3)).PlaceBidAsync(20, 1_100, CancellationToken.None));
+
+        Assert.Equal("bidding_deadline_passed", error.Code);
+        Assert.Single(await db.LiveBids.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Automation_ClosesExpiredAutomaticLotAndCreatesOrderOnce()
+    {
+        await using var db = NewDatabase();
+        await SeedEvent(db, withSaleableBid: true);
+        var auctionEvent = await db.LiveEvents.SingleAsync();
+        auctionEvent.OperationMode = LiveOperationMode.Automatic;
+        auctionEvent.AutoCloseLots = true;
+        var lot = await db.LiveLots.SingleAsync();
+        lot.CurrentEndAt = DateTime.UtcNow.AddSeconds(-1);
+        lot.OriginalEndAt = lot.CurrentEndAt;
+        await db.SaveChangesAsync();
+
+        await Service(db).ProcessAutomationTickAsync(CancellationToken.None);
+        await Service(db).ProcessAutomationTickAsync(CancellationToken.None);
+
+        var closedLot = await db.LiveLots.AsNoTracking().SingleAsync();
+        Assert.Equal(LiveLotStatus.Sold, closedLot.Status);
+        Assert.Equal(LiveLotCloseMethod.Automatic, closedLot.CloseMethod);
+        Assert.Equal(3, closedLot.WinnerId);
+        Assert.Single(await db.Orders.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Automation_HybridLotWaitsForAdminConfirmationBeforeCreatingOrder()
+    {
+        await using var db = NewDatabase();
+        await SeedEvent(db, withSaleableBid: true);
+        var auctionEvent = await db.LiveEvents.SingleAsync();
+        auctionEvent.OperationMode = LiveOperationMode.Hybrid;
+        var lot = await db.LiveLots.SingleAsync();
+        lot.CurrentEndAt = DateTime.UtcNow.AddSeconds(-1);
+        await db.SaveChangesAsync();
+        var service = Service(db);
+
+        await service.ProcessAutomationTickAsync(CancellationToken.None);
+
+        var awaitingLot = await db.LiveLots.AsNoTracking().SingleAsync();
+        Assert.Equal(LiveLotStatus.AwaitingConfirmation, awaitingLot.Status);
+        Assert.Empty(await db.Orders.ToListAsync());
+
+        await service.ConfirmLotResultAsync(lot.Id, CancellationToken.None);
+
+        var confirmedLot = await db.LiveLots.AsNoTracking().SingleAsync();
+        Assert.Equal(LiveLotStatus.Sold, confirmedLot.Status);
+        Assert.Equal(LiveLotCloseMethod.HybridConfirmed, confirmedLot.CloseMethod);
+        Assert.Single(await db.Orders.ToListAsync());
+    }
+
+    [Fact]
+    public async Task PauseAndResume_PreserveRemainingLotTime()
+    {
+        await using var db = NewDatabase();
+        await SeedEvent(db);
+        var lot = await db.LiveLots.SingleAsync();
+        lot.CurrentEndAt = DateTime.UtcNow.AddMinutes(2);
+        await db.SaveChangesAsync();
+        var service = Service(db);
+
+        await service.PauseAsync(10, false, CancellationToken.None);
+
+        Assert.True(lot.RemainingSecondsOnPause > 0);
+        Assert.Equal(LiveEventStatus.Paused, (await db.LiveEvents.SingleAsync()).Status);
+
+        await service.PauseAsync(10, true, CancellationToken.None);
+
+        Assert.Null(lot.RemainingSecondsOnPause);
+        Assert.Equal(LiveEventStatus.Live, (await db.LiveEvents.SingleAsync()).Status);
+        Assert.True(lot.CurrentEndAt > DateTime.UtcNow);
     }
 }

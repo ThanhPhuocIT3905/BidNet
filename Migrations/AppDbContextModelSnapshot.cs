@@ -262,6 +262,27 @@ namespace BidNet.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<bool>("AllowLateLotAddition")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AutoCloseLots")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AutoCompleteEvent")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AutoExtensionEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AutoOpenFirstLot")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AutoOpenNextLot")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AutoStartEvent")
+                        .HasColumnType("bit");
+
                     b.Property<string>("BannerUrl")
                         .HasMaxLength(2048)
                         .HasColumnType("nvarchar(2048)");
@@ -283,11 +304,35 @@ namespace BidNet.Data.Migrations
                     b.Property<int?>("CurrentLotId")
                         .HasColumnType("int");
 
+                    b.Property<int>("DefaultLotDurationSeconds")
+                        .HasColumnType("int");
+
                     b.Property<string>("Description")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
                     b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ExtensionSeconds")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ExtensionTriggerSeconds")
+                        .HasColumnType("int");
+
+                    b.Property<int>("InterLotDelaySeconds")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MaxExtensions")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("NextLotOpenAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("OperationMode")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("PausedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<bool>("RegistrationOpen")
@@ -328,7 +373,12 @@ namespace BidNet.Data.Migrations
 
                     b.HasIndex("Status", "ScheduledStartAt");
 
-                    b.ToTable("LiveEvents");
+                    b.ToTable("LiveEvents", t =>
+                        {
+                            t.HasCheckConstraint("CK_LiveEvents_DurationSeconds", "[DefaultLotDurationSeconds] BETWEEN 60 AND 604800");
+
+                            t.HasCheckConstraint("CK_LiveEvents_InterLotDelaySeconds", "[InterLotDelaySeconds] BETWEEN 0 AND 3600");
+                        });
                 });
 
             modelBuilder.Entity("BidNet.Models.LiveLot", b =>
@@ -351,10 +401,19 @@ namespace BidNet.Data.Migrations
                     b.Property<int>("CallingStage")
                         .HasColumnType("int");
 
+                    b.Property<int?>("CloseMethod")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("ClosedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("ClosedById")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("CurrentEndAt")
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("CurrentPrice")
@@ -364,7 +423,13 @@ namespace BidNet.Data.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
+                    b.Property<int?>("DurationSeconds")
+                        .HasColumnType("int");
+
                     b.Property<int>("EventId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ExtensionCount")
                         .HasColumnType("int");
 
                     b.Property<decimal?>("HammerPrice")
@@ -389,7 +454,16 @@ namespace BidNet.Data.Migrations
                     b.Property<DateTime?>("OpenedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("OperationModeOverride")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("OriginalEndAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RemainingSecondsOnPause")
                         .HasColumnType("int");
 
                     b.Property<decimal?>("ReservePrice")
@@ -429,6 +503,8 @@ namespace BidNet.Data.Migrations
 
                     b.HasIndex("AddedById");
 
+                    b.HasIndex("ClosedById");
+
                     b.HasIndex("LeadingBidderId");
 
                     b.HasIndex("LiveAuctionRequestId")
@@ -446,11 +522,15 @@ namespace BidNet.Data.Migrations
                     b.HasIndex("EventId", "SequenceNumber")
                         .IsUnique();
 
+                    b.HasIndex("Status", "CurrentEndAt");
+
                     b.HasIndex("Status", "EventId");
 
                     b.ToTable("LiveLots", t =>
                         {
-                            t.HasCheckConstraint("CK_LiveLots_Status", "[Status] IN (0,1,2,3,4,5,6)");
+                            t.HasCheckConstraint("CK_LiveLots_DurationSeconds", "[DurationSeconds] IS NULL OR [DurationSeconds] BETWEEN 60 AND 604800");
+
+                            t.HasCheckConstraint("CK_LiveLots_Status", "[Status] IN (0,1,2,3,4,5,6,7)");
                         });
                 });
 
@@ -1092,6 +1172,11 @@ namespace BidNet.Data.Migrations
                         .HasForeignKey("AddedById")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("BidNet.Models.User", "ClosedBy")
+                        .WithMany()
+                        .HasForeignKey("ClosedById")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("BidNet.Models.LiveEvent", "Event")
                         .WithMany("Lots")
                         .HasForeignKey("EventId")
@@ -1126,6 +1211,8 @@ namespace BidNet.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("AddedBy");
+
+                    b.Navigation("ClosedBy");
 
                     b.Navigation("Event");
 

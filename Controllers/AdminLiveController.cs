@@ -30,6 +30,15 @@ public class AdminLiveController(
     public async Task<ActionResult<LiveEventDto>> Get(int id, CancellationToken ct) =>
         Ok(await live.GetAsync(id, ct));
 
+    [HttpGet("events/{id:int}/settings")]
+    public async Task<ActionResult<LiveEventDto>> Settings(int id, CancellationToken ct) =>
+        Ok(await live.GetAsync(id, ct));
+
+    [HttpPut("events/{id:int}/settings")]
+    public async Task<ActionResult<LiveEventDto>> UpdateSettings(
+        int id, UpdateLiveAuctionSettingsDto dto, CancellationToken ct) =>
+        Ok(await live.UpdateAutomationSettingsAsync(id, dto, ct));
+
     [HttpPut("events/{id:int}")]
     public async Task<ActionResult<LiveEventDto>> Update(int id, UpdateLiveEventDto dto, CancellationToken ct) =>
         Ok(await live.UpdateAsync(id, dto, ct));
@@ -102,6 +111,15 @@ public class AdminLiveController(
     public async Task<ActionResult<LiveSnapshotDto>> Close(
         int lotId, [FromQuery] bool forceUnsold, CancellationToken ct) =>
         Ok(await live.CloseLotAsync(lotId, forceUnsold, ct));
+
+    [HttpPut("lots/{lotId:int}/settings")]
+    public async Task<ActionResult<LiveLotDto>> UpdateLotSettings(
+        int lotId, UpdateLiveLotSettingsDto dto, CancellationToken ct) =>
+        Ok(await live.UpdateLotSettingsAsync(lotId, dto, ct));
+
+    [HttpPost("lots/{lotId:int}/confirm-result")]
+    public async Task<ActionResult<LiveSnapshotDto>> ConfirmResult(int lotId, CancellationToken ct) =>
+        Ok(await live.ConfirmLotResultAsync(lotId, ct));
 
     [HttpPost("lots/{lotId:int}/skip")]
     public async Task<IActionResult> Skip(int lotId, CancellationToken ct)
