@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+﻿import React, { useEffect, useRef, useState } from "react";
 import { LotPhoto, priceLabel } from "./Lot.jsx";
 import { CancelAuction } from "./AdminWorkspace";
 import useRemote from "./useRemote";
@@ -15,7 +15,59 @@ import {
   useTick,
 } from "./widgets.jsx";
 
-// Thông báo lỗi đặt giá theo mã lỗi API, khớp đặc tả nghiệp vụ.
+// Đọc số tiền VND thành chữ tiếng Việt rõ ràng, tự nhiên (tránh nhầm lẫn hàng triệu, trăm nghìn...)
+function readGroup3(n, showZeroHundred) {
+  const digits = ["không", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín"];
+  const h = Math.floor(n / 100);
+  const t = Math.floor((n % 100) / 10);
+  const u = n % 10;
+  const res = [];
+  if (h > 0 || showZeroHundred) {
+    res.push(digits[h] + " trăm");
+  }
+  if (t === 0 && u > 0) {
+    if (h > 0 || showZeroHundred) res.push("lẻ");
+    res.push(digits[u]);
+  } else if (t === 1) {
+    res.push("mười");
+    if (u === 1) res.push("một");
+    else if (u === 5) res.push("lăm");
+    else if (u > 0) res.push(digits[u]);
+  } else if (t > 1) {
+    res.push(digits[t] + " mươi");
+    if (u === 1) res.push("mốt");
+    else if (u === 4) res.push("tư");
+    else if (u === 5) res.push("lăm");
+    else if (u > 0) res.push(digits[u]);
+  }
+  return res.join(" ");
+}
+
+export function numberToVietnameseWords(num) {
+  if (!num || isNaN(num) || num <= 0) return "";
+  num = Math.floor(num);
+  if (num === 0) return "Không đồng";
+  const scales = ["", "nghìn", "triệu", "tỷ", "nghìn tỷ", "triệu tỷ"];
+  const groups = [];
+  let temp = num;
+  while (temp > 0) {
+    groups.push(temp % 1000);
+    temp = Math.floor(temp / 1000);
+  }
+  const parts = [];
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const g = groups[i];
+    if (g > 0) {
+      const gText = readGroup3(g, i < groups.length - 1);
+      parts.push(gText + (scales[i] ? " " + scales[i] : ""));
+    }
+  }
+  const text = parts.join(" ").trim();
+  if (!text) return "";
+  return text.charAt(0).toUpperCase() + text.slice(1) + " đồng";
+}
+
+// Bảng ánh xạ mã lỗi API → đúng câu thông báo trong đặc tả nghiệp vụ
 const BID_ERROR_MESSAGES = {
   bid_too_low: "Giá đặt không hợp lệ. Vui lòng đặt giá cao hơn.",
   bid_increment: "Giá đặt phải tăng theo bước giá quy định.",
@@ -23,13 +75,21 @@ const BID_ERROR_MESSAGES = {
   auction_not_active: "Phiên đấu giá đã kết thúc. Bạn không thể đặt giá.",
   seller_cannot_bid: "Bạn không thể đặt giá cho sản phẩm của chính mình.",
 };
+
 const bidErrorMessage = (failure) => {
   if (failure?.status === 401) return "Vui lòng đăng nhập để tham gia đấu giá.";
-  if (BID_ERROR_MESSAGES[failure?.code]) return BID_ERROR_MESSAGES[failure.code];
+  if (failure?.code && BID_ERROR_MESSAGES[failure.code]) return BID_ERROR_MESSAGES[failure.code];
+  if (failure?.status === 403 || failure?.code === "seller_cannot_bid")
+    return "Bạn không thể đặt giá cho sản phẩm của chính mình.";
+  if (failure?.status === 409) {
+    if (failure?.code === "auction_not_active")
+      return "Phiên đấu giá đã kết thúc. Bạn không thể đặt giá.";
+    return "Giá đã thay đổi. Vui lòng kiểm tra và đặt lại.";
+  }
   // Không có status: fetch thất bại (mất mạng, backend không chạy) hoặc lỗi 5xx.
   if (!failure?.status || failure.status >= 500)
     return "Không thể gửi giá. Vui lòng thử lại.";
-  return failure.message || "Không thể gửi giá. Vui lòng thử lại.";
+  return BID_ERROR_MESSAGES[failure?.code] || failure.message || "Không thể gửi giá. Vui lòng thử lại.";
 };
 
 const Badge = ({ value }) => (
@@ -59,6 +119,7 @@ export function Product({ id, user, admin, go, notify }) {
   const [error, setError] = useState(""),
     [placedBid, setPlacedBid] = useState(null),
     [bidFailure, setBidFailure] = useState(""),
+    [rawAmount, setRawAmount] = useState(""),
     [connected, setConnected] = useState(false);
   const { ids: favoriteIds, toggle: toggleFavorite } = useFavorites();
   const share = async () => {
@@ -126,13 +187,32 @@ export function Product({ id, user, admin, go, notify }) {
   const bid = async (e) => {
     e.preventDefault();
     if (bidLock.current || !canBid || admin || minBid == null) return;
+
+    // Lấy số tiền từ rawAmount (được loại bỏ mọi ký tự phân cách như chấm/phẩy)
+    const rawVal = rawAmount || (document.getElementById("amount")?.value || "").replace(/\D/g, "");
+    const amount = Number(rawVal);
+
+    // Xử lý kiểm tra đầu vào trước khi gọi API để hiển thị modal tiếng Việt chuẩn đặc tả,
+    // không để trình duyệt chặn bằng popup tooltip tiếng Anh mặc định
+    if (!amount || isNaN(amount) || amount <= 0 || amount < minBid) {
+      setBidFailure(BID_ERROR_MESSAGES.bid_too_low);
+      product.reload();
+      bids.reload();
+      return;
+    }
+
+    if (increment != null && increment > 0 && (amount - minBid) % increment !== 0) {
+      setBidFailure(BID_ERROR_MESSAGES.bid_increment);
+      product.reload();
+      bids.reload();
+      return;
+    }
+
     bidLock.current = true;
     setSubmitting(true);
-    const form = e.currentTarget;
     try {
-      const amount = Number(new FormData(form).get("amount"));
       const result = await json("POST", `/api/products/${id}/bids`, { amount });
-      form.reset();
+      setRawAmount("");
       setPlacedBid({ amount: result?.amount ?? amount });
       product.reload();
       bids.reload();
@@ -438,7 +518,7 @@ export function Product({ id, user, admin, go, notify }) {
                 {canBid && !admin &&
                   user?.id !== item.sellerId &&
                   (user ? (
-                    <form onSubmit={bid} className="bid-form">
+                    <form onSubmit={bid} noValidate className="bid-form">
                       <div className="field">
                         <label htmlFor="amount">
                           Giá đặt (VND)
@@ -446,34 +526,62 @@ export function Product({ id, user, admin, go, notify }) {
                             {minBid == null ? "Đang tải giá tối thiểu…" : `Tối thiểu ${money(minBid)}`}
                           </small>
                         </label>
-                        <input
-                          id="amount"
-                          name="amount"
-                          type="number"
-                          min={minBid}
-                          max={100000000000}
-                          step="1"
-                          placeholder={String(minBid)}
-                           required
-                           disabled={submitting || minBid == null}
-                        />
+                        <div className="bid-input-wrap">
+                          <input
+                            id="amount"
+                            name="amount"
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            value={rawAmount ? Number(rawAmount).toLocaleString("vi-VN") : ""}
+                            onChange={(e) => {
+                              const digits = e.target.value.replace(/\D/g, "");
+                              setRawAmount(digits);
+                            }}
+                            placeholder={minBid != null ? minBid.toLocaleString("vi-VN") : "0"}
+                            disabled={submitting || minBid == null}
+                            className="bid-input-currency"
+                          />
+                          <span className="bid-currency-symbol">₫</span>
+                        </div>
+
+                        {rawAmount && Number(rawAmount) > 0 ? (
+                          <div className="bid-amount-preview">
+                            <div className="bid-preview-row">
+                              <span className="bid-preview-label">Số tiền bạn nhập:</span>
+                              <b className="bid-preview-val">{money(Number(rawAmount))}</b>
+                            </div>
+                            <div className="bid-preview-words">
+                              Đọc bằng chữ: <em>{numberToVietnameseWords(Number(rawAmount))}</em>
+                            </div>
+                            {Number(rawAmount) < minBid && (
+                              <div className="bid-preview-warning">
+                                ⚠️ Giá đặt đang thấp hơn mức giá tối thiểu ({money(minBid)})
+                              </div>
+                            )}
+                          </div>
+                        ) : null}
                       </div>
                       <div className="bid-quick">
-                        {[0, 1, 2].map((step) => (
-                          <button
-                            type="button"
-                             key={step}
-                             disabled={submitting || minBid == null || increment == null}
-                            onClick={() => {
-                              const input = document.getElementById("amount");
-                               if (input) input.value = String(minBid + step * increment);
-                            }}
-                          >
-                             {minBid == null ? "—" : money(minBid + step * increment)}
-                          </button>
-                        ))}
+                        {[0, 1, 2, 5].map((step) => {
+                          const target = minBid != null && increment != null ? minBid + step * increment : null;
+                          return (
+                            <button
+                              type="button"
+                              key={step}
+                              disabled={submitting || minBid == null || increment == null}
+                              onClick={() => {
+                                if (target != null) setRawAmount(String(target));
+                              }}
+                            >
+                              {target == null ? "—" : step === 0 ? `Tối thiểu (${money(target)})` : `+${step} bước (${money(target)})`}
+                            </button>
+                          );
+                        })}
                       </div>
-                      <button className="btn dark" disabled={submitting || minBid == null}>{submitting ? "Đang gửi…" : "Đặt giá"}</button>
+                      <button className="btn dark" disabled={submitting || minBid == null}>
+                        {submitting ? "Đang gửi…" : "Đặt giá"}
+                      </button>
                     </form>
                   ) : (
                     <button className="btn" onClick={() => go(`/login?returnTo=${encodeURIComponent(`/product/${id}`)}`)}>

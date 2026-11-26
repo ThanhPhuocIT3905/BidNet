@@ -52,8 +52,20 @@
 .bid-success-meta {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:20px 0 0;padding:14px 0 0;border-top:1px solid var(--line)}
 .bid-success-meta dt {font-size:11px;color:var(--quiet);margin-bottom:4px}
 .bid-success-meta dd {margin:0;font-size:14px;font-weight:600}
-.bid-alert .bid-success-mark {background:var(--danger-bg);color:var(--danger)}
-.bid-alert .bid-success-amount {color:var(--danger);font-weight:600}
+.bid-alert .bid-success-mark {background:var(--danger-bg);color:var(--danger);border:2px solid var(--danger);font-size:32px;font-weight:800;box-shadow:0 0 0 6px var(--danger-bg)}
+.bid-alert .bid-success-amount {color:var(--danger);font-weight:600;font-size:16px;line-height:1.5;margin:12px 0 0}
+.bid-input-wrap {position:relative;display:flex;align-items:center}
+.bid-input-currency {width:100%;padding-right:36px !important;font-family:inherit;font-size:18px !important;font-weight:700;letter-spacing:0.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.bid-currency-symbol {position:absolute;right:14px;font-size:16px;font-weight:700;color:var(--quiet);pointer-events:none}
+.bid-amount-preview {margin-top:10px;padding:10px 14px;background:var(--soft);border:1px solid var(--line);border-radius:8px;font-size:13px}
+.bid-preview-row {display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.bid-preview-label {color:var(--quiet);font-size:12px}
+.bid-preview-val {font-size:16px;color:var(--green-dark);font-family:var(--display)}
+:root[data-theme="dark"] .bid-preview-val {color:var(--green)}
+.bid-preview-words {font-size:13px;color:var(--ink);line-height:1.4}
+.bid-preview-words em {font-style:normal;font-weight:600;color:var(--green-dark)}
+:root[data-theme="dark"] .bid-preview-words em {color:var(--green)}
+.bid-preview-warning {margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);color:var(--danger);font-size:12px;font-weight:600}
 .empty h2 {font-size:18px;color:var(--ink);margin:8px 0}
 .empty p {font-size:14px;max-width:540px;margin:10px auto 18px}
 .empty-symbol {font-size:28px;color:var(--green)}
